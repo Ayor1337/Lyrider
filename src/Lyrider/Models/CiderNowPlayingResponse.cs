@@ -30,10 +30,37 @@ public sealed class NowPlayingInfo
 
     [JsonPropertyName("artwork")]
     public ArtworkInfo? Artwork { get; init; }
+
+    [JsonPropertyName("playParams")]
+    public PlayParameters? PlayParameters { get; init; }
+
+    [JsonPropertyName("shuffleMode")]
+    public int ShuffleMode { get; init; }
+
+    [JsonPropertyName("repeatMode")]
+    public int RepeatMode { get; init; }
+
+    [JsonPropertyName("hasLyrics")]
+    public bool HasLyrics { get; init; }
+
+    [JsonPropertyName("hasTimeSyncedLyrics")]
+    public bool HasTimeSyncedLyrics { get; init; }
 }
 
 public sealed class ArtworkInfo
 {
     [JsonPropertyName("url")]
     public string? Url { get; init; }
+
+    [JsonPropertyName("bgColor")]
+    public string? BackgroundColor { get; init; }
+}
+
+public sealed class PlayParameters
+{
+    [JsonPropertyName("id")]
+    public string? Id { get; init; }
+
+    [JsonPropertyName("kind")]
+    public string? Kind { get; init; }
 }

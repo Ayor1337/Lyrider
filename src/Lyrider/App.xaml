@@ -7,6 +7,24 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="LyriderRootBrush" Color="#FF171817" />
+                    <SolidColorBrush x:Key="SubtleTextBrush" Color="#B3FFFFFF" />
+                    <SolidColorBrush x:Key="MutedTextBrush" Color="#70FFFFFF" />
+                    <SolidColorBrush x:Key="PanelFillBrush" Color="#1FFFFFFF" />
+                    <SolidColorBrush x:Key="PanelHoverBrush" Color="#2AFFFFFF" />
+                    <SolidColorBrush x:Key="LyriderSwitcherBrush" Color="#E61A1B1A" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="LyriderRootBrush" Color="#FFF2F2F2" />
+                    <SolidColorBrush x:Key="SubtleTextBrush" Color="#B3000000" />
+                    <SolidColorBrush x:Key="MutedTextBrush" Color="#70000000" />
+                    <SolidColorBrush x:Key="PanelFillBrush" Color="#10000000" />
+                    <SolidColorBrush x:Key="PanelHoverBrush" Color="#19000000" />
+                    <SolidColorBrush x:Key="LyriderSwitcherBrush" Color="#E6F6F6F6" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
