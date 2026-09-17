@@ -27,6 +27,7 @@ Lyrider 是一个使用 C#、WinUI 3、Windows App SDK 和 XAML 编写的 Window
 dotnet restore .\Lyrider.sln
 dotnet build .\Lyrider.sln -p:Platform=x64
 dotnet run --project .\src\Lyrider\Lyrider.csproj -p:Platform=x64
+dotnet test .\tests\Lyrider.Tests\Lyrider.Tests.csproj --no-restore
 ```
 
 也可以在 Visual Studio 中打开 `Lyrider.sln`，选择与系统匹配的平台后直接运行。
@@ -69,6 +70,7 @@ src/Lyrider/
 ├── Services/TokenStore.cs    DPAPI Token 持久化
 ├── App.xaml                  应用入口
 └── MainWindow.xaml           沉浸式播放器、歌词、队列和设置界面
+tests/Lyrider.Tests/          队列刷新与响应解析回归测试
 ```
 
 当前版本使用 HTTP 轮询，不包含 Socket.IO、系统托盘或任务栏集成。

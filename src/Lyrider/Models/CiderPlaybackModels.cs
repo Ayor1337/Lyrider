@@ -6,15 +6,29 @@ public sealed record QueueSnapshot(
     IReadOnlyList<QueueItemInfo> Items,
     int CurrentIndex);
 
-public sealed record QueueItemInfo(
-    int Index,
-    string? Id,
-    string Name,
-    string ArtistName,
-    string AlbumName,
-    double DurationInMillis,
-    string? ArtworkUrl)
+public sealed class QueueItemInfo(
+    int index,
+    string? id,
+    string name,
+    string artistName,
+    string albumName,
+    double durationInMillis,
+    string? artworkUrl)
 {
+    public int Index { get; set; } = index;
+
+    public string? Id { get; } = id;
+
+    public string Name { get; } = name;
+
+    public string ArtistName { get; } = artistName;
+
+    public string AlbumName { get; } = albumName;
+
+    public double DurationInMillis { get; } = durationInMillis;
+
+    public string? ArtworkUrl { get; } = artworkUrl;
+
     public string DurationText
     {
         get

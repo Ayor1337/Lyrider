@@ -247,15 +247,20 @@ public sealed partial class MainWindow : Window
 
     private void ApplyQueue(QueueSnapshot snapshot)
     {
-        _queueItems.Clear();
         var upcoming = snapshot.CurrentIndex >= 0
             ? snapshot.Items.Where(item => item.Index > snapshot.CurrentIndex)
             : snapshot.Items.Where(item => !string.Equals(item.Id, _currentTrackKey, StringComparison.Ordinal));
-
-        foreach (var item in upcoming)
-        {
-            _queueItems.Add(item with { ArtworkUrl = NormalizeArtworkUrl(item.ArtworkUrl, 160) });
-        }
+        var desiredItems = upcoming
+            .Select(item => new QueueItemInfo(
+                item.Index,
+                item.Id,
+                item.Name,
+                item.ArtistName,
+                item.AlbumName,
+                item.DurationInMillis,
+                NormalizeArtworkUrl(item.ArtworkUrl, 160)))
+            .ToArray();
+        QueueCollectionSynchronizer.Synchronize(_queueItems, desiredItems);
 
         QueueCountText.Text = $"{_queueItems.Count} 首";
         EmptyQueueText.Visibility = _queueItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;

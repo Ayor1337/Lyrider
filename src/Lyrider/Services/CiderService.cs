@@ -523,12 +523,47 @@ public sealed class CiderService : IDisposable
         return null;
     }
 
-    private static string? TryFindArtworkUrl(JsonElement element)
+    internal static string? TryFindArtworkUrl(JsonElement element)
     {
-        if (element.ValueKind == JsonValueKind.Object &&
-            TryGetProperty(element, "artwork", out var artwork))
+        if (element.ValueKind != JsonValueKind.Object)
         {
-            return TryFindString(artwork, "url", "artworkURL");
+            return null;
+        }
+
+        foreach (var property in element.EnumerateObject())
+        {
+            if (!string.Equals(property.Name, "artwork", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (property.Value.ValueKind == JsonValueKind.String)
+            {
+                return property.Value.GetString();
+            }
+
+            if (property.Value.ValueKind == JsonValueKind.Object)
+            {
+                var url = TryFindString(property.Value, "url", "artworkURL", "artworkUrl", "imageUrl");
+                if (!string.IsNullOrWhiteSpace(url))
+                {
+                    return url;
+                }
+            }
+        }
+
+        foreach (var property in element.EnumerateObject())
+        {
+            if (property.Value.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var nestedUrl = TryFindArtworkUrl(property.Value);
+            if (!string.IsNullOrWhiteSpace(nestedUrl))
+            {
+                return nestedUrl;
+            }
         }
 
         return TryFindString(element, "artworkURL", "artworkUrl", "imageUrl");
