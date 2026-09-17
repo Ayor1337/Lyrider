@@ -1,0 +1,146 @@
+<Window
+    x:Class="Lyrider.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Lyrider">
+
+    <Window.SystemBackdrop>
+        <MicaBackdrop Kind="BaseAlt" />
+    </Window.SystemBackdrop>
+
+    <Grid x:Name="RootGrid" MinWidth="640" MinHeight="420">
+        <Grid.Resources>
+            <SolidColorBrush x:Key="ConnectedBrush" Color="#FF45A154" />
+            <SolidColorBrush x:Key="DisconnectedBrush" Color="#FFC42B1C" />
+            <SolidColorBrush x:Key="WaitingBrush" Color="#FF8A8886" />
+        </Grid.Resources>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid x:Name="AppTitleBar" Padding="16,0">
+            <TextBlock
+                VerticalAlignment="Center"
+                FontSize="14"
+                FontWeight="SemiBold"
+                Text="Lyrider" />
+        </Grid>
+
+        <Grid Grid.Row="1" Padding="32,24,32,32" RowSpacing="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Ellipse
+                    x:Name="ConnectionIndicator"
+                    Width="8"
+                    Height="8"
+                    VerticalAlignment="Center"
+                    Fill="{StaticResource WaitingBrush}" />
+                <TextBlock
+                    x:Name="ConnectionStatusText"
+                    VerticalAlignment="Center"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="正在连接 Cider…" />
+            </StackPanel>
+
+            <Border
+                Grid.Row="1"
+                Padding="24"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="12">
+                <Grid ColumnSpacing="24">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="200" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border
+                        Width="200"
+                        Height="200"
+                        Background="{ThemeResource ControlFillColorDefaultBrush}"
+                        CornerRadius="8">
+                        <Image
+                            x:Name="ArtworkImage"
+                            Stretch="UniformToFill" />
+                    </Border>
+
+                    <Grid Grid.Column="1" VerticalAlignment="Center" RowSpacing="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="18" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock
+                            x:Name="SongNameText"
+                            FontSize="28"
+                            FontWeight="SemiBold"
+                            Text="未在播放"
+                            TextTrimming="CharacterEllipsis" />
+                        <TextBlock
+                            x:Name="ArtistNameText"
+                            Grid.Row="1"
+                            FontSize="17"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="—"
+                            TextTrimming="CharacterEllipsis" />
+                        <TextBlock
+                            x:Name="AlbumNameText"
+                            Grid.Row="2"
+                            Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                            Text="—"
+                            TextTrimming="CharacterEllipsis" />
+                        <ProgressBar
+                            x:Name="PlaybackProgressBar"
+                            Grid.Row="4"
+                            Height="4"
+                            IsHitTestVisible="False"
+                            Maximum="1"
+                            Value="0" />
+                        <Grid Grid.Row="5">
+                            <TextBlock
+                                x:Name="CurrentTimeText"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="0:00" />
+                            <TextBlock
+                                x:Name="TotalTimeText"
+                                HorizontalAlignment="Right"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="0:00" />
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="2" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <PasswordBox
+                    x:Name="TokenPasswordBox"
+                    Header="Cider App Token（可选）"
+                    PlaceholderText="加密保存在当前 Windows 用户下" />
+                <Button
+                    Grid.Column="1"
+                    MinWidth="88"
+                    Margin="0,24,0,0"
+                    Click="ApplyTokenButton_Click"
+                    Content="保存并应用" />
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>
