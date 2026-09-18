@@ -11,7 +11,12 @@
 - `Services/ArtworkBackdrop.cs`: composition-layer backdrop that blurs the artwork with a Win2D effect.
 - `Models/`: minimal DTOs matching the Cider Local API response.
 
-Build artifacts belong in `bin/` and `obj/`; both are ignored. There is no automated test project yet. Add future tests under `tests/Lyrider.Tests/` rather than beside production classes.
+Build artifacts belong in `bin/` and `obj/`; both are ignored. Tests live in `tests/Lyrider.Tests/` rather than beside production classes.
+
+**`tests/Lyrider.Tests` is deliberately not in `Lyrider.sln`.** It targets plain `net10.0` without `UseWPF`/`UseWindowsForms`, so it cannot `ProjectReference` the widget project; instead `Lyrider.Tests.csproj` source-links individual production files via `<Compile Include="..\..\src\...">`. Two consequences:
+
+- `dotnet build .\Lyrider.sln` never builds the tests, so a `dotnet test --no-build` run silently executes a stale assembly. Let `dotnet test` build, or build the test project explicitly.
+- A source-linked file may not reference `System.Windows`, `System.Windows.Forms`, `System.Drawing`, or any type in a file that is not itself linked (for example `NativeMethods`). Keep pure-logic helpers free of those, and add the file to the `<Compile Include>` list to make it testable.
 
 ## Build, Test, and Development Commands
 
@@ -21,7 +26,10 @@ Run commands from the repository root:
 dotnet restore .\Lyrider.sln -p:Platform=x64
 dotnet build .\Lyrider.sln -p:Platform=x64 --no-restore
 dotnet run --project .\src\Lyrider\Lyrider.csproj -p:Platform=x64
+dotnet test .\tests\Lyrider.Tests\Lyrider.Tests.csproj
 ```
+
+Point `dotnet test` at the test project directly — it is not in the solution, and do not pass `--no-build` unless you just built that project.
 
 Use `-c Release` for release verification. Close Lyrider before rebuilding Debug because the running executable locks the output file. Run `git diff --check` before handing off changes.
 
@@ -33,7 +41,7 @@ Prefer small, concrete services over framework-heavy abstractions. Keep network 
 
 ## Testing Guidelines
 
-For every change, build x64 with zero errors and exercise affected states: Cider unavailable, HTTP 401/403, valid now-playing data, and malformed responses where relevant. Never use a real Token in committed tests. When a test project is added, name test files `<TypeName>Tests.cs` and test methods `Method_Scenario_ExpectedResult`.
+For every change, build x64 with zero errors and exercise affected states: Cider unavailable, HTTP 401/403, valid now-playing data, and malformed responses where relevant. Never use a real Token in committed tests. Name test files `<TypeName>Tests.cs` and test methods `Method_Scenario_ExpectedResult`. Changes to window chrome, DWM attributes, or XAML styling cannot be verified by a green build — run the app and look at it.
 
 ## Security & Configuration
 
