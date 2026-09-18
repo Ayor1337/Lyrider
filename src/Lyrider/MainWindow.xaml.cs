@@ -8,6 +8,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
@@ -32,6 +33,7 @@ public sealed partial class MainWindow : Window
     private readonly TaskbarWidgetHost _taskbarWidgetHost = new();
     private readonly LyricsService _lyricsService = new();
     private readonly CiderService _ciderService;
+    private readonly ArtworkBackdrop _artworkBackdrop;
     private readonly AppWindow _appWindow;
     private readonly TrayIconHost _trayIconHost;
 
@@ -73,6 +75,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
+        _artworkBackdrop = new ArtworkBackdrop(BackgroundArtworkHost);
 
         var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(windowHandle);
@@ -176,9 +179,9 @@ public sealed partial class MainWindow : Window
         SettingsHeaderGrid.Width = settingsLayoutWidth;
         SettingsContentGrid.Width = settingsLayoutWidth;
 
-        foreach (var row in new[] { ThemeSettingsRow, BackgroundSettingsRow, LyricFontSettingsRow,
-            AutoScrollSettingsRow, DefaultPanelSettingsRow, VolumeSettingsRow, AlwaysOnTopSettingsRow,
-            TaskbarWidgetSettingsRow, MinimizeToTraySettingsRow })
+        foreach (var row in new[] { ThemeSettingsRow, BackgroundSettingsRow, BackgroundBlurSettingsRow,
+            LyricFontSettingsRow, AutoScrollSettingsRow, DefaultPanelSettingsRow, VolumeSettingsRow,
+            AlwaysOnTopSettingsRow, TaskbarWidgetSettingsRow, MinimizeToTraySettingsRow })
         {
             var stacked = RootGrid.ActualWidth < 720;
             row.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
@@ -329,6 +332,9 @@ public sealed partial class MainWindow : Window
         _isUpdatingVolume = true;
         VolumeSlider.Value = status.Volume;
         _isUpdatingVolume = false;
+        // The slider only raises ValueChanged when the value actually moves, so the label is
+        // synced here as well rather than relying on the event.
+        VolumePercentText.Text = FormatPercent(status.Volume * 100);
     }
 
     private void UpdateNowPlaying(NowPlayingInfo? track)
@@ -440,7 +446,7 @@ public sealed partial class MainWindow : Window
             : null;
         ArtworkImage.Source = source;
         CurrentQueueArtworkImage.Source = source;
-        BackgroundArtworkImage.Source = source;
+        _artworkBackdrop.SetArtwork(url);
     }
 
     private void ApplyQueue(QueueSnapshot snapshot)
@@ -1090,13 +1096,14 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async void VolumeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    private async void VolumeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
     {
         if (!_isInitialized || _isUpdatingVolume)
         {
             return;
         }
 
+        VolumePercentText.Text = FormatPercent(e.NewValue * 100);
         _volumeChangeCancellation?.Cancel();
         _volumeChangeCancellation?.Dispose();
         _volumeChangeCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
@@ -1174,7 +1181,8 @@ public sealed partial class MainWindow : Window
         _settings.MinimizeToTrayOnClose = MinimizeToTrayToggle.IsOn;
         _settings.ShowVolume = ShowVolumeToggle.IsOn;
         _settings.DefaultPanel = SelectedTag(DefaultPanelComboBox, "Queue");
-        _settings.BackgroundOpacity = BackgroundOpacitySlider.Value;
+        _settings.BackgroundOpacity = BackgroundOpacitySlider.Value / 100;
+        _settings.BackgroundBlur = BackgroundBlurSlider.Value;
 
         if (!_settingsStore.TrySave(_settings))
         {
@@ -1204,6 +1212,35 @@ public sealed partial class MainWindow : Window
         ConnectionStatusIcon.Foreground = (Brush)RootGrid.Resources["DisconnectedBrush"];
     }
 
+    /// <summary>
+    /// The three value labels below only mirror their slider's position; the settings themselves
+    /// are still applied by <see cref="SaveSettingsButton_Click"/>. They stay silent until the
+    /// window is built because XAML raises ValueChanged while parsing.
+    /// </summary>
+    private void LyricFontSizeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_isInitialized)
+        {
+            LyricFontSizeValueText.Text = FormatFontSize(e.NewValue);
+        }
+    }
+
+    private void BackgroundOpacitySlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_isInitialized)
+        {
+            BackgroundOpacityValueText.Text = FormatPercent(e.NewValue);
+        }
+    }
+
+    private void BackgroundBlurSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+    {
+        if (_isInitialized)
+        {
+            BackgroundBlurValueText.Text = FormatPercent(e.NewValue);
+        }
+    }
+
     private void LoadSettingsControls()
     {
         ApiBaseUrlTextBox.Text = _settings.ApiBaseUrl;
@@ -1216,7 +1253,13 @@ public sealed partial class MainWindow : Window
         TaskbarWidgetToggle.IsOn = _settings.TaskbarWidgetEnabled;
         MinimizeToTrayToggle.IsOn = _settings.MinimizeToTrayOnClose;
         ShowVolumeToggle.IsOn = _settings.ShowVolume;
-        BackgroundOpacitySlider.Value = _settings.BackgroundOpacity;
+        // The sliders work in whole percentages while the model keeps the 0–1 fraction, so
+        // settings files written by earlier versions keep their original look.
+        BackgroundOpacitySlider.Value = _settings.BackgroundOpacity * 100;
+        BackgroundBlurSlider.Value = _settings.BackgroundBlur;
+        LyricFontSizeValueText.Text = FormatFontSize(LyricFontSizeSlider.Value);
+        BackgroundOpacityValueText.Text = FormatPercent(BackgroundOpacitySlider.Value);
+        BackgroundBlurValueText.Text = FormatPercent(BackgroundBlurSlider.Value);
         SetSettingsStatus(null);
     }
 
@@ -1237,7 +1280,7 @@ public sealed partial class MainWindow : Window
         };
         ApplyTitleBarTheme();
         _trayIconHost.SetLightTheme(RootGrid.ActualTheme == ElementTheme.Light);
-        BackgroundArtworkImage.Opacity = Math.Clamp(_settings.BackgroundOpacity, 0, 0.3);
+        _artworkBackdrop.Apply(_settings.BackgroundOpacity, _settings.BackgroundBlur);
         VolumePanel.Visibility = _settings.ShowVolume ? Visibility.Visible : Visibility.Collapsed;
         UpdateResponsiveLayout();
         if (_appWindow.Presenter is OverlappedPresenter presenter)
@@ -1294,6 +1337,11 @@ public sealed partial class MainWindow : Window
             .Replace("{h}", size.ToString(), StringComparison.Ordinal)
             .Replace("{f}", "jpg", StringComparison.Ordinal);
 
+    private static string FormatPercent(double percentage) =>
+        $"{Math.Round(percentage, MidpointRounding.AwayFromZero)}%";
+
+    private static string FormatFontSize(double size) => $"{size:0} px";
+
     private static string FormatTime(double seconds)
     {
         var time = TimeSpan.FromSeconds(Math.Max(0, seconds));
@@ -1316,6 +1364,7 @@ public sealed partial class MainWindow : Window
         _lifetimeCancellation.Cancel();
         _taskbarWidgetHost.CommandRequested -= TaskbarWidgetHost_CommandRequested;
         _taskbarWidgetHost.Dispose();
+        _artworkBackdrop.Dispose();
         _trayIconHost.Dispose();
         _lifetimeCancellation.Dispose();
         _lyricsService.Dispose();

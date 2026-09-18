@@ -8,6 +8,7 @@
 - `MainWindow.xaml` and `MainWindow.xaml.cs`: the current now-playing UI and one-second refresh loop.
 - `Services/CiderService.cs`: HTTP access, authentication headers, JSON parsing, and connection errors.
 - `Services/TokenStore.cs`: DPAPI-protected token persistence for the current Windows user.
+- `Services/ArtworkBackdrop.cs`: composition-layer backdrop that blurs the artwork with a Win2D effect.
 - `Models/`: minimal DTOs matching the Cider Local API response.
 
 Build artifacts belong in `bin/` and `obj/`; both are ignored. There is no automated test project yet. Add future tests under `tests/Lyrider.Tests/` rather than beside production classes.

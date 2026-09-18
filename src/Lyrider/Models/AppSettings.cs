@@ -22,5 +22,9 @@ public sealed class AppSettings
 
     public string DefaultPanel { get; set; } = "Queue";
 
+    /// <summary>Backdrop artwork opacity, as a 0–1 fraction.</summary>
     public double BackgroundOpacity { get; set; } = 0.14;
+
+    /// <summary>Backdrop artwork blur radius, as a 0–100 percentage.</summary>
+    public double BackgroundBlur { get; set; } = 40;
 }

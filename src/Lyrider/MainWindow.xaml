@@ -101,10 +101,7 @@
         </Grid.RowDefinitions>
 
         <Grid x:Name="PlayerBackdropLayer" Grid.RowSpan="2">
-            <Image
-                x:Name="BackgroundArtworkImage"
-                Opacity="0.14"
-                Stretch="UniformToFill" />
+            <Grid x:Name="BackgroundArtworkHost" />
             <Rectangle
                 Fill="{ThemeResource LyriderRootBrush}"
                 Opacity="0.84" />
@@ -310,6 +307,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <FontIcon
                         VerticalAlignment="Center"
@@ -323,6 +321,15 @@
                         StepFrequency="0.01"
                         Value="1"
                         ValueChanged="VolumeSlider_ValueChanged" />
+                    <TextBlock
+                        x:Name="VolumePercentText"
+                        Grid.Column="2"
+                        Width="48"
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        Foreground="{StaticResource SubtleTextBrush}"
+                        Text="100%"
+                        TextAlignment="Right" />
                 </Grid>
             </Grid>
 
@@ -620,13 +627,79 @@
                                         Style="{StaticResource SettingsControlHostStyle}"
                                         Width="260"
                                         HorizontalAlignment="Right"
-                                        VerticalAlignment="Center">
+                                        VerticalAlignment="Center"
+                                        ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
                                         <Slider
                                             x:Name="BackgroundOpacitySlider"
                                             VerticalAlignment="Center"
-                                            Maximum="0.3"
+                                            Maximum="100"
                                             Minimum="0"
-                                            StepFrequency="0.01" />
+                                            StepFrequency="1"
+                                            ValueChanged="BackgroundOpacitySlider_ValueChanged" />
+                                        <TextBlock
+                                            x:Name="BackgroundOpacityValueText"
+                                            Grid.Column="1"
+                                            Width="48"
+                                            VerticalAlignment="Center"
+                                            FontSize="13"
+                                            Foreground="{StaticResource MutedTextBrush}"
+                                            TextAlignment="Right" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="BackgroundBlurSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE71C;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock FontWeight="SemiBold" Text="背景封面模糊" />
+                                            <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="调节背景封面的高斯模糊半径，0% 保持原图清晰" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid
+                                        Grid.Column="1"
+                                        Style="{StaticResource SettingsControlHostStyle}"
+                                        Width="260"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Slider
+                                            x:Name="BackgroundBlurSlider"
+                                            VerticalAlignment="Center"
+                                            Maximum="100"
+                                            Minimum="0"
+                                            StepFrequency="1"
+                                            ValueChanged="BackgroundBlurSlider_ValueChanged" />
+                                        <TextBlock
+                                            x:Name="BackgroundBlurValueText"
+                                            Grid.Column="1"
+                                            Width="48"
+                                            VerticalAlignment="Center"
+                                            FontSize="13"
+                                            Foreground="{StaticResource MutedTextBrush}"
+                                            TextAlignment="Right" />
                                     </Grid>
                                 </Grid>
                             </Border>
@@ -664,13 +737,27 @@
                                         Style="{StaticResource SettingsControlHostStyle}"
                                         Width="260"
                                         HorizontalAlignment="Right"
-                                        VerticalAlignment="Center">
+                                        VerticalAlignment="Center"
+                                        ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
                                         <Slider
                                             x:Name="LyricFontSizeSlider"
                                             VerticalAlignment="Center"
-                                            Maximum="62"
-                                            Minimum="28"
-                                            StepFrequency="2" />
+                                            Maximum="96"
+                                            Minimum="20"
+                                            StepFrequency="2"
+                                            ValueChanged="LyricFontSizeSlider_ValueChanged" />
+                                        <TextBlock
+                                            x:Name="LyricFontSizeValueText"
+                                            Grid.Column="1"
+                                            Width="48"
+                                            VerticalAlignment="Center"
+                                            FontSize="13"
+                                            Foreground="{StaticResource MutedTextBrush}"
+                                            TextAlignment="Right" />
                                     </Grid>
                                 </Grid>
                             </Border>
