@@ -491,6 +491,9 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
+            <Grid.RenderTransform>
+                <TranslateTransform x:Name="SettingsPageTranslateTransform" />
+            </Grid.RenderTransform>
             <Grid
                 x:Name="SettingsHeaderGrid"
                 Width="1020"

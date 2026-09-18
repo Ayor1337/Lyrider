@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Foundation;
 using Windows.Graphics;
@@ -43,6 +44,7 @@ public sealed partial class MainWindow : Window
     private bool _isInitialized;
     private bool _isRunningTaskbarCommand;
     private bool _isExitRequested;
+    private bool _isSettingsTransitioning;
     private int _currentLyricIndex = -1;
     private int _refreshCount;
     private DateTimeOffset _lastManualLyricsScroll = DateTimeOffset.MinValue;
@@ -537,22 +539,39 @@ public sealed partial class MainWindow : Window
 
     private void LyricsViewButton_Click(object sender, RoutedEventArgs e) => ShowPanel("Lyrics");
 
-    private void MenuQueueItem_Click(object sender, RoutedEventArgs e)
+    private async void MenuQueueItem_Click(object sender, RoutedEventArgs e)
     {
-        ShowPlayerPanel("Queue");
+        await ShowPlayerPanelAsync("Queue");
     }
 
-    private void MenuLyricsItem_Click(object sender, RoutedEventArgs e)
+    private async void MenuLyricsItem_Click(object sender, RoutedEventArgs e)
     {
-        ShowPlayerPanel("Lyrics");
+        await ShowPlayerPanelAsync("Lyrics");
     }
 
-    private void MenuSettingsItem_Click(object sender, RoutedEventArgs e)
+    private async void MenuSettingsItem_Click(object sender, RoutedEventArgs e)
     {
+        if (_isSettingsTransitioning || SettingsPageGrid.Visibility == Visibility.Visible)
+        {
+            return;
+        }
+
+        _isSettingsTransitioning = true;
         LoadSettingsControls();
         PlayerBackdropLayer.Visibility = Visibility.Collapsed;
         PlayerPageGrid.Visibility = Visibility.Collapsed;
         SettingsPageGrid.Visibility = Visibility.Visible;
+        SettingsPageGrid.IsHitTestVisible = false;
+
+        try
+        {
+            await AnimateSettingsPageAsync(0, 1, 16, 0, 220);
+        }
+        finally
+        {
+            SettingsPageGrid.IsHitTestVisible = true;
+            _isSettingsTransitioning = false;
+        }
     }
 
     private void ExitMenuItem_Click(object sender, RoutedEventArgs e)
@@ -594,12 +613,85 @@ public sealed partial class MainWindow : Window
         });
     }
 
-    private void ShowPlayerPanel(string panel)
+    private async Task ShowPlayerPanelAsync(string? panel)
     {
-        SettingsPageGrid.Visibility = Visibility.Collapsed;
+        if (_isSettingsTransitioning)
+        {
+            return;
+        }
+
+        if (SettingsPageGrid.Visibility == Visibility.Visible)
+        {
+            _isSettingsTransitioning = true;
+            SettingsPageGrid.IsHitTestVisible = false;
+
+            try
+            {
+                await AnimateSettingsPageAsync(1, 0, 0, 10, 160);
+            }
+            finally
+            {
+                SettingsPageGrid.Visibility = Visibility.Collapsed;
+                SettingsPageGrid.Opacity = 1;
+                SettingsPageTranslateTransform.Y = 0;
+                SettingsPageGrid.IsHitTestVisible = true;
+                _isSettingsTransitioning = false;
+            }
+        }
+
         PlayerBackdropLayer.Visibility = Visibility.Visible;
         PlayerPageGrid.Visibility = Visibility.Visible;
-        ShowPanel(panel);
+        if (panel is not null)
+        {
+            ShowPanel(panel);
+        }
+    }
+
+    private async Task AnimateSettingsPageAsync(
+        double fromOpacity,
+        double toOpacity,
+        double fromOffset,
+        double toOffset,
+        int durationMilliseconds)
+    {
+        SettingsPageGrid.Opacity = fromOpacity;
+        SettingsPageTranslateTransform.Y = fromOffset;
+
+        var duration = new Duration(TimeSpan.FromMilliseconds(durationMilliseconds));
+        var opacityAnimation = new DoubleAnimation
+        {
+            From = fromOpacity,
+            To = toOpacity,
+            Duration = duration,
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            EnableDependentAnimation = true
+        };
+        Storyboard.SetTarget(opacityAnimation, SettingsPageGrid);
+        Storyboard.SetTargetProperty(opacityAnimation, nameof(UIElement.Opacity));
+
+        var offsetAnimation = new DoubleAnimation
+        {
+            From = fromOffset,
+            To = toOffset,
+            Duration = duration,
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            EnableDependentAnimation = true
+        };
+        Storyboard.SetTarget(offsetAnimation, SettingsPageTranslateTransform);
+        Storyboard.SetTargetProperty(offsetAnimation, nameof(TranslateTransform.Y));
+
+        var storyboard = new Storyboard();
+        storyboard.Children.Add(opacityAnimation);
+        storyboard.Children.Add(offsetAnimation);
+
+        var completion = new TaskCompletionSource<bool>();
+        storyboard.Completed += (_, _) => completion.TrySetResult(true);
+        storyboard.Begin();
+        await completion.Task;
+        storyboard.Stop();
+
+        SettingsPageGrid.Opacity = toOpacity;
+        SettingsPageTranslateTransform.Y = toOffset;
     }
 
     private void ShowPanel(string panel)
@@ -728,11 +820,9 @@ public sealed partial class MainWindow : Window
             _lifetimeCancellation.Token));
     }
 
-    private void BackToPlayerButton_Click(object sender, RoutedEventArgs e)
+    private async void BackToPlayerButton_Click(object sender, RoutedEventArgs e)
     {
-        SettingsPageGrid.Visibility = Visibility.Collapsed;
-        PlayerBackdropLayer.Visibility = Visibility.Visible;
-        PlayerPageGrid.Visibility = Visibility.Visible;
+        await ShowPlayerPanelAsync(null);
     }
 
     private async void TestConnectionButton_Click(object sender, RoutedEventArgs e)

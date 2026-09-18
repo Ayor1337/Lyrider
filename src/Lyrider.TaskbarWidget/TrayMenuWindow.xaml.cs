@@ -22,12 +22,13 @@ public partial class TrayMenuWindow : Window
 
     internal void ApplyTheme(bool isLightTheme)
     {
-        SetBrush("TrayMenuBackgroundBrush", isLightTheme ? "#F9F9F9" : "#2C2C2C");
-        SetBrush("TrayMenuBorderBrush", isLightTheme ? "#D2D2D2" : "#4B4B4B");
+        SetBrush("TrayMenuBackgroundBrush", isLightTheme ? "#FCFCFC" : "#F52B2B2B");
+        SetBrush("TrayMenuBorderBrush", isLightTheme ? "#24000000" : "#33FFFFFF");
         SetBrush("TrayMenuForegroundBrush", isLightTheme ? "#1A1A1A" : "#FFFFFF");
-        SetBrush("TrayMenuHoverBrush", isLightTheme ? "#E8E8E8" : "#3E3E3E");
-        SetBrush("TrayMenuPressedBrush", isLightTheme ? "#DEDEDE" : "#494949");
-        SetBrush("TrayMenuSeparatorBrush", isLightTheme ? "#DADADA" : "#484848");
+        SetBrush("TrayMenuHoverBrush", isLightTheme ? "#0F000000" : "#12FFFFFF");
+        SetBrush("TrayMenuPressedBrush", isLightTheme ? "#18000000" : "#1FFFFFFF");
+        SetBrush("TrayMenuSeparatorBrush", isLightTheme ? "#17000000" : "#18FFFFFF");
+        SetBrush("TrayMenuFocusBrush", isLightTheme ? "#990078D4" : "#99A7C7FF");
     }
 
     internal void ShowAt(DrawingPoint cursorPosition)
