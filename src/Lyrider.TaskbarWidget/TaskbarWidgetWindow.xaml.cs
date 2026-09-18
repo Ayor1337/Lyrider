@@ -20,6 +20,8 @@ public partial class TaskbarWidgetWindow : Window
     private const double LyricTransitionOffset = 12;
     private static readonly TimeSpan LyricTransitionDuration = TimeSpan.FromMilliseconds(220);
     private const string TaskbarClassName = "Shell_TrayWnd";
+    private const string TaskbarAlignmentRegistryPath =
+        @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced";
     private const int WmGetObject = 0x003D;
     private const int WmShowWindow = 0x0018;
     private const int WmWindowPosChanging = 0x0046;
@@ -28,7 +30,7 @@ public partial class TaskbarWidgetWindow : Window
     private const int WmImeNotify = 0x0282;
 
     private TaskbarPlaybackState _state = TaskbarPlaybackState.Unavailable;
-    private Task<(PixelRect? Frame, PixelRect? Widgets)>? _automationQuery;
+    private Task<(PixelRect? Frame, PixelRect? Widgets, PixelRect? SystemTray)>? _automationQuery;
     private string? _artworkUrl;
     private nint _taskbarHandle;
     private bool _isAttached;
@@ -128,6 +130,10 @@ public partial class TaskbarWidgetWindow : Window
             var widgets = IsInsideFrame(automationBounds.Widgets, frame)
                 ? automationBounds.Widgets
                 : null;
+            var systemTrayBounds = GetSystemTrayBounds(taskbarHandle) ?? automationBounds.SystemTray;
+            var systemTray = IsInsideFrame(systemTrayBounds, taskbarRect)
+                ? systemTrayBounds
+                : null;
             var dpi = Math.Max(96u, NativeMethods.GetDpiForWindow(taskbarHandle));
             var scale = dpi / 96d;
             var physicalWidth = Math.Max(1, (int)Math.Round(LogicalWidth * scale));
@@ -136,10 +142,17 @@ public partial class TaskbarWidgetWindow : Window
             var placement = TaskbarPlacement.Calculate(
                 frame,
                 widgets,
+                systemTray,
+                GetTaskbarAlignment(),
                 physicalWidth,
                 physicalHeight,
                 Math.Max(1, (int)Math.Round(2 * scale)),
                 Math.Max(1, (int)Math.Round(12 * scale)));
+            if (placement is not PixelPoint safePlacement)
+            {
+                DetachAndHide();
+                return;
+            }
             var handle = Handle;
             var taskbarWidth = taskbarRect.Width;
             var taskbarHeight = taskbarRect.Height;
@@ -153,7 +166,7 @@ public partial class TaskbarWidgetWindow : Window
                     return;
                 }
             }
-            var clientPoint = new NativePoint { X = placement.X, Y = placement.Y };
+            var clientPoint = new NativePoint { X = safePlacement.X, Y = safePlacement.Y };
             if (!NativeMethods.ScreenToClient(taskbarHandle, ref clientPoint))
             {
                 DetachAndHide();
@@ -184,7 +197,7 @@ public partial class TaskbarWidgetWindow : Window
             var hitRegion = TaskbarPlacement.CalculateHitRegion(
                 taskbarRect,
                 widgets,
-                placement,
+                safePlacement,
                 physicalWidth,
                 physicalHeight,
                 0,
@@ -251,7 +264,8 @@ public partial class TaskbarWidgetWindow : Window
         return nint.Zero;
     }
 
-    private async Task<(PixelRect? Frame, PixelRect? Widgets)> GetAutomationBoundsAsync(nint taskbarHandle)
+    private async Task<(PixelRect? Frame, PixelRect? Widgets, PixelRect? SystemTray)> GetAutomationBoundsAsync(
+        nint taskbarHandle)
     {
         if (_automationQuery is null || _automationQuery.IsCompleted)
         {
@@ -264,21 +278,23 @@ public partial class TaskbarWidgetWindow : Window
         }
         catch (TimeoutException)
         {
-            return (null, null);
+            return (null, null, null);
         }
         catch (Exception)
         {
             _automationQuery = null;
-            return (null, null);
+            return (null, null, null);
         }
     }
 
-    private static (PixelRect? Frame, PixelRect? Widgets) QueryAutomationBounds(nint taskbarHandle)
+    private static (PixelRect? Frame, PixelRect? Widgets, PixelRect? SystemTray) QueryAutomationBounds(
+        nint taskbarHandle)
     {
         var root = AutomationElement.FromHandle(taskbarHandle);
         return (
             FindAutomationRect(root, "TaskbarFrame"),
-            FindAutomationRect(root, "WidgetsButton"));
+            FindAutomationRect(root, "WidgetsButton"),
+            FindAutomationRect(root, "SystemTrayFrame"));
     }
 
     private static PixelRect? FindAutomationRect(AutomationElement root, string automationId)
@@ -312,6 +328,33 @@ public partial class TaskbarWidgetWindow : Window
         rectangle.Top >= frame.Top &&
         rectangle.Right <= frame.Right &&
         rectangle.Bottom <= frame.Bottom;
+
+    private static PixelRect? GetSystemTrayBounds(nint taskbarHandle)
+    {
+        var systemTrayHandle = NativeMethods.FindWindowEx(
+            taskbarHandle,
+            nint.Zero,
+            "TrayNotifyWnd",
+            null);
+        return systemTrayHandle != nint.Zero &&
+            NativeMethods.GetWindowRect(systemTrayHandle, out var systemTrayRect)
+            ? systemTrayRect.ToPixelRect()
+            : null;
+    }
+
+    private static TaskbarAlignment GetTaskbarAlignment()
+    {
+        try
+        {
+            return Registry.GetValue(TaskbarAlignmentRegistryPath, "TaskbarAl", 1) is 0
+                ? TaskbarAlignment.Left
+                : TaskbarAlignment.Center;
+        }
+        catch (Exception)
+        {
+            return TaskbarAlignment.Center;
+        }
+    }
 
     private static void ApplyChildWindowStyles(nint handle)
     {

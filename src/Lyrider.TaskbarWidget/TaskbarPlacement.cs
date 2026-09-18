@@ -2,6 +2,12 @@ namespace Lyrider.TaskbarWidget;
 
 public readonly record struct PixelPoint(int X, int Y);
 
+public enum TaskbarAlignment
+{
+    Center,
+    Left
+}
+
 public readonly record struct PixelRect(int Left, int Top, int Right, int Bottom)
 {
     public int Width => Right - Left;
@@ -15,15 +21,34 @@ public readonly record struct PixelRect(int Left, int Top, int Right, int Bottom
 
 public static class TaskbarPlacement
 {
-    public static PixelPoint Calculate(
+    public static PixelPoint? Calculate(
         PixelRect taskbarFrame,
         PixelRect? widgetsButton,
+        PixelRect? systemTray,
+        TaskbarAlignment alignment,
         int widgetWidth,
         int widgetHeight,
         int gap,
         int fallbackInset)
     {
         var y = taskbarFrame.Top + Math.Max(0, (taskbarFrame.Height - widgetHeight) / 2);
+        if (alignment == TaskbarAlignment.Left)
+        {
+            int? rightEdge = null;
+            if (widgetsButton is { IsEmpty: false } rightButton &&
+                rightButton.CenterX >= taskbarFrame.CenterX)
+            {
+                rightEdge = rightButton.Left - gap;
+            }
+            if (systemTray is { IsEmpty: false } tray && tray.CenterX >= taskbarFrame.CenterX)
+            {
+                rightEdge = Math.Min(rightEdge ?? int.MaxValue, tray.Left - gap);
+            }
+            return rightEdge is int safeRightEdge
+                ? new PixelPoint(safeRightEdge - widgetWidth, y)
+                : null;
+        }
+
         if (widgetsButton is not { IsEmpty: false } button)
         {
             return new PixelPoint(taskbarFrame.Left + fallbackInset, y);

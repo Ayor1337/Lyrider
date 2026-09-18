@@ -27,6 +27,13 @@ internal static class NativeMethods
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     internal static extern nint FindWindow(string? className, string? windowName);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    internal static extern nint FindWindowEx(
+        nint parentWindow,
+        nint childAfter,
+        string? className,
+        string? windowName);
+
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetWindowRect(nint windowHandle, out NativeRect rectangle);

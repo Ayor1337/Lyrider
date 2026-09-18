@@ -41,6 +41,8 @@ public sealed class TaskbarWidgetTests
         var result = TaskbarPlacement.Calculate(
             new PixelRect(0, 1040, 1920, 1080),
             new PixelRect(8, 1040, 208, 1080),
+            new PixelRect(1600, 1040, 1920, 1080),
+            TaskbarAlignment.Center,
             216,
             40,
             2,
@@ -55,6 +57,8 @@ public sealed class TaskbarWidgetTests
         var result = TaskbarPlacement.Calculate(
             new PixelRect(0, 1040, 1920, 1080),
             new PixelRect(1712, 1040, 1912, 1080),
+            new PixelRect(1720, 1040, 1920, 1080),
+            TaskbarAlignment.Left,
             216,
             40,
             2,
@@ -69,12 +73,46 @@ public sealed class TaskbarWidgetTests
         var result = TaskbarPlacement.Calculate(
             new PixelRect(0, 1000, 2560, 1060),
             null,
+            null,
+            TaskbarAlignment.Center,
             324,
             54,
             3,
             18);
 
         Assert.AreEqual(new PixelPoint(18, 1003), result);
+    }
+
+    [TestMethod]
+    public void Calculate_LeftAlignedWithoutRightWidgets_PlacesPlayerBeforeSystemTray()
+    {
+        var result = TaskbarPlacement.Calculate(
+            new PixelRect(0, 1040, 1920, 1080),
+            new PixelRect(8, 1040, 208, 1080),
+            new PixelRect(1600, 1040, 1920, 1080),
+            TaskbarAlignment.Left,
+            216,
+            40,
+            2,
+            12);
+
+        Assert.AreEqual(new PixelPoint(1382, 1040), result);
+    }
+
+    [TestMethod]
+    public void Calculate_LeftAlignedWithoutRightAnchor_DoesNotUseUnsafeTaskbarEdge()
+    {
+        var result = TaskbarPlacement.Calculate(
+            new PixelRect(0, 1040, 1920, 1080),
+            new PixelRect(8, 1040, 208, 1080),
+            null,
+            TaskbarAlignment.Left,
+            216,
+            40,
+            2,
+            12);
+
+        Assert.IsNull(result);
     }
 
     [TestMethod]
