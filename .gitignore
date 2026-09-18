@@ -1,8 +1,15 @@
+# 构建输出
 bin/
 obj/
+BundleArtifacts/
+AppPackages/
+TestResults/
+*.binlog
+
+# IDE 与用户设置
 .vs/
 *.user
 *.suo
-AppPackages/
-BundleArtifacts/
+
+# 本地脚本
 /run-local.ps1
