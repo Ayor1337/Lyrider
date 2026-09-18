@@ -16,6 +16,13 @@ internal static class NativeMethods
     internal const uint SwpShowWindow = 0x0040;
     internal const int SwHide = 0;
     internal const int SwShowNoActivate = 4;
+    internal const int DwmwaUseImmersiveDarkMode = 20;
+    internal const int DwmwaWindowCornerPreference = 33;
+    internal const int DwmwaSystemBackdropType = 38;
+    internal const int DwmcpRound = 2;
+    internal const int DwmsbtTransientWindow = 3;
+    internal const uint MonitorDefaultToNearest = 2;
+    internal const int MdtEffectiveDpi = 0;
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     internal static extern nint FindWindow(string? className, string? windowName);
@@ -55,6 +62,18 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool ShowWindow(nint windowHandle, int command);
+
+    [DllImport("user32.dll")]
+    internal static extern nint MonitorFromPoint(NativePoint point, uint flags);
+
+    [DllImport("shcore.dll")]
+    internal static extern int GetDpiForMonitor(nint monitorHandle, int dpiType, out uint dpiX, out uint dpiY);
+
+    [DllImport("dwmapi.dll")]
+    internal static extern int DwmSetWindowAttribute(nint windowHandle, int attribute, ref int value, int valueSize);
+
+    [DllImport("dwmapi.dll")]
+    internal static extern int DwmExtendFrameIntoClientArea(nint windowHandle, ref NativeMargins margins);
 
     [DllImport("gdi32.dll")]
     internal static extern nint CreateRectRgn(int left, int top, int right, int bottom);
@@ -110,4 +129,13 @@ internal struct NativePoint
 {
     internal int X;
     internal int Y;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct NativeMargins
+{
+    internal int Left;
+    internal int Right;
+    internal int Top;
+    internal int Bottom;
 }

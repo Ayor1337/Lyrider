@@ -24,5 +24,6 @@
     <Compile Include="..\..\src\Lyrider.TaskbarWidget\TaskbarContracts.cs" Link="Production\TaskbarContracts.cs" />
     <Compile Include="..\..\src\Lyrider.TaskbarWidget\TaskbarPlacement.cs" Link="Production\TaskbarPlacement.cs" />
     <Compile Include="..\..\src\Lyrider.TaskbarWidget\TaskbarPresentation.cs" Link="Production\TaskbarPresentation.cs" />
+    <Compile Include="..\..\src\Lyrider.TaskbarWidget\TrayMenuPlacement.cs" Link="Production\TrayMenuPlacement.cs" />
   </ItemGroup>
 </Project>
