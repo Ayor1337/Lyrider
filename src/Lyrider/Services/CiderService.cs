@@ -196,11 +196,7 @@ public sealed class CiderService : IDisposable
 
         try
         {
-            using var document = await GetJsonAsync(
-                $"api/v1/lyrics/{Uri.EscapeDataString(trackId)}",
-                appToken,
-                cancellationToken);
-
+            using var document = await GetLyricsDocumentAsync(trackId, appToken, cancellationToken);
             if (document is null || !TryFindArray(document.RootElement, out var array, "lyrics", "lines", "data"))
             {
                 return [];
@@ -245,6 +241,30 @@ public sealed class CiderService : IDisposable
         {
             return [];
         }
+    }
+
+    private async Task<JsonDocument?> GetLyricsDocumentAsync(
+        string trackId,
+        string? appToken,
+        CancellationToken cancellationToken)
+    {
+        // Cider 4 serves lyrics from the scoped /api/v2 surface, where the app token is
+        // checked against the "lyrics" scope. The /api/v1 lyrics route belongs to the
+        // client's own session and always rejects the app token with 401, so it only
+        // stays as a fallback for older Cider versions that lack /api/v2.
+        foreach (var path in new[] { "api/v2/lyrics/", "api/v1/lyrics/" })
+        {
+            var document = await GetJsonAsync(
+                $"{path}{Uri.EscapeDataString(trackId)}",
+                appToken,
+                cancellationToken);
+            if (document is not null)
+            {
+                return document;
+            }
+        }
+
+        return null;
     }
 
     public Task<bool> TogglePlayPauseAsync(string? appToken, CancellationToken cancellationToken = default) =>
