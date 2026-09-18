@@ -3,8 +3,10 @@ using Lyrider.Models;
 using Lyrider.Services;
 using Lyrider.TaskbarWidget;
 using Microsoft.UI;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -25,7 +27,8 @@ public sealed partial class MainWindow : Window
     };
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly ObservableCollection<QueueItemInfo> _queueItems = [];
-    private readonly List<TextBlock> _lyricTextBlocks = [];
+    private readonly List<LyricLineVisual> _lyricLines = [];
+    private readonly SolidColorBrush _transparentLyricBackground = new(Colors.Transparent);
     private readonly TaskbarWidgetHost _taskbarWidgetHost = new();
     private readonly LyricsService _lyricsService = new();
     private readonly CiderService _ciderService;
@@ -40,7 +43,6 @@ public sealed partial class MainWindow : Window
     private string? _currentTrackKey;
     private bool _isRefreshing;
     private bool _isUpdatingVolume;
-    private bool _isAutoScrollingLyrics;
     private bool _lyricsAreTimeSynced;
     private bool _isInitialized;
     private bool _isRunningTaskbarCommand;
@@ -48,7 +50,20 @@ public sealed partial class MainWindow : Window
     private bool _isSettingsTransitioning;
     private int _currentLyricIndex = -1;
     private int _refreshCount;
+    private int _renderedLyricsSignature;
+    private double _lastPlaybackTime;
+    private int _optimisticSeekIndex = -1;
+    private int _hoveredLyricIndex = -1;
+    private double _optimisticSeekTarget;
+    private double? _pendingAutoScrollOffset;
     private DateTimeOffset _lastManualLyricsScroll = DateTimeOffset.MinValue;
+    private DateTimeOffset _autoScrollDeadline;
+    private DateTimeOffset _optimisticSeekDeadline;
+
+    private const int LyricAnimationMilliseconds = 180;
+    private const int AutoScrollSettleMilliseconds = 700;
+    private const double OptimisticSeekSeconds = 2.5;
+    private const double OptimisticSeekToleranceSeconds = 1.5;
 
     public MainWindow()
     {
@@ -150,7 +165,12 @@ public sealed partial class MainWindow : Window
         CurrentQueueSection.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         UpcomingQueueHeading.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         QueuePanel.Padding = new Thickness(0, 0, 0, 56);
-        LyricsPanel.Padding = new Thickness(0, 0, 0, 56);
+        LyricsPanel.Padding = new Thickness(14, 0, 0, 56);
+        UpdateLyricGutters();
+        if (LyricsPanel.Visibility == Visibility.Visible && _currentLyricIndex >= 0)
+        {
+            ScrollToCurrentLyric(animate: false);
+        }
         SettingsPageGrid.Padding = new Thickness(0, compact ? 16 : 24, 0, 32);
         var settingsLayoutWidth = Math.Max(0, Math.Min(1020, RootGrid.ActualWidth - padding * 2));
         SettingsHeaderGrid.Width = settingsLayoutWidth;
@@ -277,8 +297,8 @@ public sealed partial class MainWindow : Window
             _lifetimeCancellation.Token);
         _lyrics = lyrics.Lines;
         _lyricsAreTimeSynced = lyrics.IsTimeSynced;
-        RenderLyrics();
-        UpdateCurrentLyric(track.CurrentPlaybackTime, forceScroll: true);
+        var rebuilt = RenderLyrics();
+        UpdateCurrentLyric(track.CurrentPlaybackTime, forceScroll: rebuilt);
     }
 
     private async Task RefreshQueueAsync(NowPlayingInfo track)
@@ -327,12 +347,14 @@ public sealed partial class MainWindow : Window
             SetArtwork(null);
             ApplyQueue(new QueueSnapshot([], -1));
             _lyrics = [];
+            _lastPlaybackTime = 0;
             RenderLyrics();
             return;
         }
 
         var durationSeconds = Math.Max(0, track.DurationInMillis / 1000);
         var currentSeconds = Math.Clamp(track.CurrentPlaybackTime, 0, durationSeconds);
+        _lastPlaybackTime = currentSeconds;
         var songName = ValueOrFallback(track.Name);
         var artistName = ValueOrFallback(track.ArtistName);
         var albumName = ValueOrFallback(track.AlbumName);
@@ -353,6 +375,7 @@ public sealed partial class MainWindow : Window
     private void RootGrid_ActualThemeChanged(FrameworkElement sender, object args)
     {
         ApplyTitleBarTheme();
+        ApplyLyricTheme();
         _trayIconHost.SetLightTheme(RootGrid.ActualTheme == ElementTheme.Light);
     }
 
@@ -442,118 +465,367 @@ public sealed partial class MainWindow : Window
         QueueListView.Visibility = _queueItems.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private void RenderLyrics()
+    /// <summary>
+    /// Rebuilds the lyric list. Returns false when the content is unchanged, so callers
+    /// can skip the follow-up scroll; a needless rebuild would also discard the highlight
+    /// and restart any in-flight line animation.
+    /// </summary>
+    private bool RenderLyrics()
     {
+        var signature = LyricPresentation.ComputeLyricsSignature(
+            _lyrics,
+            _settings.LyricFontSize,
+            _lyricsAreTimeSynced);
+        if (signature == _renderedLyricsSignature)
+        {
+            return false;
+        }
+
+        _renderedLyricsSignature = signature;
+        _optimisticSeekIndex = -1;
+        _hoveredLyricIndex = -1;
         LyricsStackPanel.Children.Clear();
-        _lyricTextBlocks.Clear();
+        _lyricLines.Clear();
         _currentLyricIndex = -1;
         LyricsEmptyText.Visibility = _lyrics.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        LyricsStackPanel.Children.Add(new Border { Height = 220 });
+        LyricsStackPanel.Children.Add(LyricsTopSpacer);
+        var foreground = CreateLyricForegroundBrush();
+        var seekable = _lyricsAreTimeSynced;
         foreach (var line in _lyrics)
         {
-            var textBlock = new TextBlock
+            var index = _lyricLines.Count;
+            var block = new TextBlock
             {
                 Text = line.Text,
                 FontSize = _settings.LyricFontSize,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                Foreground = new SolidColorBrush(Colors.White),
-                Opacity = _lyricsAreTimeSynced ? 0.36 : 0.72,
+                Foreground = foreground,
                 TextWrapping = TextWrapping.Wrap,
                 MaxWidth = 820,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                IsTextSelectionEnabled = true
+                HorizontalAlignment = HorizontalAlignment.Left
             };
-            var lineIndex = _lyricTextBlocks.Count;
-            textBlock.Tag = lineIndex;
-            textBlock.PointerPressed += LyricTextBlock_PointerPressed;
-            _lyricTextBlocks.Add(textBlock);
-            LyricsStackPanel.Children.Add(textBlock);
+            var state = StateForLine(index);
+            var scale = new ScaleTransform { ScaleX = state.Scale, ScaleY = state.Scale };
+            FrameworkElement root = block;
+            if (seekable)
+            {
+                var button = new Button
+                {
+                    Style = (Style)RootGrid.Resources["LyricLineButtonStyle"],
+                    Content = block,
+                    Tag = index
+                };
+
+                // The template's hover/press states paint a pill behind the text; pointer
+                // feedback is a brighter line instead, so keep those fills transparent.
+                button.Resources["ButtonBackgroundPointerOver"] = _transparentLyricBackground;
+                button.Resources["ButtonBackgroundPressed"] = _transparentLyricBackground;
+                button.PointerEntered += LyricLine_PointerEntered;
+                button.PointerExited += LyricLine_PointerExited;
+                button.Click += LyricLine_Click;
+                ToolTipService.SetToolTip(button, $"跳转到 {FormatTime(line.StartTime)}");
+                AutomationProperties.SetName(button, line.Text);
+                AutomationProperties.SetHelpText(button, $"跳转到 {FormatTime(line.StartTime)}");
+                root = button;
+            }
+
+            root.Opacity = state.Opacity;
+            root.RenderTransform = scale;
+            root.RenderTransformOrigin = new Point(0, 0.5);
+            _lyricLines.Add(new LyricLineVisual(root, block, scale, state));
+            LyricsStackPanel.Children.Add(root);
         }
 
-        LyricsStackPanel.Children.Add(new Border { Height = 220 });
+        LyricsStackPanel.Children.Add(LyricsBottomSpacer);
+        UpdateLyricGutters();
+        return true;
     }
 
     private void UpdateCurrentLyric(double playbackTime, bool forceScroll = false)
     {
-        if (!_lyricsAreTimeSynced || _lyrics.Count == 0)
+        if (!_lyricsAreTimeSynced || _lyrics.Count == 0 || _lyricLines.Count == 0)
         {
             return;
         }
 
-        var nextIndex = -1;
-        for (var index = 0; index < _lyrics.Count; index++)
+        if (!ShouldApplyServerPosition(playbackTime))
         {
-            if (_lyrics[index].StartTime <= playbackTime)
-            {
-                nextIndex = index;
-            }
-            else
-            {
-                break;
-            }
+            return;
         }
 
+        var nextIndex = LyricPresentation.FindActiveLineIndex(_lyrics, playbackTime);
         if (nextIndex < 0 || (nextIndex == _currentLyricIndex && !forceScroll))
         {
             return;
         }
 
-        _currentLyricIndex = nextIndex;
-        for (var index = 0; index < _lyricTextBlocks.Count; index++)
+        SetCurrentLyricIndex(nextIndex, forceScroll);
+    }
+
+    /// <summary>
+    /// A seek takes a moment to be reflected in the polled playback position, so a fresh
+    /// click would be undone by the next tick. Hold the optimistic highlight until the
+    /// server catches up to the seek target, or until the pin expires.
+    /// </summary>
+    private bool ShouldApplyServerPosition(double playbackTime)
+    {
+        if (_optimisticSeekIndex < 0)
         {
-            var distance = Math.Abs(index - nextIndex);
-            _lyricTextBlocks[index].Opacity = distance switch
+            return true;
+        }
+
+        if (Math.Abs(playbackTime - _optimisticSeekTarget) <= OptimisticSeekToleranceSeconds ||
+            DateTimeOffset.Now > _optimisticSeekDeadline)
+        {
+            _optimisticSeekIndex = -1;
+            return true;
+        }
+
+        return false;
+    }
+
+    private void SetCurrentLyricIndex(int index, bool forceScroll)
+    {
+        _currentLyricIndex = index;
+        for (var lineIndex = 0; lineIndex < _lyricLines.Count; lineIndex++)
+        {
+            var line = _lyricLines[lineIndex];
+            var state = StateForLine(lineIndex);
+            if (state != line.State)
             {
-                0 => 1,
-                1 => 0.58,
-                _ => 0.32
-            };
+                ApplyLineState(line, state, animate: true);
+            }
         }
 
         if (_settings.AutoScrollLyrics &&
             (forceScroll || DateTimeOffset.Now - _lastManualLyricsScroll > TimeSpan.FromSeconds(4)))
         {
-            ScrollToCurrentLyric();
+            ScrollToCurrentLyric(animate: true);
         }
     }
 
-    private void ScrollToCurrentLyric()
+    private static void ApplyLineState(LyricLineVisual line, LyricLineState state, bool animate)
     {
-        if (_currentLyricIndex < 0 || _currentLyricIndex >= _lyricTextBlocks.Count)
+        var previous = line.State;
+        line.State = state;
+        line.Root.Opacity = state.Opacity;
+        line.Scale.ScaleX = state.Scale;
+        line.Scale.ScaleY = state.Scale;
+        if (!animate || previous == state)
         {
             return;
         }
 
-        var currentLine = _lyricTextBlocks[_currentLyricIndex];
-        var transform = currentLine.TransformToVisual(LyricsStackPanel);
-        var point = transform.TransformPoint(new Point(0, 0));
-        var targetOffset = Math.Max(0, point.Y - LyricsScrollViewer.ViewportHeight * 0.42);
-        _isAutoScrollingLyrics = true;
-        LyricsScrollViewer.ChangeView(null, targetOffset, null, false);
-        _isAutoScrollingLyrics = false;
+        var duration = new Duration(TimeSpan.FromMilliseconds(LyricAnimationMilliseconds));
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var storyboard = new Storyboard();
+        storyboard.Children.Add(CreateLineAnimation(line.Root, "Opacity", previous.Opacity, state.Opacity, duration, easing));
+        storyboard.Children.Add(CreateLineAnimation(line.Scale, "ScaleX", previous.Scale, state.Scale, duration, easing));
+        storyboard.Children.Add(CreateLineAnimation(line.Scale, "ScaleY", previous.Scale, state.Scale, duration, easing));
+
+        // FillBehavior.Stop releases the properties when the animation ends, so the local
+        // values assigned above stay authoritative. An unreferenced running storyboard can
+        // be collected mid-flight, so hold it until it completes.
+        line.Storyboard = storyboard;
+        storyboard.Completed += (_, _) => line.Storyboard = null;
+        storyboard.Begin();
     }
 
-    private async void LyricTextBlock_PointerPressed(object sender, PointerRoutedEventArgs e)
+    private static DoubleAnimation CreateLineAnimation(
+        DependencyObject target,
+        string property,
+        double from,
+        double to,
+        Duration duration,
+        EasingFunctionBase easing)
     {
-        if (!_lyricsAreTimeSynced || sender is not TextBlock { Tag: int index } || index >= _lyrics.Count)
+        var animation = new DoubleAnimation
+        {
+            From = from,
+            To = to,
+            Duration = duration,
+            EasingFunction = easing,
+            EnableDependentAnimation = true,
+            FillBehavior = FillBehavior.Stop
+        };
+        Storyboard.SetTarget(animation, target);
+        Storyboard.SetTargetProperty(animation, property);
+        return animation;
+    }
+
+    private void ScrollToCurrentLyric(bool animate)
+    {
+        if (_currentLyricIndex < 0 ||
+            _currentLyricIndex >= _lyricLines.Count ||
+            LyricsScrollViewer.ViewportHeight <= 0)
         {
             return;
         }
 
-        await _ciderService.SeekAsync(
-            _lyrics[index].StartTime,
-            _appToken,
-            _lifetimeCancellation.Token);
-        await RefreshAsync();
+        var line = _lyricLines[_currentLyricIndex];
+        // Measured against the stack panel, i.e. in content coordinates. Measuring against
+        // the scroll viewer does not subtract its scroll offset in WinUI, which would make
+        // the target run away towards the end of the lyrics.
+        var lineTop = line.Root
+            .TransformToVisual(LyricsStackPanel)
+            .TransformPoint(new Point(0, 0))
+            .Y;
+        var target = LyricPresentation.ComputeScrollOffset(
+            lineTop,
+            line.Root.ActualHeight,
+            line.State.Scale,
+            LyricsScrollViewer.ViewportHeight,
+            LyricsScrollViewer.ExtentHeight);
+
+        // ChangeView animates asynchronously, so its ViewChanged events arrive after this
+        // method returns. Record the target so those events are not mistaken for the user
+        // scrolling, which would suppress auto-scroll for four seconds.
+        _pendingAutoScrollOffset = target;
+        _autoScrollDeadline = DateTimeOffset.Now.AddMilliseconds(AutoScrollSettleMilliseconds);
+        if (!LyricsScrollViewer.ChangeView(null, target, null, !animate))
+        {
+            _pendingAutoScrollOffset = null;
+        }
+    }
+
+    /// <summary>
+    /// The spacers let the first and last line reach the anchor by giving every line
+    /// something to scroll past, so they have to follow the real viewport height rather
+    /// than a fixed value.
+    /// </summary>
+    private void UpdateLyricGutters()
+    {
+        var viewportHeight = LyricsScrollViewer.ViewportHeight > 0
+            ? LyricsScrollViewer.ViewportHeight
+            : LyricsScrollViewer.ActualHeight;
+        LyricsTopSpacer.Height = LyricPresentation.TopGutter(viewportHeight);
+        LyricsBottomSpacer.Height = LyricPresentation.BottomGutter(viewportHeight);
+    }
+
+    private void LyricsScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateLyricGutters();
+        if (LyricsPanel.Visibility == Visibility.Visible && _currentLyricIndex >= 0)
+        {
+            ScrollToCurrentLyric(animate: false);
+        }
+    }
+
+    private SolidColorBrush CreateLyricForegroundBrush() =>
+        new(RootGrid.ActualTheme == ElementTheme.Light ? Colors.Black : Colors.White);
+
+    /// <summary>
+    /// The lyric panel builds its brushes from <see cref="RootGrid"/>'s resolved theme, so a
+    /// theme switch has to recolour the existing lines in place rather than re-render them.
+    /// </summary>
+    private void ApplyLyricTheme()
+    {
+        if (_lyricLines.Count == 0)
+        {
+            return;
+        }
+
+        var foreground = CreateLyricForegroundBrush();
+        foreach (var line in _lyricLines)
+        {
+            line.Block.Foreground = foreground;
+        }
+    }
+
+    private void LyricLine_PointerEntered(object sender, PointerRoutedEventArgs e) =>
+        SetHoveredLyric(sender, hovered: true);
+
+    private void LyricLine_PointerExited(object sender, PointerRoutedEventArgs e) =>
+        SetHoveredLyric(sender, hovered: false);
+
+    private void SetHoveredLyric(object sender, bool hovered)
+    {
+        if (sender is not Button { Tag: int index } ||
+            index < 0 ||
+            index >= _lyricLines.Count ||
+            (hovered && _hoveredLyricIndex == index))
+        {
+            return;
+        }
+
+        _hoveredLyricIndex = hovered ? index : -1;
+        ApplyLineState(_lyricLines[index], StateForLine(index), animate: true);
+    }
+
+    private LyricLineState StateForLine(int index) =>
+        LyricPresentation.WithHover(
+            LyricPresentation.StateForIndex(index, _currentLyricIndex, _lyricsAreTimeSynced),
+            index == _hoveredLyricIndex);
+
+    private async void LyricLine_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_lyricsAreTimeSynced ||
+            sender is not Button { Tag: int index } ||
+            index < 0 ||
+            index >= _lyrics.Count)
+        {
+            return;
+        }
+
+        try
+        {
+            var startTime = _lyrics[index].StartTime;
+            _optimisticSeekIndex = index;
+            _optimisticSeekTarget = startTime;
+            _optimisticSeekDeadline = DateTimeOffset.Now.AddSeconds(OptimisticSeekSeconds);
+            SetCurrentLyricIndex(index, forceScroll: true);
+
+            if (!await _ciderService.SeekAsync(startTime, _appToken, _lifetimeCancellation.Token))
+            {
+                _optimisticSeekIndex = -1;
+                ReportCommandRejected("Cider 未接受跳转指令");
+                return;
+            }
+
+            await RefreshAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // The window is closing.
+        }
     }
 
     private void LyricsScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
     {
-        if (!_isAutoScrollingLyrics && e.IsIntermediate)
+        if (_pendingAutoScrollOffset is { } pending)
+        {
+            var settled = !e.IsIntermediate &&
+                Math.Abs(LyricsScrollViewer.VerticalOffset - pending) < 1;
+            if (settled || DateTimeOffset.Now > _autoScrollDeadline)
+            {
+                _pendingAutoScrollOffset = null;
+            }
+
+            return;
+        }
+
+        if (e.IsIntermediate)
         {
             _lastManualLyricsScroll = DateTimeOffset.Now;
         }
+    }
+
+    private sealed class LyricLineVisual(
+        FrameworkElement root,
+        TextBlock block,
+        ScaleTransform scale,
+        LyricLineState state)
+    {
+        public FrameworkElement Root { get; } = root;
+
+        public TextBlock Block { get; } = block;
+
+        public ScaleTransform Scale { get; } = scale;
+
+        public LyricLineState State { get; set; } = state;
+
+        public Storyboard? Storyboard { get; set; }
     }
 
     private void QueueViewButton_Click(object sender, RoutedEventArgs e) => ShowPanel("Queue");
@@ -729,7 +1001,15 @@ public sealed partial class MainWindow : Window
 
         if (showLyrics)
         {
-            ScrollToCurrentLyric();
+            // Visibility does not lay out synchronously, so wait until the panel has a
+            // viewport before measuring the target line.
+            DispatcherQueue.TryEnqueue(
+                DispatcherQueuePriority.Low,
+                () =>
+                {
+                    UpdateLyricGutters();
+                    ScrollToCurrentLyric(animate: false);
+                });
         }
     }
 
@@ -762,12 +1042,17 @@ public sealed partial class MainWindow : Window
     {
         if (!await command())
         {
-            ConnectionStatusMenuItem.Text = "Cider 未接受播放指令";
-            ConnectionStatusIcon.Foreground = (Brush)RootGrid.Resources["DisconnectedBrush"];
+            ReportCommandRejected();
             return;
         }
 
         await RefreshAsync(forceDetails: true);
+    }
+
+    private void ReportCommandRejected(string message = "Cider 未接受播放指令")
+    {
+        ConnectionStatusMenuItem.Text = message;
+        ConnectionStatusIcon.Foreground = (Brush)RootGrid.Resources["DisconnectedBrush"];
     }
 
     private void TaskbarWidgetHost_CommandRequested(TaskbarPlaybackCommand command)
@@ -969,7 +1254,10 @@ public sealed partial class MainWindow : Window
             _taskbarWidgetHost.Stop();
         }
 
-        RenderLyrics();
+        if (RenderLyrics())
+        {
+            UpdateCurrentLyric(_lastPlaybackTime, forceScroll: true);
+        }
     }
 
     private static void SelectByTag(ComboBox comboBox, string tag)

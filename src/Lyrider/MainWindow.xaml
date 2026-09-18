@@ -41,6 +41,16 @@
                     <Setter Property="Padding" Value="0" />
                     <Setter Property="CornerRadius" Value="8" />
                 </Style>
+                <Style x:Key="LyricLineButtonStyle" TargetType="Button">
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="BorderThickness" Value="0" />
+                    <Setter Property="Padding" Value="10,6" />
+                    <Setter Property="MinWidth" Value="0" />
+                    <Setter Property="MinHeight" Value="0" />
+                    <Setter Property="CornerRadius" Value="8" />
+                    <Setter Property="HorizontalAlignment" Value="Left" />
+                    <Setter Property="HorizontalContentAlignment" Value="Left" />
+                </Style>
                 <Style x:Key="SettingsCardStyle" TargetType="Border">
                     <Setter Property="MinHeight" Value="72" />
                     <Setter Property="Padding" Value="16,12" />
@@ -432,15 +442,16 @@
                     </Grid>
                 </Grid>
 
-                <Grid x:Name="LyricsPanel" Padding="14,0,0,70" Visibility="Collapsed">
+                <Grid x:Name="LyricsPanel" Visibility="Collapsed">
                     <ScrollViewer
                         x:Name="LyricsScrollViewer"
                         HorizontalScrollBarVisibility="Disabled"
                         VerticalScrollBarVisibility="Hidden"
+                        SizeChanged="LyricsScrollViewer_SizeChanged"
                         ViewChanged="LyricsScrollViewer_ViewChanged">
                         <StackPanel x:Name="LyricsStackPanel" Spacing="30">
-                            <Border Height="220" />
-                            <Border Height="220" />
+                            <Border x:Name="LyricsTopSpacer" />
+                            <Border x:Name="LyricsBottomSpacer" />
                         </StackPanel>
                     </ScrollViewer>
                     <TextBlock
@@ -683,7 +694,7 @@
                                         </Border>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                             <TextBlock FontWeight="SemiBold" Text="歌词自动滚动" />
-                                            <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="播放时将当前歌词保持在视图中央" />
+                                            <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="播放时将当前歌词定位到视图上方三分之一处" />
                                         </StackPanel>
                                     </Grid>
                                     <Grid
