@@ -86,7 +86,7 @@ Token 通过 Windows DPAPI 绑定到当前 Windows 用户并加密存储在：
 .\scripts\package-msix.ps1 -Version 1.0.1.0
 ```
 
-脚本以自包含方式构建 x64 应用，把构建输出作为包布局并生成 `AppxManifest.xml`，交给 `makeappx` 打包，最后用当前用户证书存储中的 `CN=Lyrider` 自签名证书签名（证书不存在时自动创建）。产物在 `AppPackages\Lyrider_<版本>_<架构>\`，包含 `.msix` 和导出的 `Lyrider.cer`。
+脚本以自包含方式构建 x64 应用，把构建输出作为包布局并生成 `AppxManifest.xml`；它会从现有 ICO 生成深色和浅色主题共用的无底板任务栏图标，并用 `makepri` 建立资源索引，避免安装版图标被 Windows 缩小并添加系统底板。随后脚本交给 `makeappx` 打包，最后用当前用户证书存储中的 `CN=Lyrider` 自签名证书签名（证书不存在时自动创建）。产物在 `AppPackages\Lyrider_<版本>_<架构>\`，包含 `.msix` 和导出的 `Lyrider.cer`。
 
 包是自包含的，目标机器不需要预装 .NET 与 Windows App SDK 运行时，但需要先信任该证书：
 

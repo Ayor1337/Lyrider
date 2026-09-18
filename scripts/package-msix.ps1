@@ -31,20 +31,91 @@ function Resolve-SdkTool {
     param([string]$Name)
 
     $binRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
-    $sdkVersion = Get-ChildItem $binRoot -Directory -ErrorAction SilentlyContinue |
+    $toolPath = Get-ChildItem $binRoot -Directory -ErrorAction SilentlyContinue |
         Where-Object Name -match '^\d+(\.\d+){3}$' |
         Sort-Object { [version]$_.Name } -Descending |
+        ForEach-Object { Join-Path $_.FullName "x64\$Name" } |
+        Where-Object { Test-Path $_ } |
         Select-Object -First 1
-    if (-not $sdkVersion) {
-        throw "未找到 Windows SDK 工具目录：$binRoot"
+    if (-not $toolPath) {
+        throw "未在 Windows SDK 工具目录中找到 $Name：$binRoot"
     }
 
-    $path = Join-Path $sdkVersion.FullName "x64\$Name"
-    if (-not (Test-Path $path)) {
-        throw "未找到 $Name：$path"
+    return $toolPath
+}
+
+function Export-TaskbarIconAssets {
+    param(
+        [Parameter(Mandatory)][string]$IcoPath,
+        [Parameter(Mandatory)][string]$PngPath,
+        [Parameter(Mandatory)][string]$DestinationDirectory,
+        [Parameter(Mandatory)][string]$BaseName
+    )
+
+    $icoBytes = [System.IO.File]::ReadAllBytes($IcoPath)
+    $frameCount = [BitConverter]::ToUInt16($icoBytes, 4)
+    $frames = @{}
+    for ($index = 0; $index -lt $frameCount; $index++) {
+        $entryOffset = 6 + ($index * 16)
+        $width = if ($icoBytes[$entryOffset] -eq 0) { 256 } else { [int]$icoBytes[$entryOffset] }
+        $height = if ($icoBytes[$entryOffset + 1] -eq 0) { 256 } else { [int]$icoBytes[$entryOffset + 1] }
+        if ($width -ne $height) {
+            continue
+        }
+
+        $dataLength = [BitConverter]::ToUInt32($icoBytes, $entryOffset + 8)
+        $dataOffset = [BitConverter]::ToUInt32($icoBytes, $entryOffset + 12)
+        $frameBytes = New-Object byte[] $dataLength
+        [Array]::Copy($icoBytes, $dataOffset, $frameBytes, 0, $dataLength)
+        $frames[$width] = $frameBytes
     }
 
-    return $path
+    $targetSizes = 16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256
+    $pngSignature = '89-50-4E-47-0D-0A-1A-0A'
+    $sourceImage = $null
+    try {
+        foreach ($size in $targetSizes) {
+            $unplatedPath = Join-Path $DestinationDirectory "$BaseName.targetsize-${size}_altform-unplated.png"
+            $frameBytes = $frames[$size]
+            if ($frameBytes -and [BitConverter]::ToString($frameBytes, 0, 8) -eq $pngSignature) {
+                [System.IO.File]::WriteAllBytes($unplatedPath, $frameBytes)
+            }
+            else {
+                if (-not $sourceImage) {
+                    Add-Type -AssemblyName System.Drawing.Common
+                    $sourceImage = [System.Drawing.Image]::FromFile($PngPath)
+                }
+
+                $bitmap = New-Object System.Drawing.Bitmap($size, $size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+                try {
+                    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+                    try {
+                        $graphics.Clear([System.Drawing.Color]::Transparent)
+                        $graphics.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
+                        $graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+                        $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+                        $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+                        $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+                        $graphics.DrawImage($sourceImage, 0, 0, $size, $size)
+                    }
+                    finally {
+                        $graphics.Dispose()
+                    }
+                    $bitmap.Save($unplatedPath, [System.Drawing.Imaging.ImageFormat]::Png)
+                }
+                finally {
+                    $bitmap.Dispose()
+                }
+            }
+
+            Copy-Item $unplatedPath (Join-Path $DestinationDirectory "$BaseName.targetsize-${size}_altform-lightunplated.png") -Force
+        }
+    }
+    finally {
+        if ($sourceImage) {
+            $sourceImage.Dispose()
+        }
+    }
 }
 
 if ($Version -notmatch '^\d+\.\d+\.\d+\.\d+$') {
@@ -100,6 +171,12 @@ Get-ChildItem $appDirectory |
     Copy-Item -Destination $layoutDirectory -Recurse -Force
 New-Item -ItemType Directory (Join-Path $layoutDirectory 'Assets') -Force | Out-Null
 Copy-Item (Join-Path $repoRoot 'src\Lyrider\Assets\Lyrider.png') (Join-Path $layoutDirectory 'Assets') -Force
+$assetDirectory = Join-Path $layoutDirectory 'Assets'
+Export-TaskbarIconAssets `
+    -IcoPath (Join-Path $repoRoot 'src\Lyrider\Assets\Lyrider.ico') `
+    -PngPath (Join-Path $repoRoot 'src\Lyrider\Assets\Lyrider.png') `
+    -DestinationDirectory $assetDirectory `
+    -BaseName 'Lyrider'
 
 $manifest = @"
 <?xml version="1.0" encoding="utf-8"?>
@@ -119,6 +196,9 @@ $manifest = @"
     <PublisherDisplayName>Lyrider</PublisherDisplayName>
     <Logo>Assets\Lyrider.png</Logo>
   </Properties>
+  <Resources>
+    <Resource Language="en-US" />
+  </Resources>
   <Dependencies>
     <TargetDeviceFamily
       Name="Windows.Desktop"
@@ -149,6 +229,46 @@ $manifest = @"
 </Package>
 "@
 Set-Content -Path (Join-Path $layoutDirectory 'AppxManifest.xml') -Value $manifest -Encoding utf8
+
+Write-Host '正在生成包资源索引...'
+$makePri = Resolve-SdkTool 'makepri.exe'
+$priConfigPath = Join-Path $outputDirectory 'priconfig.xml'
+$priInputDirectory = Join-Path $outputDirectory 'pri-input'
+try {
+    $priAssetDirectory = Join-Path $priInputDirectory 'Assets'
+    New-Item -ItemType Directory $priAssetDirectory -Force | Out-Null
+    Get-ChildItem -LiteralPath $assetDirectory -Filter 'Lyrider*.png' -File |
+        Copy-Item -Destination $priAssetDirectory -Force
+    Copy-Item (Join-Path $layoutDirectory 'Lyrider.pri') $priInputDirectory -Force
+
+    & $makePri createconfig /cf $priConfigPath /dq en-US /pv 10.0.0 /o
+    if ($LASTEXITCODE -ne 0) {
+        throw "makepri 配置生成失败，退出代码：$LASTEXITCODE"
+    }
+
+    & $makePri new `
+        /pr $priInputDirectory `
+        /cf $priConfigPath `
+        /in 'Lyrider' `
+        /of (Join-Path $layoutDirectory 'resources.pri') `
+        /o
+    if ($LASTEXITCODE -ne 0) {
+        throw "makepri 资源索引生成失败，退出代码：$LASTEXITCODE"
+    }
+}
+finally {
+    Remove-Item -LiteralPath $priConfigPath -Force -ErrorAction SilentlyContinue
+    if (Test-Path $priInputDirectory) {
+        $resolvedOutputDirectory = [System.IO.Path]::GetFullPath($outputDirectory).TrimEnd('\') + '\'
+        $resolvedPriInputDirectory = [System.IO.Path]::GetFullPath($priInputDirectory)
+        if (-not $resolvedPriInputDirectory.StartsWith($resolvedOutputDirectory, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "拒绝删除包输出目录之外的 PRI 临时目录：$resolvedPriInputDirectory"
+        }
+        Remove-Item -LiteralPath $resolvedPriInputDirectory -Recurse -Force
+    }
+}
+
+& (Join-Path $PSScriptRoot 'verify-msix-layout.ps1') -LayoutDirectory $layoutDirectory
 
 $packagePath = Join-Path $outputDirectory "$packageName.msix"
 Write-Host "正在打包：$packagePath"
