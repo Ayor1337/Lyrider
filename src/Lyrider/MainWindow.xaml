@@ -9,14 +9,14 @@
     Title="Lyrider">
 
     <Window.SystemBackdrop>
-        <MicaBackdrop Kind="BaseAlt" />
+        <MicaBackdrop Kind="Base" />
     </Window.SystemBackdrop>
 
     <Grid
         x:Name="RootGrid"
         SizeChanged="RootGrid_SizeChanged"
         Loaded="RootGrid_Loaded"
-        Background="{ThemeResource LyriderRootBrush}">
+        Background="Transparent">
         <Grid.Resources>
             <ResourceDictionary>
                 <SolidColorBrush x:Key="ConnectedBrush" Color="#FF68D391" />
@@ -41,6 +41,47 @@
                     <Setter Property="Padding" Value="0" />
                     <Setter Property="CornerRadius" Value="8" />
                 </Style>
+                <Style x:Key="SettingsCardStyle" TargetType="Border">
+                    <Setter Property="MinHeight" Value="72" />
+                    <Setter Property="Padding" Value="16,12" />
+                    <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+                    <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+                    <Setter Property="BorderThickness" Value="1" />
+                    <Setter Property="CornerRadius" Value="7" />
+                </Style>
+                <Style x:Key="SettingsIconStyle" TargetType="Border">
+                    <Setter Property="Width" Value="36" />
+                    <Setter Property="Height" Value="36" />
+                    <Setter Property="Margin" Value="0,0,14,0" />
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                    <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorSecondaryBrush}" />
+                    <Setter Property="CornerRadius" Value="6" />
+                </Style>
+                <Style x:Key="SettingsDescriptionStyle" TargetType="TextBlock">
+                    <Setter Property="Margin" Value="0,3,0,0" />
+                    <Setter Property="FontSize" Value="13" />
+                    <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+                    <Setter Property="TextWrapping" Value="Wrap" />
+                </Style>
+                <Style x:Key="SettingsLabelHostStyle" TargetType="Grid">
+                    <Setter Property="MinHeight" Value="44" />
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                </Style>
+                <Style x:Key="SettingsControlHostStyle" TargetType="Grid">
+                    <Setter Property="Width" Value="260" />
+                    <Setter Property="Height" Value="44" />
+                    <Setter Property="HorizontalAlignment" Value="Right" />
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                </Style>
+                <Style x:Key="SettingsToggleStyle" TargetType="ToggleSwitch">
+                    <Setter Property="Width" Value="76" />
+                    <Setter Property="Height" Value="32" />
+                    <Setter Property="MinWidth" Value="0" />
+                    <Setter Property="MinHeight" Value="0" />
+                    <Setter Property="HorizontalAlignment" Value="Right" />
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                    <Setter Property="VerticalContentAlignment" Value="Center" />
+                </Style>
             </ResourceDictionary>
         </Grid.Resources>
 
@@ -49,15 +90,15 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Image
-            x:Name="BackgroundArtworkImage"
-            Grid.RowSpan="2"
-            Opacity="0.14"
-            Stretch="UniformToFill" />
-        <Rectangle
-            Grid.RowSpan="2"
-            Fill="{ThemeResource LyriderRootBrush}"
-            Opacity="0.84" />
+        <Grid x:Name="PlayerBackdropLayer" Grid.RowSpan="2">
+            <Image
+                x:Name="BackgroundArtworkImage"
+                Opacity="0.14"
+                Stretch="UniformToFill" />
+            <Rectangle
+                Fill="{ThemeResource LyriderRootBrush}"
+                Opacity="0.84" />
+        </Grid>
 
         <Grid x:Name="AppTitleBar" Padding="8,0,146,0">
             <Button
@@ -443,152 +484,460 @@
         <Grid
             x:Name="SettingsPageGrid"
             Grid.Row="1"
-            Padding="52,24,52,44"
+            Padding="0,24,0,44"
+            RowSpacing="26"
             Visibility="Collapsed">
-            <ScrollViewer HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled">
-                <StackPanel MaxWidth="760" HorizontalAlignment="Stretch" Spacing="22">
-                    <Grid>
-                        <Button
-                            Click="BackToPlayerButton_Click"
-                            Style="{StaticResource IconButtonStyle}">
-                            <StackPanel Orientation="Horizontal" Spacing="7">
-                                <FontIcon FontSize="15" Glyph="&#xE72B;" />
-                                <TextBlock VerticalAlignment="Center" Text="返回" />
-                            </StackPanel>
-                        </Button>
-                        <TextBlock
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            FontSize="26"
-                            FontWeight="SemiBold"
-                            Text="设置" />
-                    </Grid>
-
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid
+                x:Name="SettingsHeaderGrid"
+                Width="1020"
+                MaxWidth="1020"
+                HorizontalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="50" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="50" />
+                </Grid.ColumnDefinitions>
+                <Button
+                    Grid.Column="0"
+                    Click="BackToPlayerButton_Click"
+                    VerticalAlignment="Center"
+                    AutomationProperties.Name="返回播放器"
+                    Style="{StaticResource IconButtonStyle}"
+                    ToolTipService.ToolTip="返回播放器">
+                    <FontIcon FontSize="16" Glyph="&#xE72B;" />
+                </Button>
+                <StackPanel Grid.Column="1" Spacing="2">
+                    <TextBlock FontSize="28" FontWeight="SemiBold" Text="设置" />
                     <TextBlock
-                        Margin="0,8,0,-10"
-                        FontSize="18"
-                        FontWeight="SemiBold"
-                        Text="外观" />
-                    <Border Padding="20" Background="{StaticResource PanelFillBrush}" CornerRadius="10">
-                        <StackPanel Spacing="20">
-                            <Grid x:Name="ThemeSettingsRow" RowSpacing="10" ColumnSpacing="20">
-                                <StackPanel Spacing="3">
-                                    <TextBlock FontWeight="SemiBold" Text="主题" />
-                                    <TextBlock FontSize="13" Foreground="{StaticResource MutedTextBrush}" Text="选择应用的明暗外观" />
-                                </StackPanel>
-                                <ComboBox x:Name="ThemeComboBox" HorizontalAlignment="Stretch">
-                                    <ComboBoxItem Content="跟随系统" Tag="System" />
-                                    <ComboBoxItem Content="浅色" Tag="Light" />
-                                    <ComboBoxItem Content="深色" Tag="Dark" />
-                                </ComboBox>
-                            </Grid>
-                            <Grid x:Name="BackgroundSettingsRow" RowSpacing="10" ColumnSpacing="20">
-                                <StackPanel Spacing="3">
-                                    <TextBlock FontWeight="SemiBold" Text="背景封面强度" />
-                                    <TextBlock FontSize="13" Foreground="{StaticResource MutedTextBrush}" Text="调节封面在背景中的可见程度" />
-                                </StackPanel>
-                                <Slider
-                                    x:Name="BackgroundOpacitySlider"
-                                    Maximum="0.3"
-                                    Minimum="0"
-                                    StepFrequency="0.01" />
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-
-                    <TextBlock
-                        Margin="0,8,0,-10"
-                        FontSize="18"
-                        FontWeight="SemiBold"
-                        Text="歌词与播放" />
-                    <Border Padding="20" Background="{StaticResource PanelFillBrush}" CornerRadius="10">
-                        <StackPanel Spacing="20">
-                            <Grid x:Name="LyricFontSettingsRow" RowSpacing="10" ColumnSpacing="20">
-                                <StackPanel Spacing="3">
-                                    <TextBlock FontWeight="SemiBold" Text="歌词字号" />
-                                    <TextBlock FontSize="13" Foreground="{StaticResource MutedTextBrush}" Text="调整时间轴歌词的显示大小" />
-                                </StackPanel>
-                                <Slider
-                                    x:Name="LyricFontSizeSlider"
-                                    Maximum="62"
-                                    Minimum="28"
-                                    StepFrequency="2" />
-                            </Grid>
-                            <Grid x:Name="AutoScrollSettingsRow" RowSpacing="10" ColumnSpacing="20">
-                                <StackPanel Spacing="3">
-                                    <TextBlock FontWeight="SemiBold" Text="歌词自动滚动" />
-                                    <TextBlock FontSize="13" Foreground="{StaticResource MutedTextBrush}" Text="播放时将当前歌词保持在视图中央" />
-                                </StackPanel>
-                                <ToggleSwitch x:Name="AutoScrollToggle" HorizontalAlignment="Stretch" />
-                            </Grid>
-                            <Grid x:Name="DefaultPanelSettingsRow" RowSpacing="10" ColumnSpacing="20">
-                                <StackPanel Spacing="3">
-                                    <TextBlock FontWeight="SemiBold" Text="默认视图" />
-                                    <TextBlock FontSize="13" Foreground="{StaticResource MutedTextBrush}" Text="应用启动时右侧显示的内容" />
-                                </StackPanel>
-                                <ComboBox x:Name="DefaultPanelComboBox" HorizontalAlignment="Stretch">
-                                    <ComboBoxItem Content="播放队列" Tag="Queue" />
-                                    <ComboBoxItem Content="歌词" Tag="Lyrics" />
-                                </ComboBox>
-                            </Grid>
-                            <Grid x:Name="VolumeSettingsRow" RowSpacing="10" ColumnSpacing="20">
-                                <StackPanel Spacing="3">
-                                    <TextBlock FontWeight="SemiBold" Text="显示音量控制" />
-                                    <TextBlock FontSize="13" Foreground="{StaticResource MutedTextBrush}" Text="在播放器底部显示音量滑块" />
-                                </StackPanel>
-                                <ToggleSwitch x:Name="ShowVolumeToggle" HorizontalAlignment="Stretch" />
-                            </Grid>
-                            <Grid x:Name="AlwaysOnTopSettingsRow" RowSpacing="10" ColumnSpacing="20">
-                                <StackPanel Spacing="3">
-                                    <TextBlock FontWeight="SemiBold" Text="窗口置顶" />
-                                    <TextBlock FontSize="13" Foreground="{StaticResource MutedTextBrush}" Text="让 Lyrider 保持在其他窗口上方" />
-                                </StackPanel>
-                                <ToggleSwitch x:Name="AlwaysOnTopToggle" HorizontalAlignment="Stretch" />
-                            </Grid>
-                            <Grid x:Name="TaskbarWidgetSettingsRow" RowSpacing="10" ColumnSpacing="20">
-                                <StackPanel Spacing="3">
-                                    <TextBlock FontWeight="SemiBold" Text="任务栏播放状态" />
-                                    <TextBlock FontSize="13" Foreground="{StaticResource MutedTextBrush}" Text="在 Windows 11 主任务栏的小组件旁显示播放信息" />
-                                </StackPanel>
-                                <ToggleSwitch x:Name="TaskbarWidgetToggle" HorizontalAlignment="Stretch" />
-                            </Grid>
-                            <Grid x:Name="MinimizeToTraySettingsRow" RowSpacing="10" ColumnSpacing="20">
-                                <StackPanel Spacing="3">
-                                    <TextBlock FontWeight="SemiBold" Text="关闭时最小化到托盘" />
-                                    <TextBlock FontSize="13" Foreground="{StaticResource MutedTextBrush}" Text="点击窗口关闭按钮时隐藏到系统托盘；应用菜单中的退出仍会直接关闭" />
-                                </StackPanel>
-                                <ToggleSwitch x:Name="MinimizeToTrayToggle" HorizontalAlignment="Stretch" />
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-
-                    <TextBlock
-                        Margin="0,8,0,-10"
-                        FontSize="18"
-                        FontWeight="SemiBold"
-                        Text="Cider 连接" />
-                    <Border Padding="20" Background="{StaticResource PanelFillBrush}" CornerRadius="10">
-                        <StackPanel Spacing="16">
-                            <TextBox
-                                x:Name="ApiBaseUrlTextBox"
-                                Header="API 地址"
-                                PlaceholderText="http://localhost:10767/" />
-                            <PasswordBox
-                                x:Name="TokenPasswordBox"
-                                Header="App Token（可选）"
-                                PlaceholderText="使用当前 Windows 用户加密保存" />
-                            <TextBlock
-                                x:Name="SettingsStatusText"
-                                FontSize="13"
-                                Foreground="{StaticResource SubtleTextBrush}"
-                                TextWrapping="Wrap" />
-                            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="10">
-                                <Button Click="TestConnectionButton_Click" Content="测试连接" />
-                                <Button Click="SaveSettingsButton_Click" Content="保存设置" Style="{StaticResource AccentButtonStyle}" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
+                        FontSize="13"
+                        Foreground="{StaticResource MutedTextBrush}"
+                        Text="调整 Lyrider 的外观、播放体验与 Cider 连接" />
                 </StackPanel>
+            </Grid>
+
+            <ScrollViewer
+                Grid.Row="1"
+                HorizontalContentAlignment="Stretch"
+                HorizontalScrollBarVisibility="Disabled"
+                HorizontalScrollMode="Disabled">
+                <Grid
+                    x:Name="SettingsContentGrid"
+                    Width="1020"
+                    MaxWidth="1020"
+                    HorizontalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="50" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="50" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="1" HorizontalAlignment="Stretch" Spacing="26">
+                    <StackPanel Spacing="8">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="外观" />
+                        <StackPanel Spacing="2">
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="ThemeSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE790;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock FontWeight="SemiBold" Text="主题" />
+                                            <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="选择应用的明暗外观" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid
+                                        Grid.Column="1"
+                                        Style="{StaticResource SettingsControlHostStyle}"
+                                        Width="260"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                        <ComboBox
+                                            x:Name="ThemeComboBox"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Center">
+                                            <ComboBoxItem Content="跟随系统" Tag="System" />
+                                            <ComboBoxItem Content="浅色" Tag="Light" />
+                                            <ComboBoxItem Content="深色" Tag="Dark" />
+                                        </ComboBox>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="BackgroundSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE91B;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock FontWeight="SemiBold" Text="背景封面强度" />
+                                            <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="调节封面在播放器背景中的可见程度" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid
+                                        Grid.Column="1"
+                                        Style="{StaticResource SettingsControlHostStyle}"
+                                        Width="260"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                        <Slider
+                                            x:Name="BackgroundOpacitySlider"
+                                            VerticalAlignment="Center"
+                                            Maximum="0.3"
+                                            Minimum="0"
+                                            StepFrequency="0.01" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Spacing="8">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="歌词与播放" />
+                        <StackPanel Spacing="2">
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="LyricFontSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock FontWeight="SemiBold" Text="歌词字号" />
+                                            <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="调整时间轴歌词的显示大小" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid
+                                        Grid.Column="1"
+                                        Style="{StaticResource SettingsControlHostStyle}"
+                                        Width="260"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                        <Slider
+                                            x:Name="LyricFontSizeSlider"
+                                            VerticalAlignment="Center"
+                                            Maximum="62"
+                                            Minimum="28"
+                                            StepFrequency="2" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="AutoScrollSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8AB;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock FontWeight="SemiBold" Text="歌词自动滚动" />
+                                            <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="播放时将当前歌词保持在视图中央" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid
+                                        Grid.Column="1"
+                                        Style="{StaticResource SettingsControlHostStyle}"
+                                        Width="260"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                        <ToggleSwitch
+                                            x:Name="AutoScrollToggle"
+                                            Style="{StaticResource SettingsToggleStyle}"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="DefaultPanelSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8A9;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock FontWeight="SemiBold" Text="默认视图" />
+                                            <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="应用启动时右侧显示的内容" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid
+                                        Grid.Column="1"
+                                        Style="{StaticResource SettingsControlHostStyle}"
+                                        Width="260"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                        <ComboBox
+                                            x:Name="DefaultPanelComboBox"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Center">
+                                            <ComboBoxItem Content="播放队列" Tag="Queue" />
+                                            <ComboBoxItem Content="歌词" Tag="Lyrics" />
+                                        </ComboBox>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="VolumeSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE767;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock FontWeight="SemiBold" Text="显示音量控制" />
+                                            <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="在播放器底部显示音量滑块" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid
+                                        Grid.Column="1"
+                                        Style="{StaticResource SettingsControlHostStyle}"
+                                        Width="260"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                        <ToggleSwitch
+                                            x:Name="ShowVolumeToggle"
+                                            Style="{StaticResource SettingsToggleStyle}"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="AlwaysOnTopSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE840;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock FontWeight="SemiBold" Text="窗口置顶" />
+                                            <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="让 Lyrider 保持在其他窗口上方" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid
+                                        Grid.Column="1"
+                                        Style="{StaticResource SettingsControlHostStyle}"
+                                        Width="260"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                        <ToggleSwitch
+                                            x:Name="AlwaysOnTopToggle"
+                                            Style="{StaticResource SettingsToggleStyle}"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="TaskbarWidgetSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE7F8;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock FontWeight="SemiBold" Text="任务栏播放状态" />
+                                            <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="在 Windows 11 主任务栏的小组件旁显示播放信息" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid
+                                        Grid.Column="1"
+                                        Style="{StaticResource SettingsControlHostStyle}"
+                                        Width="260"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                        <ToggleSwitch
+                                            x:Name="TaskbarWidgetToggle"
+                                            Style="{StaticResource SettingsToggleStyle}"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="MinimizeToTraySettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE7E8;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock FontWeight="SemiBold" Text="关闭时最小化到托盘" />
+                                            <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="点击关闭按钮时隐藏到系统托盘；应用菜单中的退出仍会直接关闭" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid
+                                        Grid.Column="1"
+                                        Style="{StaticResource SettingsControlHostStyle}"
+                                        Width="260"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                        <ToggleSwitch
+                                            x:Name="MinimizeToTrayToggle"
+                                            Style="{StaticResource SettingsToggleStyle}"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Spacing="8">
+                        <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="Cider 连接" />
+                        <Border Style="{StaticResource SettingsCardStyle}">
+                            <StackPanel Spacing="18">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource SettingsIconStyle}">
+                                        <FontIcon FontSize="16" Glyph="&#xE968;" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock FontWeight="SemiBold" Text="本地 API" />
+                                        <TextBlock
+                                            Style="{StaticResource SettingsDescriptionStyle}"
+                                            Text="用于读取 Cider 的播放状态并发送播放控制命令" />
+                                    </StackPanel>
+                                </Grid>
+                                <Grid x:Name="ConnectionFieldsGrid" RowSpacing="12" ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBox
+                                        x:Name="ApiBaseUrlTextBox"
+                                        Header="API 地址"
+                                        PlaceholderText="http://localhost:10767/" />
+                                    <PasswordBox
+                                        x:Name="TokenPasswordBox"
+                                        Grid.Column="1"
+                                        Header="App Token（可选）"
+                                        PlaceholderText="使用当前 Windows 用户加密保存" />
+                                </Grid>
+                                <InfoBar
+                                    x:Name="SettingsStatusInfoBar"
+                                    IsClosable="False"
+                                    IsOpen="False" />
+                                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="10">
+                                    <Button Click="TestConnectionButton_Click" Content="测试连接" />
+                                    <Button Click="SaveSettingsButton_Click" Content="保存设置" Style="{StaticResource AccentButtonStyle}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                    </StackPanel>
+                </Grid>
             </ScrollViewer>
         </Grid>
     </Grid>

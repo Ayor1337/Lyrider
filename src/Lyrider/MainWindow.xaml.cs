@@ -148,26 +148,27 @@ public sealed partial class MainWindow : Window
         UpcomingQueueHeading.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         QueuePanel.Padding = new Thickness(0, 0, 0, 56);
         LyricsPanel.Padding = new Thickness(0, 0, 0, 56);
-        SettingsPageGrid.Padding = new Thickness(padding, 16, padding, 24);
+        SettingsPageGrid.Padding = new Thickness(0, compact ? 16 : 24, 0, 32);
+        var settingsLayoutWidth = Math.Max(0, Math.Min(1020, RootGrid.ActualWidth - padding * 2));
+        SettingsHeaderGrid.Width = settingsLayoutWidth;
+        SettingsContentGrid.Width = settingsLayoutWidth;
 
         foreach (var row in new[] { ThemeSettingsRow, BackgroundSettingsRow, LyricFontSettingsRow,
             AutoScrollSettingsRow, DefaultPanelSettingsRow, VolumeSettingsRow, AlwaysOnTopSettingsRow,
             TaskbarWidgetSettingsRow, MinimizeToTraySettingsRow })
         {
-            if (row.ColumnDefinitions.Count == 0)
-            {
-                row.ColumnDefinitions.Add(new ColumnDefinition());
-                row.ColumnDefinitions.Add(new ColumnDefinition());
-                row.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-                row.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            }
-
-            var stacked = RootGrid.ActualWidth < 760;
+            var stacked = RootGrid.ActualWidth < 720;
             row.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
             row.ColumnDefinitions[1].Width = new GridLength(stacked ? 0 : 260);
             Grid.SetColumn((FrameworkElement)row.Children[1], stacked ? 0 : 1);
             Grid.SetRow((FrameworkElement)row.Children[1], stacked ? 1 : 0);
         }
+
+        var stackConnectionFields = RootGrid.ActualWidth < 820;
+        ConnectionFieldsGrid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
+        ConnectionFieldsGrid.ColumnDefinitions[1].Width = new GridLength(stackConnectionFields ? 0 : 1, GridUnitType.Star);
+        Grid.SetColumn(TokenPasswordBox, stackConnectionFields ? 0 : 1);
+        Grid.SetRow(TokenPasswordBox, stackConnectionFields ? 1 : 0);
     }
 
     private async void MainWindow_Activated(object sender, WindowActivatedEventArgs args)
@@ -335,6 +336,7 @@ public sealed partial class MainWindow : Window
     private void RootGrid_ActualThemeChanged(FrameworkElement sender, object args)
     {
         ApplyTitleBarTheme();
+        _trayIconHost.SetLightTheme(RootGrid.ActualTheme == ElementTheme.Light);
     }
 
     private void ApplyTitleBarTheme()
@@ -548,6 +550,7 @@ public sealed partial class MainWindow : Window
     private void MenuSettingsItem_Click(object sender, RoutedEventArgs e)
     {
         LoadSettingsControls();
+        PlayerBackdropLayer.Visibility = Visibility.Collapsed;
         PlayerPageGrid.Visibility = Visibility.Collapsed;
         SettingsPageGrid.Visibility = Visibility.Visible;
     }
@@ -594,6 +597,7 @@ public sealed partial class MainWindow : Window
     private void ShowPlayerPanel(string panel)
     {
         SettingsPageGrid.Visibility = Visibility.Collapsed;
+        PlayerBackdropLayer.Visibility = Visibility.Visible;
         PlayerPageGrid.Visibility = Visibility.Visible;
         ShowPanel(panel);
     }
@@ -727,16 +731,17 @@ public sealed partial class MainWindow : Window
     private void BackToPlayerButton_Click(object sender, RoutedEventArgs e)
     {
         SettingsPageGrid.Visibility = Visibility.Collapsed;
+        PlayerBackdropLayer.Visibility = Visibility.Visible;
         PlayerPageGrid.Visibility = Visibility.Visible;
     }
 
     private async void TestConnectionButton_Click(object sender, RoutedEventArgs e)
     {
-        SettingsStatusText.Text = "正在测试连接…";
+        SetSettingsStatus("正在测试连接…", InfoBarSeverity.Informational);
         if (!Uri.TryCreate(ApiBaseUrlTextBox.Text, UriKind.Absolute, out var uri) ||
             uri.Scheme is not ("http" or "https"))
         {
-            SettingsStatusText.Text = "API 地址必须是有效的 HTTP 或 HTTPS 地址";
+            SetSettingsStatus("API 地址必须是有效的 HTTP 或 HTTPS 地址", InfoBarSeverity.Error);
             return;
         }
 
@@ -744,23 +749,23 @@ public sealed partial class MainWindow : Window
         var result = await service.GetNowPlayingAsync(
             NormalizeToken(TokenPasswordBox.Password),
             _lifetimeCancellation.Token);
-        SettingsStatusText.Text = result.State == CiderConnectionState.Connected
-            ? "连接成功"
-            : result.Message;
+        SetSettingsStatus(
+            result.State == CiderConnectionState.Connected ? "连接成功" : result.Message,
+            result.State == CiderConnectionState.Connected ? InfoBarSeverity.Success : InfoBarSeverity.Error);
     }
 
     private async void SaveSettingsButton_Click(object sender, RoutedEventArgs e)
     {
         if (!_ciderService.TryUpdateBaseAddress(ApiBaseUrlTextBox.Text))
         {
-            SettingsStatusText.Text = "API 地址必须是有效的 HTTP 或 HTTPS 地址";
+            SetSettingsStatus("API 地址必须是有效的 HTTP 或 HTTPS 地址", InfoBarSeverity.Error);
             return;
         }
 
         var token = NormalizeToken(TokenPasswordBox.Password);
         if (!_tokenStore.TrySave(token))
         {
-            SettingsStatusText.Text = "无法保存 Token";
+            SetSettingsStatus("无法保存 Token", InfoBarSeverity.Error);
             return;
         }
 
@@ -777,15 +782,16 @@ public sealed partial class MainWindow : Window
 
         if (!_settingsStore.TrySave(_settings))
         {
-            SettingsStatusText.Text = "无法保存应用设置";
+            SetSettingsStatus("无法保存应用设置", InfoBarSeverity.Error);
             return;
         }
 
         _appToken = token;
         ApplySettings();
-        SettingsStatusText.Text = _settings.TaskbarWidgetEnabled && !_taskbarWidgetHost.IsSupported
-            ? "设置已保存；任务栏播放状态仅支持 Windows 11"
-            : "设置已保存";
+        var taskbarWidgetUnsupported = _settings.TaskbarWidgetEnabled && !_taskbarWidgetHost.IsSupported;
+        SetSettingsStatus(
+            taskbarWidgetUnsupported ? "设置已保存；任务栏播放状态仅支持 Windows 11" : "设置已保存",
+            taskbarWidgetUnsupported ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
         await RefreshAsync(forceDetails: true);
     }
 
@@ -815,7 +821,14 @@ public sealed partial class MainWindow : Window
         MinimizeToTrayToggle.IsOn = _settings.MinimizeToTrayOnClose;
         ShowVolumeToggle.IsOn = _settings.ShowVolume;
         BackgroundOpacitySlider.Value = _settings.BackgroundOpacity;
-        SettingsStatusText.Text = string.Empty;
+        SetSettingsStatus(null);
+    }
+
+    private void SetSettingsStatus(string? message, InfoBarSeverity severity = InfoBarSeverity.Informational)
+    {
+        SettingsStatusInfoBar.Message = message ?? string.Empty;
+        SettingsStatusInfoBar.Severity = severity;
+        SettingsStatusInfoBar.IsOpen = !string.IsNullOrWhiteSpace(message);
     }
 
     private void ApplySettings()
@@ -827,6 +840,7 @@ public sealed partial class MainWindow : Window
             _ => ElementTheme.Default
         };
         ApplyTitleBarTheme();
+        _trayIconHost.SetLightTheme(RootGrid.ActualTheme == ElementTheme.Light);
         BackgroundArtworkImage.Opacity = Math.Clamp(_settings.BackgroundOpacity, 0, 0.3);
         VolumePanel.Visibility = _settings.ShowVolume ? Visibility.Visible : Visibility.Collapsed;
         UpdateResponsiveLayout();
