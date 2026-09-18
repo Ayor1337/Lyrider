@@ -105,6 +105,10 @@ public sealed class CiderService : IDisposable
             var volumeValue = TryFindDouble(volume?.RootElement, "volume") ?? 1;
             return new PlaybackStatus(isPlaying, Math.Clamp(volumeValue, 0, 1));
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
         catch (OperationCanceledException)
         {
             throw;
@@ -166,6 +170,10 @@ public sealed class CiderService : IDisposable
 
             return new QueueSnapshot(items, currentIndex);
         }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return new QueueSnapshot([], -1);
+        }
         catch (OperationCanceledException)
         {
             throw;
@@ -224,6 +232,10 @@ public sealed class CiderService : IDisposable
             }
 
             return lines.OrderBy(line => line.StartTime).ToArray();
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return [];
         }
         catch (OperationCanceledException)
         {

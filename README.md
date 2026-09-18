@@ -19,7 +19,7 @@ Lyrider 是一个使用 C#、WinUI 3、Windows App SDK 和 XAML 编写的 Window
 - .NET 10 SDK
 - Visual Studio 2026，并安装 WinUI 应用开发工作负载；或可构建 WinUI 3 项目的等效工具链
 - Windows App SDK 2.4 Runtime（框架依赖的 unpackaged 应用需要）
-- Cider 已启动，并启用 Local API
+- Cider 已启动并启用 Local API（使用播放功能时需要）
 
 ## 运行
 
@@ -41,6 +41,8 @@ GET http://localhost:10767/api/v1/playback/is-playing
 GET http://localhost:10767/api/v1/playback/volume
 GET http://localhost:10767/api/v1/lyrics/{trackId}
 ```
+
+Cider 未启动时，Lyrider 仍可正常打开并显示连接失败状态；启动 Cider 后会自动重试连接。
 
 如果 Cider 开启了 API 认证，在设置页输入由 Cider 生成的 App Token，然后保存设置。请求会通过 `apptoken` 请求头传递 Token。留空后保存会删除已有 Token，后续请求不会发送该请求头。
 
