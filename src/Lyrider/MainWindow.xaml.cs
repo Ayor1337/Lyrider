@@ -196,7 +196,8 @@ public sealed partial class MainWindow : Window
 
         foreach (var row in new[] { ThemeSettingsRow, BackgroundSettingsRow, BackgroundBlurSettingsRow,
             LyricFontSettingsRow, ChineseLyricsSettingsRow, AutoScrollSettingsRow, DefaultPanelSettingsRow,
-            AlwaysOnTopSettingsRow, TaskbarWidgetSettingsRow, MinimizeToTraySettingsRow })
+            AlwaysOnTopSettingsRow, TaskbarWidgetSettingsRow, TaskbarLyricsSettingsRow,
+            MinimizeToTraySettingsRow })
         {
             var stacked = RootGrid.ActualWidth < 720;
             row.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
@@ -446,13 +447,16 @@ public sealed partial class MainWindow : Window
             NormalizeArtworkUrl(track.Artwork?.Url, 160),
             status?.IsPlaying ?? false,
             true,
-            _lyricsAreTimeSynced && _currentLyricIndex >= 0
+            _settings.ShowLyricsInTaskbar && _lyricsAreTimeSynced && _currentLyricIndex >= 0
                 ? DisplayLyricText(_lyrics[_currentLyricIndex].Text)
                 : null,
-            _lyricsAreTimeSynced && _currentLyricIndex >= 0 && _currentLyricIndex + 1 < _lyrics.Count
+            _settings.ShowLyricsInTaskbar &&
+                _lyricsAreTimeSynced &&
+                _currentLyricIndex >= 0 &&
+                _currentLyricIndex + 1 < _lyrics.Count
                 ? DisplayLyricText(_lyrics[_currentLyricIndex + 1].Text)
                 : null,
-            _lyricsAreTimeSynced && _currentLyricIndex >= 0
+            _settings.ShowLyricsInTaskbar && _lyricsAreTimeSynced && _currentLyricIndex >= 0
                 ? _currentLyricIndex
                 : null));
     }
@@ -1367,6 +1371,7 @@ public sealed partial class MainWindow : Window
         _settings.ConvertTraditionalLyricsToSimplified = ChineseLyricsToggle.IsOn;
         _settings.AlwaysOnTop = AlwaysOnTopToggle.IsOn;
         _settings.TaskbarWidgetEnabled = TaskbarWidgetToggle.IsOn;
+        _settings.ShowLyricsInTaskbar = TaskbarLyricsToggle.IsOn;
         _settings.MinimizeToTrayOnClose = MinimizeToTrayToggle.IsOn;
         _settings.DefaultPanel = SelectedTag(DefaultPanelComboBox, "Queue");
         _settings.BackgroundOpacity = BackgroundOpacitySlider.Value / 100;
@@ -1462,6 +1467,7 @@ public sealed partial class MainWindow : Window
         ChineseLyricsToggle.IsOn = _settings.ConvertTraditionalLyricsToSimplified;
         AlwaysOnTopToggle.IsOn = _settings.AlwaysOnTop;
         TaskbarWidgetToggle.IsOn = _settings.TaskbarWidgetEnabled;
+        TaskbarLyricsToggle.IsOn = _settings.ShowLyricsInTaskbar;
         MinimizeToTrayToggle.IsOn = _settings.MinimizeToTrayOnClose;
         // The sliders work in whole percentages while the model keeps the 0–1 fraction, so
         // settings files written by earlier versions keep their original look.

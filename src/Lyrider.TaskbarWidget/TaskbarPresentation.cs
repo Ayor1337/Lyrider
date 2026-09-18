@@ -23,6 +23,9 @@ public static class TaskbarPresentation
     public static double CalculateMarqueeDistance(double contentWidth, double viewportWidth) =>
         Math.Max(0, contentWidth - viewportWidth);
 
+    public static double CalculateMarqueeCycleDistance(double contentWidth, double gap) =>
+        Math.Max(0, contentWidth) + Math.Max(0, gap);
+
     public static int GetLyricTransitionDirection(
         TaskbarPlaybackState previous,
         TaskbarPlaybackState current)

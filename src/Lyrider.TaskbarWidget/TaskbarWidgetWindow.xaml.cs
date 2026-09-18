@@ -15,6 +15,8 @@ public partial class TaskbarWidgetWindow : Window
     private const double LogicalWidth = 216;
     private const double LogicalHeight = 40;
     private const double MarqueeSpeed = 30;
+    private const double MarqueeGap = 24;
+    private static readonly TimeSpan MarqueeStartDelay = TimeSpan.FromSeconds(1);
     private const double LyricTransitionOffset = 12;
     private static readonly TimeSpan LyricTransitionDuration = TimeSpan.FromMilliseconds(220);
     private const string TaskbarClassName = "Shell_TrayWnd";
@@ -71,6 +73,7 @@ public partial class TaskbarWidgetWindow : Window
             StopMarquee();
         }
         TitleText.Text = displayText.Primary;
+        MarqueeTitleText.Text = displayText.Primary;
         ArtistText.Text = displayText.Secondary;
         PlayPauseIcon.Text = TaskbarPresentation.GetPlayPauseGlyph(state.IsPlaying);
         SetArtwork(state.ArtworkUrl);
@@ -471,38 +474,41 @@ public partial class TaskbarWidgetWindow : Window
     {
         StopMarquee();
         TitleText.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
-        var distance = TaskbarPresentation.CalculateMarqueeDistance(
+        var overflow = TaskbarPresentation.CalculateMarqueeDistance(
             TitleText.DesiredSize.Width,
             PrimaryTextViewport.ActualWidth);
-        if (distance <= 0 || _isPointerOver)
+        if (overflow <= 0 || _isPointerOver)
         {
             return;
         }
 
-        var travelSeconds = distance / MarqueeSpeed;
+        MarqueeTitleText.Visibility = Visibility.Visible;
+        var cycleDistance = TaskbarPresentation.CalculateMarqueeCycleDistance(
+            TitleText.DesiredSize.Width,
+            MarqueeGap);
+        var travelDuration = TimeSpan.FromSeconds(cycleDistance / MarqueeSpeed);
+        var cycleDuration = MarqueeStartDelay + travelDuration;
         var animation = new DoubleAnimationUsingKeyFrames
         {
             RepeatBehavior = RepeatBehavior.Forever
         };
         animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
-        animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(1))));
+        animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(MarqueeStartDelay)));
         animation.KeyFrames.Add(new LinearDoubleKeyFrame(
-            -distance,
-            KeyTime.FromTimeSpan(TimeSpan.FromSeconds(1 + travelSeconds))));
-        animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(
-            -distance,
-            KeyTime.FromTimeSpan(TimeSpan.FromSeconds(2 + travelSeconds))));
+            -cycleDistance,
+            KeyTime.FromTimeSpan(cycleDuration)));
 
-        ((TranslateTransform)TitleText.RenderTransform).BeginAnimation(
+        ((TranslateTransform)MarqueePanel.RenderTransform).BeginAnimation(
             TranslateTransform.XProperty,
             animation);
     }
 
     private void StopMarquee()
     {
-        var transform = (TranslateTransform)TitleText.RenderTransform;
+        var transform = (TranslateTransform)MarqueePanel.RenderTransform;
         transform.BeginAnimation(TranslateTransform.XProperty, null);
         transform.X = 0;
+        MarqueeTitleText.Visibility = Visibility.Collapsed;
     }
 
     private void AnimateLyricTransition(TaskbarDisplayText outgoingText, int direction)

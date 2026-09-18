@@ -14,9 +14,11 @@ public sealed class TaskbarWidgetTests
         var settings = new AppSettings();
 
         Assert.IsFalse(settings.TaskbarWidgetEnabled);
+        Assert.IsTrue(settings.ShowLyricsInTaskbar);
         Assert.IsFalse(settings.MinimizeToTrayOnClose);
         Assert.IsFalse(settings.ConvertTraditionalLyricsToSimplified);
         settings.TaskbarWidgetEnabled = true;
+        settings.ShowLyricsInTaskbar = false;
         settings.MinimizeToTrayOnClose = true;
         settings.ConvertTraditionalLyricsToSimplified = true;
 
@@ -24,8 +26,13 @@ public sealed class TaskbarWidgetTests
 
         Assert.IsNotNull(restored);
         Assert.IsTrue(restored.TaskbarWidgetEnabled);
+        Assert.IsFalse(restored.ShowLyricsInTaskbar);
         Assert.IsTrue(restored.MinimizeToTrayOnClose);
         Assert.IsTrue(restored.ConvertTraditionalLyricsToSimplified);
+
+        var upgraded = JsonSerializer.Deserialize<AppSettings>("{}");
+        Assert.IsNotNull(upgraded);
+        Assert.IsTrue(upgraded.ShowLyricsInTaskbar);
     }
 
     [TestMethod]
@@ -158,6 +165,14 @@ public sealed class TaskbarWidgetTests
         Assert.AreEqual(0, TaskbarPresentation.CalculateMarqueeDistance(120, 160));
         Assert.AreEqual(0, TaskbarPresentation.CalculateMarqueeDistance(160, 160));
         Assert.AreEqual(40, TaskbarPresentation.CalculateMarqueeDistance(200, 160));
+    }
+
+    [TestMethod]
+    public void CalculateMarqueeCycleDistance_IncludesGapAndClampsInvalidValues()
+    {
+        Assert.AreEqual(224, TaskbarPresentation.CalculateMarqueeCycleDistance(200, 24));
+        Assert.AreEqual(200, TaskbarPresentation.CalculateMarqueeCycleDistance(200, -1));
+        Assert.AreEqual(24, TaskbarPresentation.CalculateMarqueeCycleDistance(-1, 24));
     }
 
     [TestMethod]

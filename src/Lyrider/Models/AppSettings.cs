@@ -18,6 +18,8 @@ public sealed class AppSettings
 
     public bool TaskbarWidgetEnabled { get; set; }
 
+    public bool ShowLyricsInTaskbar { get; set; } = true;
+
     public bool MinimizeToTrayOnClose { get; set; }
 
     public string DefaultPanel { get; set; } = "Queue";
