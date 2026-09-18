@@ -16,6 +16,8 @@ public sealed class AppSettings
 
     public bool TaskbarWidgetEnabled { get; set; }
 
+    public bool MinimizeToTrayOnClose { get; set; }
+
     public bool ShowVolume { get; set; } = true;
 
     public string DefaultPanel { get; set; } = "Queue";

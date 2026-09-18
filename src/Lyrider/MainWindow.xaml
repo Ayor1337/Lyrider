@@ -552,6 +552,13 @@
                                 </StackPanel>
                                 <ToggleSwitch x:Name="TaskbarWidgetToggle" HorizontalAlignment="Stretch" />
                             </Grid>
+                            <Grid x:Name="MinimizeToTraySettingsRow" RowSpacing="10" ColumnSpacing="20">
+                                <StackPanel Spacing="3">
+                                    <TextBlock FontWeight="SemiBold" Text="关闭时最小化到托盘" />
+                                    <TextBlock FontSize="13" Foreground="{StaticResource MutedTextBrush}" Text="点击窗口关闭按钮时隐藏到系统托盘；应用菜单中的退出仍会直接关闭" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="MinimizeToTrayToggle" HorizontalAlignment="Stretch" />
+                            </Grid>
                         </StackPanel>
                     </Border>
 

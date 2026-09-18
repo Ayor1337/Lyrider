@@ -9,17 +9,20 @@ namespace Lyrider.Tests;
 public sealed class TaskbarWidgetTests
 {
     [TestMethod]
-    public void AppSettings_DefaultAndRoundTrip_PreservesTaskbarWidgetSetting()
+    public void AppSettings_DefaultAndRoundTrip_PreservesDesktopSettings()
     {
         var settings = new AppSettings();
 
         Assert.IsFalse(settings.TaskbarWidgetEnabled);
+        Assert.IsFalse(settings.MinimizeToTrayOnClose);
         settings.TaskbarWidgetEnabled = true;
+        settings.MinimizeToTrayOnClose = true;
 
         var restored = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(settings));
 
         Assert.IsNotNull(restored);
         Assert.IsTrue(restored.TaskbarWidgetEnabled);
+        Assert.IsTrue(restored.MinimizeToTrayOnClose);
     }
 
     [TestMethod]

@@ -28,6 +28,7 @@ public sealed partial class MainWindow : Window
     private readonly TaskbarWidgetHost _taskbarWidgetHost = new();
     private readonly CiderService _ciderService;
     private readonly AppWindow _appWindow;
+    private readonly TrayIconHost _trayIconHost;
 
     private AppSettings _settings;
     private IReadOnlyList<LyricLineInfo> _lyrics = [];
@@ -41,6 +42,7 @@ public sealed partial class MainWindow : Window
     private bool _lyricsAreTimeSynced;
     private bool _isInitialized;
     private bool _isRunningTaskbarCommand;
+    private bool _isExitRequested;
     private int _currentLyricIndex = -1;
     private int _refreshCount;
     private DateTimeOffset _lastManualLyricsScroll = DateTimeOffset.MinValue;
@@ -57,6 +59,10 @@ public sealed partial class MainWindow : Window
         var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(windowHandle);
         _appWindow = AppWindow.GetFromWindowId(windowId);
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Lyrider.ico");
+        _appWindow.SetIcon(iconPath);
+        _trayIconHost = new TrayIconHost(iconPath, ShowFromTray, ExitApplication);
+        _appWindow.Closing += AppWindow_Closing;
         RootGrid.ActualThemeChanged += RootGrid_ActualThemeChanged;
         var scale = GetDpiForWindow(windowHandle) / 96.0;
         var workArea = DisplayArea.GetFromWindowId(windowId, DisplayAreaFallback.Primary).WorkArea;
@@ -146,7 +152,7 @@ public sealed partial class MainWindow : Window
 
         foreach (var row in new[] { ThemeSettingsRow, BackgroundSettingsRow, LyricFontSettingsRow,
             AutoScrollSettingsRow, DefaultPanelSettingsRow, VolumeSettingsRow, AlwaysOnTopSettingsRow,
-            TaskbarWidgetSettingsRow })
+            TaskbarWidgetSettingsRow, MinimizeToTraySettingsRow })
         {
             if (row.ColumnDefinitions.Count == 0)
             {
@@ -548,7 +554,41 @@ public sealed partial class MainWindow : Window
 
     private void ExitMenuItem_Click(object sender, RoutedEventArgs e)
     {
-        Close();
+        ExitApplication();
+    }
+
+    private void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
+    {
+        if (_isExitRequested || !_settings.MinimizeToTrayOnClose)
+        {
+            return;
+        }
+
+        args.Cancel = true;
+        _appWindow.Hide();
+    }
+
+    private void ShowFromTray()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_appWindow.Presenter is OverlappedPresenter presenter &&
+                presenter.State == OverlappedPresenterState.Minimized)
+            {
+                presenter.Restore();
+            }
+
+            _appWindow.Show(true);
+        });
+    }
+
+    private void ExitApplication()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _isExitRequested = true;
+            Close();
+        });
     }
 
     private void ShowPlayerPanel(string panel)
@@ -730,6 +770,7 @@ public sealed partial class MainWindow : Window
         _settings.AutoScrollLyrics = AutoScrollToggle.IsOn;
         _settings.AlwaysOnTop = AlwaysOnTopToggle.IsOn;
         _settings.TaskbarWidgetEnabled = TaskbarWidgetToggle.IsOn;
+        _settings.MinimizeToTrayOnClose = MinimizeToTrayToggle.IsOn;
         _settings.ShowVolume = ShowVolumeToggle.IsOn;
         _settings.DefaultPanel = SelectedTag(DefaultPanelComboBox, "Queue");
         _settings.BackgroundOpacity = BackgroundOpacitySlider.Value;
@@ -771,6 +812,7 @@ public sealed partial class MainWindow : Window
         AutoScrollToggle.IsOn = _settings.AutoScrollLyrics;
         AlwaysOnTopToggle.IsOn = _settings.AlwaysOnTop;
         TaskbarWidgetToggle.IsOn = _settings.TaskbarWidgetEnabled;
+        MinimizeToTrayToggle.IsOn = _settings.MinimizeToTrayOnClose;
         ShowVolumeToggle.IsOn = _settings.ShowVolume;
         BackgroundOpacitySlider.Value = _settings.BackgroundOpacity;
         SettingsStatusText.Text = string.Empty;
@@ -852,6 +894,7 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
+        _appWindow.Closing -= AppWindow_Closing;
         RootGrid.ActualThemeChanged -= RootGrid_ActualThemeChanged;
         RootGrid.XamlRoot.Changed -= XamlRoot_Changed;
         _refreshTimer.Stop();
@@ -860,6 +903,7 @@ public sealed partial class MainWindow : Window
         _lifetimeCancellation.Cancel();
         _taskbarWidgetHost.CommandRequested -= TaskbarWidgetHost_CommandRequested;
         _taskbarWidgetHost.Dispose();
+        _trayIconHost.Dispose();
         _lifetimeCancellation.Dispose();
         _ciderService.Dispose();
     }

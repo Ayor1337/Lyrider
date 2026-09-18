@@ -9,6 +9,7 @@
     <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
     <UseWinUI>true</UseWinUI>
     <WindowsPackageType>None</WindowsPackageType>
+    <ApplicationIcon>Assets\Lyrider.ico</ApplicationIcon>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
@@ -21,5 +22,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Lyrider.TaskbarWidget\Lyrider.TaskbarWidget.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\Lyrider.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

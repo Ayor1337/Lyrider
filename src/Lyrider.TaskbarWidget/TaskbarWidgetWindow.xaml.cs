@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
+using Color = System.Windows.Media.Color;
 
 namespace Lyrider.TaskbarWidget;
 
