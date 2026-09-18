@@ -2,7 +2,9 @@
 
 ## Project Structure & Module Organization
 
-`Lyrider.sln` contains one unpackaged WinUI 3 application under `src/Lyrider/`.
+`Lyrider.sln` contains two projects: the unpackaged WinUI 3 application and a WPF/Win32 interop library, both in the same process.
+
+**`src/Lyrider/`** — the WinUI 3 application:
 
 - `App.xaml` and `App.xaml.cs`: application startup.
 - `MainWindow.xaml` and `MainWindow.xaml.cs`: the current now-playing UI and one-second refresh loop.
@@ -10,6 +12,15 @@
 - `Services/TokenStore.cs`: DPAPI-protected token persistence for the current Windows user.
 - `Services/ArtworkBackdrop.cs`: composition-layer backdrop that blurs the artwork with a Win2D effect.
 - `Models/`: minimal DTOs matching the Cider Local API response.
+
+**`src/Lyrider.TaskbarWidget/`** — WPF windows and Win32 interop, referenced by the app above:
+
+- `TaskbarWidgetHost.cs`, `TaskbarWidgetWindow.xaml` and `.xaml.cs`: the Windows 11 taskbar playback bar, parented into `Shell_TrayWnd` on its own STA thread.
+- `TrayIconHost.cs`, `TrayMenuWindow.xaml` and `.xaml.cs`: the system tray icon and its context menu.
+- `WindowMaterial.cs`: asks DWM for the acrylic system backdrop, reporting whether it applied so callers can fall back to an opaque background.
+- `NativeMethods.cs`: all P/Invoke declarations, plus the `NativeRect` / `NativePoint` / `NativeMargins` structs.
+- `TaskbarPlacement.cs`, `TrayMenuPlacement.cs`, `TaskbarPresentation.cs`: pure layout and text logic with no WPF or Win32 types, source-linked into the test project. `TaskbarPlacement.cs` also declares the `PixelPoint` / `PixelRect` records the others build on.
+- `TaskbarContracts.cs`: the `TaskbarPlaybackState` and `TaskbarDisplayText` records plus the `TaskbarPlaybackCommand` enum.
 
 Build artifacts belong in `bin/` and `obj/`; both are ignored. Tests live in `tests/Lyrider.Tests/` rather than beside production classes.
 
