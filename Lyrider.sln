@@ -4,6 +4,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lyrider", "src\Lyrider\Lyrider.csproj", "{B33AD66C-5231-4D01-95E8-CCBC3CB78D83}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lyrider.TaskbarWidget", "src\Lyrider.TaskbarWidget\Lyrider.TaskbarWidget.csproj", "{7A3F6847-6F5A-4B9A-93DD-1CA57B48F8AD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM64 = Debug|ARM64
@@ -26,5 +28,17 @@ Global
 		{B33AD66C-5231-4D01-95E8-CCBC3CB78D83}.Release|x64.Build.0 = Release|x64
 		{B33AD66C-5231-4D01-95E8-CCBC3CB78D83}.Release|x86.ActiveCfg = Release|x86
 		{B33AD66C-5231-4D01-95E8-CCBC3CB78D83}.Release|x86.Build.0 = Release|x86
+		{7A3F6847-6F5A-4B9A-93DD-1CA57B48F8AD}.Debug|ARM64.ActiveCfg = Debug|Any CPU
+		{7A3F6847-6F5A-4B9A-93DD-1CA57B48F8AD}.Debug|ARM64.Build.0 = Debug|Any CPU
+		{7A3F6847-6F5A-4B9A-93DD-1CA57B48F8AD}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7A3F6847-6F5A-4B9A-93DD-1CA57B48F8AD}.Debug|x64.Build.0 = Debug|Any CPU
+		{7A3F6847-6F5A-4B9A-93DD-1CA57B48F8AD}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7A3F6847-6F5A-4B9A-93DD-1CA57B48F8AD}.Debug|x86.Build.0 = Debug|Any CPU
+		{7A3F6847-6F5A-4B9A-93DD-1CA57B48F8AD}.Release|ARM64.ActiveCfg = Release|Any CPU
+		{7A3F6847-6F5A-4B9A-93DD-1CA57B48F8AD}.Release|ARM64.Build.0 = Release|Any CPU
+		{7A3F6847-6F5A-4B9A-93DD-1CA57B48F8AD}.Release|x64.ActiveCfg = Release|Any CPU
+		{7A3F6847-6F5A-4B9A-93DD-1CA57B48F8AD}.Release|x64.Build.0 = Release|Any CPU
+		{7A3F6847-6F5A-4B9A-93DD-1CA57B48F8AD}.Release|x86.ActiveCfg = Release|Any CPU
+		{7A3F6847-6F5A-4B9A-93DD-1CA57B48F8AD}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

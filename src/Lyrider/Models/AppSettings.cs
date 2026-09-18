@@ -14,6 +14,8 @@ public sealed class AppSettings
 
     public bool AlwaysOnTop { get; set; }
 
+    public bool TaskbarWidgetEnabled { get; set; }
+
     public bool ShowVolume { get; set; } = true;
 
     public string DefaultPanel { get; set; } = "Queue";

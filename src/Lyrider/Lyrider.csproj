@@ -18,4 +18,8 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.12" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Lyrider.TaskbarWidget\Lyrider.TaskbarWidget.csproj" />
+  </ItemGroup>
 </Project>

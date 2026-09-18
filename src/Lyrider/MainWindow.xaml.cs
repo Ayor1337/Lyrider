@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Lyrider.Models;
 using Lyrider.Services;
+using Lyrider.TaskbarWidget;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -24,6 +25,7 @@ public sealed partial class MainWindow : Window
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly ObservableCollection<QueueItemInfo> _queueItems = [];
     private readonly List<TextBlock> _lyricTextBlocks = [];
+    private readonly TaskbarWidgetHost _taskbarWidgetHost = new();
     private readonly CiderService _ciderService;
     private readonly AppWindow _appWindow;
 
@@ -38,6 +40,7 @@ public sealed partial class MainWindow : Window
     private bool _isAutoScrollingLyrics;
     private bool _lyricsAreTimeSynced;
     private bool _isInitialized;
+    private bool _isRunningTaskbarCommand;
     private int _currentLyricIndex = -1;
     private int _refreshCount;
     private DateTimeOffset _lastManualLyricsScroll = DateTimeOffset.MinValue;
@@ -54,9 +57,14 @@ public sealed partial class MainWindow : Window
         var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(windowHandle);
         _appWindow = AppWindow.GetFromWindowId(windowId);
-        _appWindow.Resize(new SizeInt32(1360, 820));
+        var scale = GetDpiForWindow(windowHandle) / 96.0;
+        var workArea = DisplayArea.GetFromWindowId(windowId, DisplayAreaFallback.Primary).WorkArea;
+        _appWindow.ResizeClient(new SizeInt32(
+            Math.Min((int)(1360 * scale), Math.Max(1, workArea.Width - (int)(32 * scale))),
+            Math.Min((int)(820 * scale), Math.Max(1, workArea.Height - (int)(64 * scale)))));
 
         QueueListView.ItemsSource = _queueItems;
+        _taskbarWidgetHost.CommandRequested += TaskbarWidgetHost_CommandRequested;
         LoadSavedToken();
         LoadSettingsControls();
         ApplySettings();
@@ -66,6 +74,95 @@ public sealed partial class MainWindow : Window
         Closed += MainWindow_Closed;
         Activated += MainWindow_Activated;
         _isInitialized = true;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(nint windowHandle);
+
+    private void RootGrid_Loaded(object sender, RoutedEventArgs e)
+    {
+        RootGrid.XamlRoot.Changed += XamlRoot_Changed;
+        UpdateWindowMinimumSize();
+        UpdateResponsiveLayout();
+    }
+
+    private void XamlRoot_Changed(XamlRoot sender, XamlRootChangedEventArgs args)
+    {
+        UpdateWindowMinimumSize();
+    }
+
+    private void UpdateWindowMinimumSize()
+    {
+        if (_appWindow.Presenter is OverlappedPresenter presenter)
+        {
+            var scale = RootGrid.XamlRoot.RasterizationScale;
+            // Presenter limits are outer-window pixels; include the non-client frame.
+            presenter.PreferredMinimumWidth = (int)Math.Ceiling(480 * scale)
+                + _appWindow.Size.Width - _appWindow.ClientSize.Width;
+            presenter.PreferredMinimumHeight = (int)Math.Ceiling(600 * scale)
+                + _appWindow.Size.Height - _appWindow.ClientSize.Height;
+        }
+    }
+
+    private void RootGrid_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateResponsiveLayout();
+    }
+
+    private void UpdateResponsiveLayout()
+    {
+        if (PlaybackPanel is null || RootGrid.ActualWidth <= 0)
+        {
+            return;
+        }
+
+        var compact = RootGrid.ActualWidth < 1000;
+        var padding = compact ? 16 : 32;
+        var availableHeight = Math.Max(0, RootGrid.ActualHeight - 48 - padding * 2);
+        PlayerPageGrid.Padding = new Thickness(padding);
+        PlayerPageGrid.ColumnSpacing = compact ? 0 : 32;
+        PlayerPageGrid.RowSpacing = compact ? 16 : 0;
+        PlayerPageGrid.ColumnDefinitions[0].Width = new GridLength(compact ? 1 : 5, GridUnitType.Star);
+        PlayerPageGrid.ColumnDefinitions[1].Width = compact ? new GridLength(0) : new GridLength(7, GridUnitType.Star);
+        var playerHeight = compact ? Math.Min(360, availableHeight * 0.53) : availableHeight;
+        PlayerPageGrid.RowDefinitions[0].Height = compact ? new GridLength(playerHeight) : new GridLength(1, GridUnitType.Star);
+        PlayerPageGrid.RowDefinitions[1].Height = compact ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        Grid.SetColumn(DetailsPanel, compact ? 0 : 1);
+        Grid.SetRow(DetailsPanel, compact ? 1 : 0);
+        PlaybackPanel.RowSpacing = compact ? 6 : 14;
+        var playerWidth = compact ? RootGrid.ActualWidth - padding * 2
+            : (RootGrid.ActualWidth - padding * 2 - 32) * 5 / 12;
+        var artworkSize = Math.Max(0, Math.Min(420, Math.Min(playerWidth,
+            playerHeight - (_settings.ShowVolume ? 210 : 170))));
+        ArtworkBorder.Width = artworkSize;
+        ArtworkBorder.Height = artworkSize;
+        ArtworkBorder.Visibility = artworkSize < 48 ? Visibility.Collapsed : Visibility.Visible;
+        CurrentQueueSection.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        UpcomingQueueHeading.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        QueuePanel.Padding = new Thickness(0, 0, 0, 56);
+        LyricsPanel.Padding = new Thickness(0, 0, 0, 56);
+        ConnectionStatusText.MaxWidth = compact ? 100 : 240;
+        ConnectionStatusText.TextTrimming = TextTrimming.CharacterEllipsis;
+        SettingsPageGrid.Padding = new Thickness(padding, 16, padding, 24);
+
+        foreach (var row in new[] { ThemeSettingsRow, BackgroundSettingsRow, LyricFontSettingsRow,
+            AutoScrollSettingsRow, DefaultPanelSettingsRow, VolumeSettingsRow, AlwaysOnTopSettingsRow,
+            TaskbarWidgetSettingsRow })
+        {
+            if (row.ColumnDefinitions.Count == 0)
+            {
+                row.ColumnDefinitions.Add(new ColumnDefinition());
+                row.ColumnDefinitions.Add(new ColumnDefinition());
+                row.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                row.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            }
+
+            var stacked = RootGrid.ActualWidth < 760;
+            row.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
+            row.ColumnDefinitions[1].Width = new GridLength(stacked ? 0 : 260);
+            Grid.SetColumn((FrameworkElement)row.Children[1], stacked ? 0 : 1);
+            Grid.SetRow((FrameworkElement)row.Children[1], stacked ? 1 : 0);
+        }
     }
 
     private async void MainWindow_Activated(object sender, WindowActivatedEventArgs args)
@@ -103,6 +200,7 @@ public sealed partial class MainWindow : Window
 
             UpdateConnectionState(result);
             UpdatePlaybackStatus(playbackStatus);
+            UpdateTaskbarWidget(result.State == CiderConnectionState.Connected ? result.Track : null, playbackStatus);
 
             if (result.State != CiderConnectionState.Connected || result.Track is null)
             {
@@ -227,6 +325,22 @@ public sealed partial class MainWindow : Window
         ShuffleButton.Opacity = track.ShuffleMode > 0 ? 1 : 0.55;
         RepeatButton.Opacity = track.RepeatMode > 0 ? 1 : 0.55;
         SetArtwork(NormalizeArtworkUrl(track.Artwork?.Url));
+    }
+
+    private void UpdateTaskbarWidget(NowPlayingInfo? track, PlaybackStatus? status)
+    {
+        if (track is null)
+        {
+            _taskbarWidgetHost.Update(TaskbarPlaybackState.Unavailable);
+            return;
+        }
+
+        _taskbarWidgetHost.Update(new TaskbarPlaybackState(
+            ValueOrFallback(track.Name),
+            ValueOrFallback(track.ArtistName),
+            NormalizeArtworkUrl(track.Artwork?.Url, 160),
+            status?.IsPlaying ?? false,
+            true));
     }
 
     private void SetArtwork(string? url)
@@ -440,6 +554,41 @@ public sealed partial class MainWindow : Window
         await RefreshAsync(forceDetails: true);
     }
 
+    private void TaskbarWidgetHost_CommandRequested(TaskbarPlaybackCommand command)
+    {
+        DispatcherQueue.TryEnqueue(async () => await RunTaskbarPlaybackCommandAsync(command));
+    }
+
+    private async Task RunTaskbarPlaybackCommandAsync(TaskbarPlaybackCommand command)
+    {
+        if (_isRunningTaskbarCommand)
+        {
+            return;
+        }
+
+        _isRunningTaskbarCommand = true;
+        try
+        {
+            await RunPlaybackCommandAsync(command switch
+            {
+                TaskbarPlaybackCommand.Previous => () => _ciderService.PlayPreviousAsync(
+                    _appToken,
+                    _lifetimeCancellation.Token),
+                TaskbarPlaybackCommand.TogglePlayPause => () => _ciderService.TogglePlayPauseAsync(
+                    _appToken,
+                    _lifetimeCancellation.Token),
+                TaskbarPlaybackCommand.Next => () => _ciderService.PlayNextAsync(
+                    _appToken,
+                    _lifetimeCancellation.Token),
+                _ => throw new ArgumentOutOfRangeException(nameof(command), command, null)
+            });
+        }
+        finally
+        {
+            _isRunningTaskbarCommand = false;
+        }
+    }
+
     private async void VolumeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
         if (!_isInitialized || _isUpdatingVolume)
@@ -530,6 +679,7 @@ public sealed partial class MainWindow : Window
         _settings.LyricFontSize = LyricFontSizeSlider.Value;
         _settings.AutoScrollLyrics = AutoScrollToggle.IsOn;
         _settings.AlwaysOnTop = AlwaysOnTopToggle.IsOn;
+        _settings.TaskbarWidgetEnabled = TaskbarWidgetToggle.IsOn;
         _settings.ShowVolume = ShowVolumeToggle.IsOn;
         _settings.DefaultPanel = SelectedTag(DefaultPanelComboBox, "Queue");
         _settings.BackgroundOpacity = BackgroundOpacitySlider.Value;
@@ -542,7 +692,9 @@ public sealed partial class MainWindow : Window
 
         _appToken = token;
         ApplySettings();
-        SettingsStatusText.Text = "设置已保存";
+        SettingsStatusText.Text = _settings.TaskbarWidgetEnabled && !_taskbarWidgetHost.IsSupported
+            ? "设置已保存；任务栏播放状态仅支持 Windows 11"
+            : "设置已保存";
         await RefreshAsync(forceDetails: true);
     }
 
@@ -568,6 +720,7 @@ public sealed partial class MainWindow : Window
         LyricFontSizeSlider.Value = _settings.LyricFontSize;
         AutoScrollToggle.IsOn = _settings.AutoScrollLyrics;
         AlwaysOnTopToggle.IsOn = _settings.AlwaysOnTop;
+        TaskbarWidgetToggle.IsOn = _settings.TaskbarWidgetEnabled;
         ShowVolumeToggle.IsOn = _settings.ShowVolume;
         BackgroundOpacitySlider.Value = _settings.BackgroundOpacity;
         SettingsStatusText.Text = string.Empty;
@@ -583,9 +736,19 @@ public sealed partial class MainWindow : Window
         };
         BackgroundArtworkImage.Opacity = Math.Clamp(_settings.BackgroundOpacity, 0, 0.3);
         VolumePanel.Visibility = _settings.ShowVolume ? Visibility.Visible : Visibility.Collapsed;
+        UpdateResponsiveLayout();
         if (_appWindow.Presenter is OverlappedPresenter presenter)
         {
             presenter.IsAlwaysOnTop = _settings.AlwaysOnTop;
+        }
+
+        if (_settings.TaskbarWidgetEnabled && _taskbarWidgetHost.IsSupported)
+        {
+            _taskbarWidgetHost.Start();
+        }
+        else
+        {
+            _taskbarWidgetHost.Stop();
         }
 
         RenderLyrics();
@@ -638,10 +801,13 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
+        RootGrid.XamlRoot.Changed -= XamlRoot_Changed;
         _refreshTimer.Stop();
         _volumeChangeCancellation?.Cancel();
         _volumeChangeCancellation?.Dispose();
         _lifetimeCancellation.Cancel();
+        _taskbarWidgetHost.CommandRequested -= TaskbarWidgetHost_CommandRequested;
+        _taskbarWidgetHost.Dispose();
         _lifetimeCancellation.Dispose();
         _ciderService.Dispose();
     }

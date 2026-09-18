@@ -19,5 +19,8 @@
     <Compile Include="..\..\src\Lyrider\Models\CiderPlaybackModels.cs" Link="Production\CiderPlaybackModels.cs" />
     <Compile Include="..\..\src\Lyrider\Services\CiderService.cs" Link="Production\CiderService.cs" />
     <Compile Include="..\..\src\Lyrider\Services\QueueCollectionSynchronizer.cs" Link="Production\QueueCollectionSynchronizer.cs" />
+    <Compile Include="..\..\src\Lyrider.TaskbarWidget\TaskbarContracts.cs" Link="Production\TaskbarContracts.cs" />
+    <Compile Include="..\..\src\Lyrider.TaskbarWidget\TaskbarPlacement.cs" Link="Production\TaskbarPlacement.cs" />
+    <Compile Include="..\..\src\Lyrider.TaskbarWidget\TaskbarPresentation.cs" Link="Production\TaskbarPresentation.cs" />
   </ItemGroup>
 </Project>
