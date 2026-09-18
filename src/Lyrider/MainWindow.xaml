@@ -33,6 +33,14 @@
                     <Setter Property="MinWidth" Value="52" />
                     <Setter Property="MinHeight" Value="48" />
                 </Style>
+                <Style x:Key="TitleBarButtonStyle" TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+                    <Setter Property="Width" Value="36" />
+                    <Setter Property="Height" Value="36" />
+                    <Setter Property="MinWidth" Value="36" />
+                    <Setter Property="MinHeight" Value="36" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="CornerRadius" Value="8" />
+                </Style>
             </ResourceDictionary>
         </Grid.Resources>
 
@@ -51,52 +59,54 @@
             Fill="{ThemeResource LyriderRootBrush}"
             Opacity="0.84" />
 
-        <Grid x:Name="AppTitleBar" Padding="18,0,150,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel VerticalAlignment="Center" Orientation="Horizontal" Spacing="10">
-                <FontIcon FontSize="16" Glyph="&#xE93C;" />
-                <TextBlock
-                    VerticalAlignment="Center"
-                    FontSize="14"
-                    FontWeight="SemiBold"
-                    Text="Lyrider" />
-            </StackPanel>
-            <StackPanel
-                Grid.Column="2"
+        <Grid x:Name="AppTitleBar" Padding="8,0,146,0">
+            <Button
+                x:Name="AppMenuButton"
+                HorizontalAlignment="Left"
                 VerticalAlignment="Center"
-                Orientation="Horizontal"
-                Spacing="8">
-                <Border
-                    Padding="10,4"
-                    Background="{ThemeResource PanelFillBrush}"
-                    CornerRadius="12">
-                    <StackPanel Orientation="Horizontal" Spacing="7">
-                        <Ellipse
-                            x:Name="ConnectionIndicator"
-                            Width="7"
-                            Height="7"
-                            VerticalAlignment="Center"
-                            Fill="{StaticResource DisconnectedBrush}" />
-                        <TextBlock
-                            x:Name="ConnectionStatusText"
-                            VerticalAlignment="Center"
-                            FontSize="12"
-                            Foreground="{StaticResource SubtleTextBrush}"
-                            Text="正在连接…" />
-                    </StackPanel>
-                </Border>
-                <Button
-                    x:Name="SettingsButton"
-                    Click="SettingsButton_Click"
-                    Style="{StaticResource IconButtonStyle}"
-                    ToolTipService.ToolTip="设置">
-                    <FontIcon FontSize="16" Glyph="&#xE713;" />
-                </Button>
-            </StackPanel>
+                AutomationProperties.Name="应用菜单"
+                Style="{StaticResource TitleBarButtonStyle}"
+                ToolTipService.ToolTip="应用菜单">
+                <FontIcon FontSize="16" Glyph="&#xE712;" />
+                <Button.Flyout>
+                    <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                        <MenuFlyoutItem
+                            x:Name="ConnectionStatusMenuItem"
+                            IsEnabled="False"
+                            Text="正在连接…">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon
+                                    x:Name="ConnectionStatusIcon"
+                                    FontSize="10"
+                                    Foreground="{StaticResource DisconnectedBrush}"
+                                    Glyph="&#xE91F;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Click="MenuQueueItem_Click" Text="播放队列">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE8FD;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Click="MenuLyricsItem_Click" Text="歌词">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE8D2;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Click="MenuSettingsItem_Click" Text="设置">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE713;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutSeparator />
+                        <MenuFlyoutItem Click="ExitMenuItem_Click" Text="退出 Lyrider">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE8BB;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                    </MenuFlyout>
+                </Button.Flyout>
+            </Button>
         </Grid>
 
         <Grid

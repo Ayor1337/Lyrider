@@ -57,6 +57,7 @@ public sealed partial class MainWindow : Window
         var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(windowHandle);
         _appWindow = AppWindow.GetFromWindowId(windowId);
+        RootGrid.ActualThemeChanged += RootGrid_ActualThemeChanged;
         var scale = GetDpiForWindow(windowHandle) / 96.0;
         var workArea = DisplayArea.GetFromWindowId(windowId, DisplayAreaFallback.Primary).WorkArea;
         _appWindow.ResizeClient(new SizeInt32(
@@ -141,8 +142,6 @@ public sealed partial class MainWindow : Window
         UpcomingQueueHeading.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         QueuePanel.Padding = new Thickness(0, 0, 0, 56);
         LyricsPanel.Padding = new Thickness(0, 0, 0, 56);
-        ConnectionStatusText.MaxWidth = compact ? 100 : 240;
-        ConnectionStatusText.TextTrimming = TextTrimming.CharacterEllipsis;
         SettingsPageGrid.Padding = new Thickness(padding, 16, padding, 24);
 
         foreach (var row in new[] { ThemeSettingsRow, BackgroundSettingsRow, LyricFontSettingsRow,
@@ -269,8 +268,8 @@ public sealed partial class MainWindow : Window
 
     private void UpdateConnectionState(CiderResult result)
     {
-        ConnectionStatusText.Text = result.Message;
-        ConnectionIndicator.Fill = result.State == CiderConnectionState.Connected
+        ConnectionStatusMenuItem.Text = result.Message;
+        ConnectionStatusIcon.Foreground = result.State == CiderConnectionState.Connected
             ? (Brush)RootGrid.Resources["ConnectedBrush"]
             : (Brush)RootGrid.Resources["DisconnectedBrush"];
     }
@@ -325,6 +324,37 @@ public sealed partial class MainWindow : Window
         ShuffleButton.Opacity = track.ShuffleMode > 0 ? 1 : 0.55;
         RepeatButton.Opacity = track.RepeatMode > 0 ? 1 : 0.55;
         SetArtwork(NormalizeArtworkUrl(track.Artwork?.Url));
+    }
+
+    private void RootGrid_ActualThemeChanged(FrameworkElement sender, object args)
+    {
+        ApplyTitleBarTheme();
+    }
+
+    private void ApplyTitleBarTheme()
+    {
+        var titleBar = _appWindow.TitleBar;
+        var isLight = RootGrid.ActualTheme == ElementTheme.Light;
+        var foreground = isLight ? Colors.Black : Colors.White;
+
+        titleBar.BackgroundColor = Colors.Transparent;
+        titleBar.InactiveBackgroundColor = Colors.Transparent;
+        titleBar.ButtonBackgroundColor = Colors.Transparent;
+        titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+        titleBar.ButtonForegroundColor = foreground;
+        titleBar.ButtonInactiveForegroundColor = ColorHelper.FromArgb(
+            0x66,
+            foreground.R,
+            foreground.G,
+            foreground.B);
+        titleBar.ButtonHoverBackgroundColor = isLight
+            ? ColorHelper.FromArgb(0x0F, 0, 0, 0)
+            : ColorHelper.FromArgb(0x18, 255, 255, 255);
+        titleBar.ButtonPressedBackgroundColor = isLight
+            ? ColorHelper.FromArgb(0x18, 0, 0, 0)
+            : ColorHelper.FromArgb(0x24, 255, 255, 255);
+        titleBar.ButtonHoverForegroundColor = foreground;
+        titleBar.ButtonPressedForegroundColor = foreground;
     }
 
     private void UpdateTaskbarWidget(NowPlayingInfo? track, PlaybackStatus? status)
@@ -499,6 +529,35 @@ public sealed partial class MainWindow : Window
 
     private void LyricsViewButton_Click(object sender, RoutedEventArgs e) => ShowPanel("Lyrics");
 
+    private void MenuQueueItem_Click(object sender, RoutedEventArgs e)
+    {
+        ShowPlayerPanel("Queue");
+    }
+
+    private void MenuLyricsItem_Click(object sender, RoutedEventArgs e)
+    {
+        ShowPlayerPanel("Lyrics");
+    }
+
+    private void MenuSettingsItem_Click(object sender, RoutedEventArgs e)
+    {
+        LoadSettingsControls();
+        PlayerPageGrid.Visibility = Visibility.Collapsed;
+        SettingsPageGrid.Visibility = Visibility.Visible;
+    }
+
+    private void ExitMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
+    private void ShowPlayerPanel(string panel)
+    {
+        SettingsPageGrid.Visibility = Visibility.Collapsed;
+        PlayerPageGrid.Visibility = Visibility.Visible;
+        ShowPanel(panel);
+    }
+
     private void ShowPanel(string panel)
     {
         var showLyrics = string.Equals(panel, "Lyrics", StringComparison.OrdinalIgnoreCase);
@@ -546,8 +605,8 @@ public sealed partial class MainWindow : Window
     {
         if (!await command())
         {
-            ConnectionStatusText.Text = "Cider 未接受播放指令";
-            ConnectionIndicator.Fill = (Brush)RootGrid.Resources["DisconnectedBrush"];
+            ConnectionStatusMenuItem.Text = "Cider 未接受播放指令";
+            ConnectionStatusIcon.Foreground = (Brush)RootGrid.Resources["DisconnectedBrush"];
             return;
         }
 
@@ -625,19 +684,10 @@ public sealed partial class MainWindow : Window
             _lifetimeCancellation.Token));
     }
 
-    private void SettingsButton_Click(object sender, RoutedEventArgs e)
-    {
-        LoadSettingsControls();
-        PlayerPageGrid.Visibility = Visibility.Collapsed;
-        SettingsPageGrid.Visibility = Visibility.Visible;
-        SettingsButton.Visibility = Visibility.Collapsed;
-    }
-
     private void BackToPlayerButton_Click(object sender, RoutedEventArgs e)
     {
         SettingsPageGrid.Visibility = Visibility.Collapsed;
         PlayerPageGrid.Visibility = Visibility.Visible;
-        SettingsButton.Visibility = Visibility.Visible;
     }
 
     private async void TestConnectionButton_Click(object sender, RoutedEventArgs e)
@@ -707,8 +757,8 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        ConnectionStatusText.Text = "无法读取已保存的 Token";
-        ConnectionIndicator.Fill = (Brush)RootGrid.Resources["DisconnectedBrush"];
+        ConnectionStatusMenuItem.Text = "无法读取已保存的 Token";
+        ConnectionStatusIcon.Foreground = (Brush)RootGrid.Resources["DisconnectedBrush"];
     }
 
     private void LoadSettingsControls()
@@ -734,6 +784,7 @@ public sealed partial class MainWindow : Window
             "Dark" => ElementTheme.Dark,
             _ => ElementTheme.Default
         };
+        ApplyTitleBarTheme();
         BackgroundArtworkImage.Opacity = Math.Clamp(_settings.BackgroundOpacity, 0, 0.3);
         VolumePanel.Visibility = _settings.ShowVolume ? Visibility.Visible : Visibility.Collapsed;
         UpdateResponsiveLayout();
@@ -801,6 +852,7 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
+        RootGrid.ActualThemeChanged -= RootGrid_ActualThemeChanged;
         RootGrid.XamlRoot.Changed -= XamlRoot_Changed;
         _refreshTimer.Stop();
         _volumeChangeCancellation?.Cancel();
