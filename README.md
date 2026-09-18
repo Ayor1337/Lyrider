@@ -79,6 +79,23 @@ Token 通过 Windows DPAPI 绑定到当前 Windows 用户并加密存储在：
 %LOCALAPPDATA%\Lyrider\settings.json
 ```
 
+## 打包
+
+```powershell
+.\scripts\package-msix.ps1 -Version 1.0.1.0
+```
+
+脚本以自包含方式构建 x64 应用，把构建输出作为包布局并生成 `AppxManifest.xml`，交给 `makeappx` 打包，最后用当前用户证书存储中的 `CN=Lyrider` 自签名证书签名（证书不存在时自动创建）。产物在 `AppPackages\Lyrider_<版本>_<架构>\`，包含 `.msix` 和导出的 `Lyrider.cer`。
+
+包是自包含的，目标机器不需要预装 .NET 与 Windows App SDK 运行时，但需要先信任该证书：
+
+```powershell
+Import-Certificate -FilePath .\AppPackages\Lyrider_1.0.1.0_x64\Lyrider.cer -CertStoreLocation Cert:\CurrentUser\TrustedPeople
+Add-AppxPackage .\AppPackages\Lyrider_1.0.1.0_x64\Lyrider_1.0.1.0_x64.msix
+```
+
+打包必须使用 `dotnet build` 的输出：本项目的 `dotnet publish` 会漏掉 `App.xbf`、`MainWindow.xbf` 和 `Lyrider.pri`，用它打出的包启动时会找不到 XAML 资源。
+
 ## 项目结构
 
 ```text
@@ -92,6 +109,7 @@ src/Lyrider/
 └── MainWindow.xaml           沉浸式播放器、歌词、队列和设置界面
 src/Lyrider.TaskbarWidget/    桌面互操作：系统托盘、WPF 任务栏子窗口与 Shell 定位
 tests/Lyrider.Tests/          队列刷新与响应解析回归测试
+scripts/package-msix.ps1      MSIX 构建、打包与自签名脚本
 ```
 
 当前版本使用 HTTP 轮询，不包含 Socket.IO；任务栏播放条复用主窗口的轮询结果，不会额外请求 Cider API。

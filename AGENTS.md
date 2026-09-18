@@ -22,6 +22,8 @@
 - `TaskbarPlacement.cs`, `TrayMenuPlacement.cs`, `TaskbarPresentation.cs`: pure layout and text logic with no WPF or Win32 types, source-linked into the test project. `TaskbarPlacement.cs` also declares the `PixelPoint` / `PixelRect` records the others build on.
 - `TaskbarContracts.cs`: the `TaskbarPlaybackState` and `TaskbarDisplayText` records plus the `TaskbarPlaybackCommand` enum.
 
+**`scripts/`** holds repository tooling rather than application code: `package-msix.ps1` builds and packs the MSIX.
+
 Build artifacts belong in `bin/` and `obj/`; both are ignored. Tests live in `tests/Lyrider.Tests/` rather than beside production classes.
 
 **`tests/Lyrider.Tests` is deliberately not in `Lyrider.sln`.** It targets plain `net10.0` without `UseWPF`/`UseWindowsForms`, so it cannot `ProjectReference` the widget project; instead `Lyrider.Tests.csproj` source-links individual production files via `<Compile Include="..\..\src\...">`. Two consequences:
@@ -43,6 +45,16 @@ dotnet test .\tests\Lyrider.Tests\Lyrider.Tests.csproj
 Point `dotnet test` at the test project directly — it is not in the solution, and do not pass `--no-build` unless you just built that project.
 
 Use `-c Release` for release verification. Close Lyrider before rebuilding Debug because the running executable locks the output file. Run `git diff --check` before handing off changes.
+
+### Packaging
+
+```powershell
+.\scripts\package-msix.ps1 -Version 1.0.1.0
+```
+
+The script builds self-contained for `x64`, uses the build output as the package layout, writes `AppxManifest.xml`, packs with `makeappx`, and signs with the `CN=Lyrider` self-signed certificate in the current user's certificate store (creating it on first run). Output lands in `AppPackages/Lyrider_<version>_<arch>/` as an `.msix` plus the exported `Lyrider.cer`. Installing elsewhere requires trusting that certificate (`Cert:\CurrentUser\TrustedPeople`); the same package on a machine without it fails to deploy.
+
+Do not pack the `dotnet publish` output: publish omits `App.xbf`, `MainWindow.xbf`, and `Lyrider.pri` for this project, and a package built from it fails to start. The script asserts those files exist and copies the layout itself for that reason.
 
 ## Coding Style & Naming Conventions
 
