@@ -14,6 +14,7 @@ public partial class TaskbarWidgetWindow : Window
 {
     private const double LogicalWidth = 216;
     private const double LogicalHeight = 40;
+    private const double MarqueeSpeed = 30;
     private const string TaskbarClassName = "Shell_TrayWnd";
     private const int WmGetObject = 0x003D;
     private const int WmShowWindow = 0x0018;
@@ -29,6 +30,7 @@ public partial class TaskbarWidgetWindow : Window
     private bool _isAttached;
     private bool _isPointerOver;
     private bool _isRefreshingHost;
+    private string _primaryText = string.Empty;
     private Color _idleBackgroundColor = Color.FromArgb(0x01, 0xFF, 0xFF, 0xFF);
     private Color _hoverBackgroundColor = Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF);
     private readonly SolidColorBrush _rootBackgroundBrush = new();
@@ -55,11 +57,18 @@ public partial class TaskbarWidgetWindow : Window
             return;
         }
 
-        TitleText.Text = state.Title;
-        ArtistText.Text = string.IsNullOrWhiteSpace(state.Artist) ? "—" : state.Artist;
+        var displayText = TaskbarPresentation.GetDisplayText(state);
+        var primaryTextChanged = !string.Equals(_primaryText, displayText.Primary, StringComparison.Ordinal);
+        _primaryText = displayText.Primary;
+        TitleText.Text = displayText.Primary;
+        ArtistText.Text = displayText.Secondary;
         PlayPauseIcon.Text = TaskbarPresentation.GetPlayPauseGlyph(state.IsPlaying);
         SetArtwork(state.ArtworkUrl);
         UpdateVisibility();
+        if (primaryTextChanged && !_isPointerOver)
+        {
+            Dispatcher.BeginInvoke(new Action(StartMarquee));
+        }
     }
 
     public async Task RefreshHostAsync(CancellationToken cancellationToken)
@@ -418,6 +427,7 @@ public partial class TaskbarWidgetWindow : Window
         }
 
         _isPointerOver = true;
+        StopMarquee();
         ControlsPanel.IsHitTestVisible = true;
         AnimatePanel(InfoPanel, 0, -2, 100);
         AnimatePanel(ControlsPanel, 1, 0, 167);
@@ -431,6 +441,53 @@ public partial class TaskbarWidgetWindow : Window
         AnimatePanel(ControlsPanel, 0, 2, 100);
         AnimatePanel(InfoPanel, 1, 0, 167);
         SetRootBackground(_idleBackgroundColor, animate: true);
+        Dispatcher.BeginInvoke(new Action(StartMarquee));
+    }
+
+    private void PrimaryTextViewport_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!_isPointerOver)
+        {
+            Dispatcher.BeginInvoke(new Action(StartMarquee));
+        }
+    }
+
+    private void StartMarquee()
+    {
+        StopMarquee();
+        TitleText.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+        var distance = TaskbarPresentation.CalculateMarqueeDistance(
+            TitleText.DesiredSize.Width,
+            PrimaryTextViewport.ActualWidth);
+        if (distance <= 0 || _isPointerOver)
+        {
+            return;
+        }
+
+        var travelSeconds = distance / MarqueeSpeed;
+        var animation = new DoubleAnimationUsingKeyFrames
+        {
+            RepeatBehavior = RepeatBehavior.Forever
+        };
+        animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(1))));
+        animation.KeyFrames.Add(new LinearDoubleKeyFrame(
+            -distance,
+            KeyTime.FromTimeSpan(TimeSpan.FromSeconds(1 + travelSeconds))));
+        animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(
+            -distance,
+            KeyTime.FromTimeSpan(TimeSpan.FromSeconds(2 + travelSeconds))));
+
+        ((TranslateTransform)TitleText.RenderTransform).BeginAnimation(
+            TranslateTransform.XProperty,
+            animation);
+    }
+
+    private void StopMarquee()
+    {
+        var transform = (TranslateTransform)TitleText.RenderTransform;
+        transform.BeginAnimation(TranslateTransform.XProperty, null);
+        transform.X = 0;
     }
 
     private static void AnimatePanel(UIElement element, double opacity, double offset, int durationMilliseconds)

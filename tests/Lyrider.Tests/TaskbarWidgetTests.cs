@@ -95,4 +95,65 @@ public sealed class TaskbarWidgetTests
             false,
             true)));
     }
+
+    [TestMethod]
+    public void GetDisplayText_WithSyncedLyrics_ShowsCurrentAndNextLines()
+    {
+        var state = new TaskbarPlaybackState(
+            "Song",
+            "Artist",
+            null,
+            true,
+            true,
+            " Current line ",
+            " Next line ");
+
+        var result = TaskbarPresentation.GetDisplayText(state);
+
+        Assert.AreEqual("Current line", result.Primary);
+        Assert.AreEqual("Next line", result.Secondary);
+    }
+
+    [TestMethod]
+    public void GetDisplayText_WithoutCurrentLyric_FallsBackToTrackMetadata()
+    {
+        var state = new TaskbarPlaybackState(
+            "Song",
+            "Artist",
+            null,
+            true,
+            true,
+            "   ",
+            "Next line");
+
+        var result = TaskbarPresentation.GetDisplayText(state);
+
+        Assert.AreEqual("Song", result.Primary);
+        Assert.AreEqual("Artist", result.Secondary);
+    }
+
+    [TestMethod]
+    public void GetDisplayText_LastLyricLine_LeavesSecondaryLineEmpty()
+    {
+        var state = new TaskbarPlaybackState(
+            "Song",
+            "Artist",
+            null,
+            true,
+            true,
+            "Last line");
+
+        var result = TaskbarPresentation.GetDisplayText(state);
+
+        Assert.AreEqual("Last line", result.Primary);
+        Assert.AreEqual(string.Empty, result.Secondary);
+    }
+
+    [TestMethod]
+    public void CalculateMarqueeDistance_OnlyReturnsOverflowWidth()
+    {
+        Assert.AreEqual(0, TaskbarPresentation.CalculateMarqueeDistance(120, 160));
+        Assert.AreEqual(0, TaskbarPresentation.CalculateMarqueeDistance(160, 160));
+        Assert.AreEqual(40, TaskbarPresentation.CalculateMarqueeDistance(200, 160));
+    }
 }

@@ -5,7 +5,9 @@ public sealed record TaskbarPlaybackState(
     string Artist,
     string? ArtworkUrl,
     bool IsPlaying,
-    bool IsAvailable)
+    bool IsAvailable,
+    string? CurrentLyric = null,
+    string? NextLyric = null)
 {
     public static TaskbarPlaybackState Unavailable { get; } = new(
         string.Empty,
@@ -14,6 +16,10 @@ public sealed record TaskbarPlaybackState(
         false,
         false);
 }
+
+public sealed record TaskbarDisplayText(
+    string Primary,
+    string Secondary);
 
 public enum TaskbarPlaybackCommand
 {

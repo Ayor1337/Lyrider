@@ -45,3 +45,10 @@ public sealed record LyricLineInfo(
     double StartTime,
     double? EndTime,
     string Text);
+
+public sealed record LyricsSnapshot(
+    IReadOnlyList<LyricLineInfo> Lines,
+    bool IsTimeSynced)
+{
+    public static LyricsSnapshot Empty { get; } = new([], false);
+}

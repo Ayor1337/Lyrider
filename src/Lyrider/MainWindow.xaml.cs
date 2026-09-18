@@ -27,6 +27,7 @@ public sealed partial class MainWindow : Window
     private readonly ObservableCollection<QueueItemInfo> _queueItems = [];
     private readonly List<TextBlock> _lyricTextBlocks = [];
     private readonly TaskbarWidgetHost _taskbarWidgetHost = new();
+    private readonly LyricsService _lyricsService = new();
     private readonly CiderService _ciderService;
     private readonly AppWindow _appWindow;
     private readonly TrayIconHost _trayIconHost;
@@ -208,10 +209,10 @@ public sealed partial class MainWindow : Window
 
             UpdateConnectionState(result);
             UpdatePlaybackStatus(playbackStatus);
-            UpdateTaskbarWidget(result.State == CiderConnectionState.Connected ? result.Track : null, playbackStatus);
 
             if (result.State != CiderConnectionState.Connected || result.Track is null)
             {
+                UpdateTaskbarWidget(null, playbackStatus);
                 UpdateNowPlaying(null);
                 return;
             }
@@ -224,12 +225,21 @@ public sealed partial class MainWindow : Window
             if (trackChanged || forceDetails)
             {
                 _currentTrackKey = trackKey;
-                _lyricsAreTimeSynced = track.HasTimeSyncedLyrics;
+                if (trackChanged)
+                {
+                    _lyrics = [];
+                    _lyricsAreTimeSynced = false;
+                    RenderLyrics();
+                    UpdateTaskbarWidget(track, playbackStatus);
+                }
+
                 await RefreshTrackDetailsAsync(track);
+                UpdateTaskbarWidget(track, playbackStatus);
             }
             else
             {
                 UpdateCurrentLyric(track.CurrentPlaybackTime);
+                UpdateTaskbarWidget(track, playbackStatus);
                 _refreshCount++;
                 if (_refreshCount % 5 == 0)
                 {
@@ -254,14 +264,19 @@ public sealed partial class MainWindow : Window
             _appToken,
             trackId,
             _lifetimeCancellation.Token);
-        var lyricsTask = _ciderService.GetLyricsAsync(
+        var ciderLyricsTask = _ciderService.GetLyricsAsync(
             trackId,
             _appToken,
             _lifetimeCancellation.Token);
 
-        await Task.WhenAll(queueTask, lyricsTask);
+        await Task.WhenAll(queueTask, ciderLyricsTask);
         ApplyQueue(await queueTask);
-        _lyrics = await lyricsTask;
+        var lyrics = await _lyricsService.ResolveAsync(
+            track,
+            await ciderLyricsTask,
+            _lifetimeCancellation.Token);
+        _lyrics = lyrics.Lines;
+        _lyricsAreTimeSynced = lyrics.IsTimeSynced;
         RenderLyrics();
         UpdateCurrentLyric(track.CurrentPlaybackTime, forceScroll: true);
     }
@@ -380,7 +395,13 @@ public sealed partial class MainWindow : Window
             ValueOrFallback(track.ArtistName),
             NormalizeArtworkUrl(track.Artwork?.Url, 160),
             status?.IsPlaying ?? false,
-            true));
+            true,
+            _lyricsAreTimeSynced && _currentLyricIndex >= 0
+                ? _lyrics[_currentLyricIndex].Text
+                : null,
+            _lyricsAreTimeSynced && _currentLyricIndex >= 0 && _currentLyricIndex + 1 < _lyrics.Count
+                ? _lyrics[_currentLyricIndex + 1].Text
+                : null));
     }
 
     private void SetArtwork(string? url)
@@ -1009,6 +1030,7 @@ public sealed partial class MainWindow : Window
         _taskbarWidgetHost.Dispose();
         _trayIconHost.Dispose();
         _lifetimeCancellation.Dispose();
+        _lyricsService.Dispose();
         _ciderService.Dispose();
     }
 }

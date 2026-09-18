@@ -127,13 +127,25 @@
                     <StackPanel.RenderTransform>
                         <TranslateTransform />
                     </StackPanel.RenderTransform>
-                    <TextBlock
-                        x:Name="TitleText"
-                        FontSize="12"
-                        TextTrimming="CharacterEllipsis"
-                        TextWrapping="NoWrap" />
+                    <Grid
+                        x:Name="PrimaryTextViewport"
+                        Height="16"
+                        ClipToBounds="True"
+                        SizeChanged="PrimaryTextViewport_SizeChanged">
+                        <Canvas>
+                            <TextBlock
+                                x:Name="TitleText"
+                                FontSize="12"
+                                TextWrapping="NoWrap">
+                                <TextBlock.RenderTransform>
+                                    <TranslateTransform />
+                                </TextBlock.RenderTransform>
+                            </TextBlock>
+                        </Canvas>
+                    </Grid>
                     <TextBlock
                         x:Name="ArtistText"
+                        Height="14"
                         Margin="0,-1,0,0"
                         FontSize="11"
                         Opacity="0.64"
