@@ -52,6 +52,7 @@ public sealed partial class MainWindow : Window
     private bool _isExitRequested;
     private bool _isSettingsTransitioning;
     private bool _isRunningSettingsAction;
+    private DateTimeOffset? _startupLoadingStartedAt;
     private int _currentLyricIndex = -1;
     private int _refreshCount;
     private int _renderedLyricsSignature;
@@ -68,6 +69,8 @@ public sealed partial class MainWindow : Window
 
     private const int LyricAnimationMilliseconds = 180;
     private const int AutoScrollSettleMilliseconds = 700;
+    private const int StartupLoadingMinimumMilliseconds = 450;
+    private const int StartupLoadingExitMilliseconds = 220;
     private const double OptimisticSeekSeconds = 2.5;
     private const double OptimisticSeekToleranceSeconds = 1.5;
 
@@ -125,6 +128,7 @@ public sealed partial class MainWindow : Window
 
     private void RootGrid_Loaded(object sender, RoutedEventArgs e)
     {
+        _startupLoadingStartedAt ??= DateTimeOffset.UtcNow;
         RootGrid.XamlRoot.Changed += XamlRoot_Changed;
         UpdateWindowMinimumSize();
         UpdateResponsiveLayout();
@@ -216,8 +220,68 @@ public sealed partial class MainWindow : Window
     private async void MainWindow_Activated(object sender, WindowActivatedEventArgs args)
     {
         Activated -= MainWindow_Activated;
-        await RefreshAsync(forceDetails: true);
-        _refreshTimer.Start();
+        try
+        {
+            await RefreshAsync(forceDetails: true);
+        }
+        finally
+        {
+            await HideStartupLoadingAsync();
+            _refreshTimer.Start();
+        }
+    }
+
+    private async Task HideStartupLoadingAsync()
+    {
+        if (StartupLoadingOverlay.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        var startedAt = _startupLoadingStartedAt ?? DateTimeOffset.UtcNow;
+        var minimumDuration = TimeSpan.FromMilliseconds(StartupLoadingMinimumMilliseconds);
+        var remaining = minimumDuration - (DateTimeOffset.UtcNow - startedAt);
+        if (remaining > TimeSpan.Zero)
+        {
+            await Task.Delay(remaining);
+        }
+
+        var duration = new Duration(TimeSpan.FromMilliseconds(StartupLoadingExitMilliseconds));
+        var easing = new CubicEase { EasingMode = EasingMode.EaseIn };
+        var opacityAnimation = new DoubleAnimation
+        {
+            From = StartupLoadingOverlay.Opacity,
+            To = 0,
+            Duration = duration,
+            EasingFunction = easing,
+            EnableDependentAnimation = true
+        };
+        Storyboard.SetTarget(opacityAnimation, StartupLoadingOverlay);
+        Storyboard.SetTargetProperty(opacityAnimation, nameof(UIElement.Opacity));
+
+        var offsetAnimation = new DoubleAnimation
+        {
+            From = StartupLoadingTranslateTransform.Y,
+            To = -8,
+            Duration = duration,
+            EasingFunction = easing,
+            EnableDependentAnimation = true
+        };
+        Storyboard.SetTarget(offsetAnimation, StartupLoadingTranslateTransform);
+        Storyboard.SetTargetProperty(offsetAnimation, nameof(TranslateTransform.Y));
+
+        var storyboard = new Storyboard();
+        storyboard.Children.Add(opacityAnimation);
+        storyboard.Children.Add(offsetAnimation);
+        var completion = new TaskCompletionSource<bool>();
+        storyboard.Completed += (_, _) => completion.TrySetResult(true);
+        storyboard.Begin();
+        await completion.Task;
+        storyboard.Stop();
+
+        StartupProgressRing.IsActive = false;
+        StartupLoadingOverlay.IsHitTestVisible = false;
+        StartupLoadingOverlay.Visibility = Visibility.Collapsed;
     }
 
     private async void RefreshTimer_Tick(object? sender, object e)

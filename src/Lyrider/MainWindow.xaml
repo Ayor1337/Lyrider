@@ -1078,5 +1078,45 @@
                 </Grid>
             </ScrollViewer>
         </Grid>
+
+        <Grid
+            x:Name="StartupLoadingOverlay"
+            Grid.RowSpan="2"
+            Canvas.ZIndex="10"
+            Background="{ThemeResource LyriderRootBrush}">
+            <StackPanel
+                x:Name="StartupLoadingContent"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="28">
+                <StackPanel.RenderTransform>
+                    <TranslateTransform x:Name="StartupLoadingTranslateTransform" />
+                </StackPanel.RenderTransform>
+                <StackPanel.Transitions>
+                    <TransitionCollection>
+                        <EntranceThemeTransition
+                            FromVerticalOffset="16"
+                            IsStaggeringEnabled="False" />
+                    </TransitionCollection>
+                </StackPanel.Transitions>
+                <Image
+                    Width="88"
+                    Height="88"
+                    HorizontalAlignment="Center"
+                    Source="Assets/Lyrider.png"
+                    Stretch="Uniform" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontSize="19"
+                    FontWeight="SemiBold"
+                    Text="正在把旋律写进此刻…" />
+                <ProgressRing
+                    x:Name="StartupProgressRing"
+                    Width="24"
+                    Height="24"
+                    HorizontalAlignment="Center"
+                    IsActive="True" />
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>
