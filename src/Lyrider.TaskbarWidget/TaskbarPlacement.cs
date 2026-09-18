@@ -41,12 +41,13 @@ public static class TaskbarPlacement
         PixelPoint placement,
         int widgetWidth,
         int widgetHeight,
-        int padding)
+        int horizontalPadding,
+        int verticalPadding)
     {
-        var left = Math.Max(taskbarFrame.Left, placement.X - padding);
-        var top = Math.Max(taskbarFrame.Top, placement.Y - padding);
-        var right = Math.Min(taskbarFrame.Right, placement.X + widgetWidth + padding);
-        var bottom = Math.Min(taskbarFrame.Bottom, placement.Y + widgetHeight + padding);
+        var left = Math.Max(taskbarFrame.Left, placement.X - horizontalPadding);
+        var top = Math.Max(taskbarFrame.Top, placement.Y - verticalPadding);
+        var right = Math.Min(taskbarFrame.Right, placement.X + widgetWidth + horizontalPadding);
+        var bottom = Math.Min(taskbarFrame.Bottom, placement.Y + widgetHeight + verticalPadding);
 
         if (widgetsButton is { IsEmpty: false } button)
         {

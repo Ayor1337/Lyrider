@@ -65,7 +65,7 @@ public sealed class TaskbarWidgetTests
     }
 
     [TestMethod]
-    public void CalculateHitRegion_ExpandsHoverAreaWithoutCoveringWidgets()
+    public void CalculateHitRegion_WithoutPadding_MatchesVisibleBackgroundBounds()
     {
         var result = TaskbarPlacement.CalculateHitRegion(
             new PixelRect(0, 1000, 2560, 1072),
@@ -73,9 +73,10 @@ public sealed class TaskbarWidgetTests
             new PixelPoint(240, 1006),
             324,
             60,
-            12);
+            0,
+            0);
 
-        Assert.AreEqual(new PixelRect(237, 1000, 576, 1072), result);
+        Assert.AreEqual(new PixelRect(240, 1006, 564, 1066), result);
     }
 
     [TestMethod]

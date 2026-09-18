@@ -26,12 +26,17 @@ public partial class TaskbarWidgetWindow : Window
     private string? _artworkUrl;
     private nint _taskbarHandle;
     private bool _isAttached;
+    private bool _isPointerOver;
     private bool _isRefreshingHost;
+    private Color _idleBackgroundColor = Color.FromArgb(0x01, 0xFF, 0xFF, 0xFF);
+    private Color _hoverBackgroundColor = Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF);
+    private readonly SolidColorBrush _rootBackgroundBrush = new();
 
     public TaskbarWidgetWindow()
     {
         InitializeComponent();
         Opacity = 0;
+        RootBorder.Background = _rootBackgroundBrush;
         ApplySystemTheme();
         SourceInitialized += TaskbarWidgetWindow_SourceInitialized;
     }
@@ -130,6 +135,9 @@ public partial class TaskbarWidgetWindow : Window
 
             Canvas.SetLeft(RootBorder, clientPoint.X / scale);
             Canvas.SetTop(RootBorder, clientPoint.Y / scale);
+            HostCanvas.Width = taskbarWidth / scale;
+            HostCanvas.Height = taskbarHeight / scale;
+            HostCanvas.UpdateLayout();
             if (!NativeMethods.SetWindowPos(
                     handle,
                     nint.Zero,
@@ -152,12 +160,13 @@ public partial class TaskbarWidgetWindow : Window
                 placement,
                 physicalWidth,
                 physicalHeight,
-                Math.Max(1, (int)Math.Round(8 * scale)));
+                0,
+                0);
             var region = NativeMethods.CreateRectRgn(
                 hitRegion.Left - taskbarRect.Left,
                 hitRegion.Top - taskbarRect.Top,
-                hitRegion.Right - taskbarRect.Left + 1,
-                hitRegion.Bottom - taskbarRect.Top + 1);
+                hitRegion.Right - taskbarRect.Left,
+                hitRegion.Bottom - taskbarRect.Top);
             if (region == nint.Zero)
             {
                 DetachAndHide();
@@ -358,6 +367,19 @@ public partial class TaskbarWidgetWindow : Window
         Foreground = new SolidColorBrush(isLight
             ? Color.FromRgb(0x1C, 0x1C, 0x1C)
             : Colors.White);
+        _idleBackgroundColor = isLight
+            ? Color.FromArgb(0x01, 0x00, 0x00, 0x00)
+            : Color.FromArgb(0x01, 0xFF, 0xFF, 0xFF);
+        _hoverBackgroundColor = isLight
+            ? Color.FromArgb(0x14, 0x00, 0x00, 0x00)
+            : Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF);
+        Resources["PlaybackButtonHoverBrush"] = new SolidColorBrush(isLight
+            ? Color.FromArgb(0x12, 0x00, 0x00, 0x00)
+            : Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF));
+        Resources["PlaybackButtonPressedBrush"] = new SolidColorBrush(isLight
+            ? Color.FromArgb(0x20, 0x00, 0x00, 0x00)
+            : Color.FromArgb(0x34, 0xFF, 0xFF, 0xFF));
+        SetRootBackground(_isPointerOver ? _hoverBackgroundColor : _idleBackgroundColor, animate: false);
     }
 
     private void UpdateVisibility()
@@ -394,27 +416,63 @@ public partial class TaskbarWidgetWindow : Window
             return;
         }
 
+        _isPointerOver = true;
         ControlsPanel.IsHitTestVisible = true;
-        AnimateOpacity(InfoPanel, 0);
-        AnimateOpacity(ControlsPanel, 1);
-        RootBorder.Background = new SolidColorBrush(Color.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
+        AnimatePanel(InfoPanel, 0, -2, 100);
+        AnimatePanel(ControlsPanel, 1, 0, 167);
+        SetRootBackground(_hoverBackgroundColor, animate: true);
     }
 
     private void RootBorder_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
     {
+        _isPointerOver = false;
         ControlsPanel.IsHitTestVisible = false;
-        AnimateOpacity(InfoPanel, 1);
-        AnimateOpacity(ControlsPanel, 0);
-        RootBorder.Background = Brushes.Transparent;
+        AnimatePanel(ControlsPanel, 0, 2, 100);
+        AnimatePanel(InfoPanel, 1, 0, 167);
+        SetRootBackground(_idleBackgroundColor, animate: true);
     }
 
-    private static void AnimateOpacity(UIElement element, double target)
+    private static void AnimatePanel(UIElement element, double opacity, double offset, int durationMilliseconds)
     {
-        var current = element.Opacity;
-        element.Opacity = target;
+        var duration = TimeSpan.FromMilliseconds(durationMilliseconds);
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var currentOpacity = element.Opacity;
+        element.Opacity = opacity;
         element.BeginAnimation(
             OpacityProperty,
-            new DoubleAnimation(current, target, TimeSpan.FromMilliseconds(150))
+            new DoubleAnimation(currentOpacity, opacity, duration)
+            {
+                EasingFunction = easing,
+                FillBehavior = FillBehavior.Stop
+            });
+
+        if (element.RenderTransform is TranslateTransform transform)
+        {
+            var currentOffset = transform.X;
+            transform.X = offset;
+            transform.BeginAnimation(
+                TranslateTransform.XProperty,
+                new DoubleAnimation(currentOffset, offset, duration)
+                {
+                    EasingFunction = easing,
+                    FillBehavior = FillBehavior.Stop
+                });
+        }
+    }
+
+    private void SetRootBackground(Color color, bool animate)
+    {
+        var current = _rootBackgroundBrush.Color;
+        _rootBackgroundBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
+        _rootBackgroundBrush.Color = color;
+        if (!animate)
+        {
+            return;
+        }
+
+        _rootBackgroundBrush.BeginAnimation(
+            SolidColorBrush.ColorProperty,
+            new ColorAnimation(current, color, TimeSpan.FromMilliseconds(167))
             {
                 EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
                 FillBehavior = FillBehavior.Stop
