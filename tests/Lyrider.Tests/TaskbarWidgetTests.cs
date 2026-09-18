@@ -15,14 +15,17 @@ public sealed class TaskbarWidgetTests
 
         Assert.IsFalse(settings.TaskbarWidgetEnabled);
         Assert.IsFalse(settings.MinimizeToTrayOnClose);
+        Assert.IsFalse(settings.ConvertTraditionalLyricsToSimplified);
         settings.TaskbarWidgetEnabled = true;
         settings.MinimizeToTrayOnClose = true;
+        settings.ConvertTraditionalLyricsToSimplified = true;
 
         var restored = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(settings));
 
         Assert.IsNotNull(restored);
         Assert.IsTrue(restored.TaskbarWidgetEnabled);
         Assert.IsTrue(restored.MinimizeToTrayOnClose);
+        Assert.IsTrue(restored.ConvertTraditionalLyricsToSimplified);
     }
 
     [TestMethod]
@@ -156,4 +159,45 @@ public sealed class TaskbarWidgetTests
         Assert.AreEqual(0, TaskbarPresentation.CalculateMarqueeDistance(160, 160));
         Assert.AreEqual(40, TaskbarPresentation.CalculateMarqueeDistance(200, 160));
     }
+
+    [TestMethod]
+    public void GetLyricTransitionDirection_AdvancingLyrics_MovesUp()
+    {
+        var previous = CreateLyricState("Current", "Next", 4);
+        var current = CreateLyricState("Next", "Later", 5);
+
+        Assert.AreEqual(1, TaskbarPresentation.GetLyricTransitionDirection(previous, current));
+    }
+
+    [TestMethod]
+    public void GetLyricTransitionDirection_SeekingBackward_MovesDown()
+    {
+        var previous = CreateLyricState("Later", "Latest", 8);
+        var current = CreateLyricState("Earlier", "Current", 3);
+
+        Assert.AreEqual(-1, TaskbarPresentation.GetLyricTransitionDirection(previous, current));
+    }
+
+    [TestMethod]
+    public void GetLyricTransitionDirection_TrackChanged_DoesNotAnimate()
+    {
+        var previous = CreateLyricState("Current", "Next", 4);
+        var current = CreateLyricState("First", "Second", 0) with { Title = "Another song" };
+
+        Assert.AreEqual(0, TaskbarPresentation.GetLyricTransitionDirection(previous, current));
+    }
+
+    private static TaskbarPlaybackState CreateLyricState(
+        string currentLyric,
+        string nextLyric,
+        int currentLyricIndex) =>
+        new(
+            "Song",
+            "Artist",
+            null,
+            true,
+            true,
+            currentLyric,
+            nextLyric,
+            currentLyricIndex);
 }

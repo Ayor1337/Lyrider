@@ -92,12 +92,14 @@ internal static class LyricPresentation
     public static int ComputeLyricsSignature(
         IReadOnlyList<LyricLineInfo> lines,
         double fontSize,
-        bool isTimeSynced)
+        bool isTimeSynced,
+        bool convertTraditionalToSimplified = false)
     {
         var hash = new HashCode();
         hash.Add(lines.Count);
         hash.Add(fontSize);
         hash.Add(isTimeSynced);
+        hash.Add(convertTraditionalToSimplified);
         foreach (var line in lines)
         {
             hash.Add(line.StartTime);

@@ -12,6 +12,8 @@ public sealed class AppSettings
 
     public bool AutoScrollLyrics { get; set; } = true;
 
+    public bool ConvertTraditionalLyricsToSimplified { get; set; }
+
     public bool AlwaysOnTop { get; set; }
 
     public bool TaskbarWidgetEnabled { get; set; }

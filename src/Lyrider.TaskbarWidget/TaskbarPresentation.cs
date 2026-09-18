@@ -22,4 +22,22 @@ public static class TaskbarPresentation
 
     public static double CalculateMarqueeDistance(double contentWidth, double viewportWidth) =>
         Math.Max(0, contentWidth - viewportWidth);
+
+    public static int GetLyricTransitionDirection(
+        TaskbarPlaybackState previous,
+        TaskbarPlaybackState current)
+    {
+        if (previous.CurrentLyricIndex is not int previousIndex ||
+            current.CurrentLyricIndex is not int currentIndex ||
+            previousIndex == currentIndex ||
+            string.IsNullOrWhiteSpace(previous.CurrentLyric) ||
+            string.IsNullOrWhiteSpace(current.CurrentLyric) ||
+            !string.Equals(previous.Title, current.Title, StringComparison.Ordinal) ||
+            !string.Equals(previous.Artist, current.Artist, StringComparison.Ordinal))
+        {
+            return 0;
+        }
+
+        return currentIndex > previousIndex ? 1 : -1;
+    }
 }

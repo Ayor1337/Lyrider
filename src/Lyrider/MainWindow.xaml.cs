@@ -50,6 +50,7 @@ public sealed partial class MainWindow : Window
     private bool _isRunningTaskbarCommand;
     private bool _isExitRequested;
     private bool _isSettingsTransitioning;
+    private bool _isRunningSettingsAction;
     private int _currentLyricIndex = -1;
     private int _refreshCount;
     private int _renderedLyricsSignature;
@@ -180,7 +181,7 @@ public sealed partial class MainWindow : Window
         SettingsContentGrid.Width = settingsLayoutWidth;
 
         foreach (var row in new[] { ThemeSettingsRow, BackgroundSettingsRow, BackgroundBlurSettingsRow,
-            LyricFontSettingsRow, AutoScrollSettingsRow, DefaultPanelSettingsRow, VolumeSettingsRow,
+            LyricFontSettingsRow, ChineseLyricsSettingsRow, AutoScrollSettingsRow, DefaultPanelSettingsRow, VolumeSettingsRow,
             AlwaysOnTopSettingsRow, TaskbarWidgetSettingsRow, MinimizeToTraySettingsRow })
         {
             var stacked = RootGrid.ActualWidth < 720;
@@ -426,10 +427,13 @@ public sealed partial class MainWindow : Window
             status?.IsPlaying ?? false,
             true,
             _lyricsAreTimeSynced && _currentLyricIndex >= 0
-                ? _lyrics[_currentLyricIndex].Text
+                ? DisplayLyricText(_lyrics[_currentLyricIndex].Text)
                 : null,
             _lyricsAreTimeSynced && _currentLyricIndex >= 0 && _currentLyricIndex + 1 < _lyrics.Count
-                ? _lyrics[_currentLyricIndex + 1].Text
+                ? DisplayLyricText(_lyrics[_currentLyricIndex + 1].Text)
+                : null,
+            _lyricsAreTimeSynced && _currentLyricIndex >= 0
+                ? _currentLyricIndex
                 : null));
     }
 
@@ -481,7 +485,8 @@ public sealed partial class MainWindow : Window
         var signature = LyricPresentation.ComputeLyricsSignature(
             _lyrics,
             _settings.LyricFontSize,
-            _lyricsAreTimeSynced);
+            _lyricsAreTimeSynced,
+            _settings.ConvertTraditionalLyricsToSimplified);
         if (signature == _renderedLyricsSignature)
         {
             return false;
@@ -501,11 +506,12 @@ public sealed partial class MainWindow : Window
         foreach (var line in _lyrics)
         {
             var index = _lyricLines.Count;
+            var displayText = DisplayLyricText(line.Text);
             var block = new TextBlock
             {
-                Text = line.Text,
+                Text = displayText,
                 FontSize = _settings.LyricFontSize,
-                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                 Foreground = foreground,
                 TextWrapping = TextWrapping.Wrap,
                 MaxWidth = 820,
@@ -531,7 +537,7 @@ public sealed partial class MainWindow : Window
                 button.PointerExited += LyricLine_PointerExited;
                 button.Click += LyricLine_Click;
                 ToolTipService.SetToolTip(button, $"跳转到 {FormatTime(line.StartTime)}");
-                AutomationProperties.SetName(button, line.Text);
+                AutomationProperties.SetName(button, displayText);
                 AutomationProperties.SetHelpText(button, $"跳转到 {FormatTime(line.StartTime)}");
                 root = button;
             }
@@ -1140,35 +1146,76 @@ public sealed partial class MainWindow : Window
 
     private async void TestConnectionButton_Click(object sender, RoutedEventArgs e)
     {
-        SetSettingsStatus("正在测试连接…", InfoBarSeverity.Informational);
-        if (!Uri.TryCreate(ApiBaseUrlTextBox.Text, UriKind.Absolute, out var uri) ||
-            uri.Scheme is not ("http" or "https"))
+        if (!BeginSettingsAction())
         {
-            SetSettingsStatus("API 地址必须是有效的 HTTP 或 HTTPS 地址", InfoBarSeverity.Error);
             return;
         }
 
-        using var service = new CiderService(ApiBaseUrlTextBox.Text);
-        var result = await service.GetNowPlayingAsync(
-            NormalizeToken(TokenPasswordBox.Password),
-            _lifetimeCancellation.Token);
-        SetSettingsStatus(
-            result.State == CiderConnectionState.Connected ? "连接成功" : result.Message,
-            result.State == CiderConnectionState.Connected ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+        try
+        {
+            await TestConnectionAsync();
+        }
+        finally
+        {
+            EndSettingsAction();
+        }
+    }
+
+    private async Task TestConnectionAsync()
+    {
+        if (!Uri.TryCreate(ApiBaseUrlTextBox.Text, UriKind.Absolute, out var uri) ||
+            uri.Scheme is not ("http" or "https"))
+        {
+            await ShowSettingsDialogAsync("连接测试", "API 地址必须是有效的 HTTP 或 HTTPS 地址");
+            return;
+        }
+
+        TestConnectionButton.Content = "正在测试…";
+        try
+        {
+            using var service = new CiderService(ApiBaseUrlTextBox.Text);
+            var result = await service.GetNowPlayingAsync(
+                NormalizeToken(TokenPasswordBox.Password),
+                _lifetimeCancellation.Token);
+            await ShowSettingsDialogAsync(
+                result.State == CiderConnectionState.Connected ? "连接成功" : "连接失败",
+                result.State == CiderConnectionState.Connected ? "已成功连接到 Cider 本地 API。" : result.Message);
+        }
+        finally
+        {
+            TestConnectionButton.Content = "测试连接";
+        }
     }
 
     private async void SaveSettingsButton_Click(object sender, RoutedEventArgs e)
     {
+        if (!BeginSettingsAction())
+        {
+            return;
+        }
+
+        try
+        {
+            await SaveSettingsAsync();
+        }
+        finally
+        {
+            EndSettingsAction();
+        }
+    }
+
+    private async Task SaveSettingsAsync()
+    {
         if (!_ciderService.TryUpdateBaseAddress(ApiBaseUrlTextBox.Text))
         {
-            SetSettingsStatus("API 地址必须是有效的 HTTP 或 HTTPS 地址", InfoBarSeverity.Error);
+            await ShowSettingsDialogAsync("无法保存设置", "API 地址必须是有效的 HTTP 或 HTTPS 地址");
             return;
         }
 
         var token = NormalizeToken(TokenPasswordBox.Password);
         if (!_tokenStore.TrySave(token))
         {
-            SetSettingsStatus("无法保存 Token", InfoBarSeverity.Error);
+            await ShowSettingsDialogAsync("无法保存设置", "无法保存 Token");
             return;
         }
 
@@ -1176,6 +1223,7 @@ public sealed partial class MainWindow : Window
         _settings.Theme = SelectedTag(ThemeComboBox, "System");
         _settings.LyricFontSize = LyricFontSizeSlider.Value;
         _settings.AutoScrollLyrics = AutoScrollToggle.IsOn;
+        _settings.ConvertTraditionalLyricsToSimplified = ChineseLyricsToggle.IsOn;
         _settings.AlwaysOnTop = AlwaysOnTopToggle.IsOn;
         _settings.TaskbarWidgetEnabled = TaskbarWidgetToggle.IsOn;
         _settings.MinimizeToTrayOnClose = MinimizeToTrayToggle.IsOn;
@@ -1186,17 +1234,39 @@ public sealed partial class MainWindow : Window
 
         if (!_settingsStore.TrySave(_settings))
         {
-            SetSettingsStatus("无法保存应用设置", InfoBarSeverity.Error);
+            await ShowSettingsDialogAsync("无法保存设置", "无法保存应用设置");
             return;
         }
 
         _appToken = token;
         ApplySettings();
         var taskbarWidgetUnsupported = _settings.TaskbarWidgetEnabled && !_taskbarWidgetHost.IsSupported;
-        SetSettingsStatus(
-            taskbarWidgetUnsupported ? "设置已保存；任务栏播放状态仅支持 Windows 11" : "设置已保存",
-            taskbarWidgetUnsupported ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
         await RefreshAsync(forceDetails: true);
+        await ShowSettingsDialogAsync(
+            "设置已保存",
+            taskbarWidgetUnsupported
+                ? "应用设置已更新；任务栏播放状态仅支持 Windows 11。"
+                : "应用设置已更新。");
+    }
+
+    private bool BeginSettingsAction()
+    {
+        if (_isRunningSettingsAction)
+        {
+            return false;
+        }
+
+        _isRunningSettingsAction = true;
+        SaveSettingsButton.IsEnabled = false;
+        TestConnectionButton.IsEnabled = false;
+        return true;
+    }
+
+    private void EndSettingsAction()
+    {
+        _isRunningSettingsAction = false;
+        SaveSettingsButton.IsEnabled = true;
+        TestConnectionButton.IsEnabled = true;
     }
 
     private void LoadSavedToken()
@@ -1249,6 +1319,7 @@ public sealed partial class MainWindow : Window
         SelectByTag(DefaultPanelComboBox, _settings.DefaultPanel);
         LyricFontSizeSlider.Value = _settings.LyricFontSize;
         AutoScrollToggle.IsOn = _settings.AutoScrollLyrics;
+        ChineseLyricsToggle.IsOn = _settings.ConvertTraditionalLyricsToSimplified;
         AlwaysOnTopToggle.IsOn = _settings.AlwaysOnTop;
         TaskbarWidgetToggle.IsOn = _settings.TaskbarWidgetEnabled;
         MinimizeToTrayToggle.IsOn = _settings.MinimizeToTrayOnClose;
@@ -1260,14 +1331,19 @@ public sealed partial class MainWindow : Window
         LyricFontSizeValueText.Text = FormatFontSize(LyricFontSizeSlider.Value);
         BackgroundOpacityValueText.Text = FormatPercent(BackgroundOpacitySlider.Value);
         BackgroundBlurValueText.Text = FormatPercent(BackgroundBlurSlider.Value);
-        SetSettingsStatus(null);
     }
 
-    private void SetSettingsStatus(string? message, InfoBarSeverity severity = InfoBarSeverity.Informational)
+    private async Task ShowSettingsDialogAsync(string title, string message)
     {
-        SettingsStatusInfoBar.Message = message ?? string.Empty;
-        SettingsStatusInfoBar.Severity = severity;
-        SettingsStatusInfoBar.IsOpen = !string.IsNullOrWhiteSpace(message);
+        var dialog = new ContentDialog
+        {
+            Title = title,
+            Content = message,
+            CloseButtonText = "确定",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = RootGrid.XamlRoot
+        };
+        await dialog.ShowAsync();
     }
 
     private void ApplySettings()
@@ -1302,6 +1378,11 @@ public sealed partial class MainWindow : Window
             UpdateCurrentLyric(_lastPlaybackTime, forceScroll: true);
         }
     }
+
+    private string DisplayLyricText(string text) =>
+        _settings.ConvertTraditionalLyricsToSimplified
+            ? ChineseTextConverter.ToSimplified(text)
+            : text;
 
     private static void SelectByTag(ComboBox comboBox, string tag)
     {

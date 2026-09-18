@@ -11,13 +11,16 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="MSTest.TestAdapter" Version="3.6.4" />
     <PackageReference Include="MSTest.TestFramework" Version="3.6.4" />
+    <PackageReference Include="OpenccNetLib" Version="1.6.2" />
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\src\Lyrider\MainWindow.xaml" Link="Fixtures\MainWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\..\src\Lyrider\Models\AppSettings.cs" Link="Production\AppSettings.cs" />
     <Compile Include="..\..\src\Lyrider\Models\CiderNowPlayingResponse.cs" Link="Production\CiderNowPlayingResponse.cs" />
     <Compile Include="..\..\src\Lyrider\Models\CiderPlaybackModels.cs" Link="Production\CiderPlaybackModels.cs" />
     <Compile Include="..\..\src\Lyrider\Services\CiderService.cs" Link="Production\CiderService.cs" />
+    <Compile Include="..\..\src\Lyrider\Services\ChineseTextConverter.cs" Link="Production\ChineseTextConverter.cs" />
     <Compile Include="..\..\src\Lyrider\Services\LyricPresentation.cs" Link="Production\LyricPresentation.cs" />
     <Compile Include="..\..\src\Lyrider\Services\LyricsService.cs" Link="Production\LyricsService.cs" />
     <Compile Include="..\..\src\Lyrider\Services\QueueCollectionSynchronizer.cs" Link="Production\QueueCollectionSynchronizer.cs" />

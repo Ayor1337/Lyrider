@@ -520,7 +520,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="50" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="50" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <Button
                     Grid.Column="0"
@@ -538,6 +538,14 @@
                         Foreground="{StaticResource MutedTextBrush}"
                         Text="调整 Lyrider 的外观、播放体验与 Cider 连接" />
                 </StackPanel>
+                <Button
+                    x:Name="SaveSettingsButton"
+                    Grid.Column="2"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Click="SaveSettingsButton_Click"
+                    Content="保存设置"
+                    Style="{StaticResource AccentButtonStyle}" />
             </Grid>
 
             <ScrollViewer
@@ -758,6 +766,43 @@
                                             FontSize="13"
                                             Foreground="{StaticResource MutedTextBrush}"
                                             TextAlignment="Right" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="ChineseLyricsSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8C1;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock FontWeight="SemiBold" Text="繁体歌词转简体" />
+                                            <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="自动将歌词页面和任务栏中的繁体歌词转换为简体" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid
+                                        Grid.Column="1"
+                                        Style="{StaticResource SettingsControlHostStyle}"
+                                        Width="260"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                        <ToggleSwitch
+                                            x:Name="ChineseLyricsToggle"
+                                            Style="{StaticResource SettingsToggleStyle}"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center" />
                                     </Grid>
                                 </Grid>
                             </Border>
@@ -1026,14 +1071,11 @@
                                         Header="App Token（可选）"
                                         PlaceholderText="使用当前 Windows 用户加密保存" />
                                 </Grid>
-                                <InfoBar
-                                    x:Name="SettingsStatusInfoBar"
-                                    IsClosable="False"
-                                    IsOpen="False" />
-                                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="10">
-                                    <Button Click="TestConnectionButton_Click" Content="测试连接" />
-                                    <Button Click="SaveSettingsButton_Click" Content="保存设置" Style="{StaticResource AccentButtonStyle}" />
-                                </StackPanel>
+                                <Button
+                                    x:Name="TestConnectionButton"
+                                    HorizontalAlignment="Right"
+                                    Click="TestConnectionButton_Click"
+                                    Content="测试连接" />
                             </StackPanel>
                         </Border>
                     </StackPanel>

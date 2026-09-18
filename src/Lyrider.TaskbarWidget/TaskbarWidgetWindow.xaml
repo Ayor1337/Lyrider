@@ -121,6 +121,31 @@
 
             <Grid Grid.Column="1" Margin="6,0,2,0">
                 <StackPanel
+                    x:Name="OutgoingInfoPanel"
+                    VerticalAlignment="Center"
+                    IsHitTestVisible="False"
+                    Visibility="Collapsed">
+                    <StackPanel.RenderTransform>
+                        <TranslateTransform />
+                    </StackPanel.RenderTransform>
+                    <Grid Height="19" ClipToBounds="True">
+                        <TextBlock
+                            x:Name="OutgoingTitleText"
+                            FontSize="14"
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="NoWrap" />
+                    </Grid>
+                    <TextBlock
+                        x:Name="OutgoingArtistText"
+                        Height="16"
+                        Margin="0,-2,0,0"
+                        FontSize="12"
+                        Opacity="0.64"
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="NoWrap" />
+                </StackPanel>
+
+                <StackPanel
                     x:Name="InfoPanel"
                     VerticalAlignment="Center"
                     IsHitTestVisible="False">

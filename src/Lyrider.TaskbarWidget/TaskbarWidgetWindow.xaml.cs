@@ -15,6 +15,8 @@ public partial class TaskbarWidgetWindow : Window
     private const double LogicalWidth = 216;
     private const double LogicalHeight = 40;
     private const double MarqueeSpeed = 30;
+    private const double LyricTransitionOffset = 12;
+    private static readonly TimeSpan LyricTransitionDuration = TimeSpan.FromMilliseconds(220);
     private const string TaskbarClassName = "Shell_TrayWnd";
     private const int WmGetObject = 0x003D;
     private const int WmShowWindow = 0x0018;
@@ -31,6 +33,7 @@ public partial class TaskbarWidgetWindow : Window
     private bool _isPointerOver;
     private bool _isRefreshingHost;
     private string _primaryText = string.Empty;
+    private int _lyricTransitionGeneration;
     private Color _idleBackgroundColor = Color.FromArgb(0x01, 0xFF, 0xFF, 0xFF);
     private Color _hoverBackgroundColor = Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF);
     private readonly SolidColorBrush _rootBackgroundBrush = new();
@@ -50,6 +53,7 @@ public partial class TaskbarWidgetWindow : Window
 
     public void SetPlaybackState(TaskbarPlaybackState state)
     {
+        var previousState = _state;
         _state = state;
         if (!TaskbarPresentation.ShouldShow(state))
         {
@@ -59,13 +63,23 @@ public partial class TaskbarWidgetWindow : Window
 
         var displayText = TaskbarPresentation.GetDisplayText(state);
         var primaryTextChanged = !string.Equals(_primaryText, displayText.Primary, StringComparison.Ordinal);
+        var lyricTransitionDirection = TaskbarPresentation.GetLyricTransitionDirection(previousState, state);
+        var previousDisplayText = TaskbarPresentation.GetDisplayText(previousState);
         _primaryText = displayText.Primary;
+        if (primaryTextChanged)
+        {
+            StopMarquee();
+        }
         TitleText.Text = displayText.Primary;
         ArtistText.Text = displayText.Secondary;
         PlayPauseIcon.Text = TaskbarPresentation.GetPlayPauseGlyph(state.IsPlaying);
         SetArtwork(state.ArtworkUrl);
         UpdateVisibility();
-        if (primaryTextChanged && !_isPointerOver)
+        if (lyricTransitionDirection != 0 && !_isPointerOver)
+        {
+            AnimateLyricTransition(previousDisplayText, lyricTransitionDirection);
+        }
+        else if (primaryTextChanged && !_isPointerOver)
         {
             Dispatcher.BeginInvoke(new Action(StartMarquee));
         }
@@ -427,6 +441,7 @@ public partial class TaskbarWidgetWindow : Window
         }
 
         _isPointerOver = true;
+        StopLyricTransition();
         StopMarquee();
         ControlsPanel.IsHitTestVisible = true;
         AnimatePanel(InfoPanel, 0, -2, 100);
@@ -488,6 +503,79 @@ public partial class TaskbarWidgetWindow : Window
         var transform = (TranslateTransform)TitleText.RenderTransform;
         transform.BeginAnimation(TranslateTransform.XProperty, null);
         transform.X = 0;
+    }
+
+    private void AnimateLyricTransition(TaskbarDisplayText outgoingText, int direction)
+    {
+        StopLyricTransition();
+        var generation = _lyricTransitionGeneration;
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var outgoingTransform = (TranslateTransform)OutgoingInfoPanel.RenderTransform;
+        var incomingTransform = (TranslateTransform)InfoPanel.RenderTransform;
+        var incomingOffset = direction * LyricTransitionOffset;
+        var outgoingOffset = -incomingOffset;
+
+        OutgoingTitleText.Text = outgoingText.Primary;
+        OutgoingArtistText.Text = outgoingText.Secondary;
+        OutgoingInfoPanel.Visibility = Visibility.Visible;
+        OutgoingInfoPanel.Opacity = 0;
+        outgoingTransform.Y = outgoingOffset;
+        InfoPanel.Opacity = 1;
+        incomingTransform.Y = 0;
+
+        OutgoingInfoPanel.BeginAnimation(
+            OpacityProperty,
+            new DoubleAnimation(1, 0, LyricTransitionDuration)
+            {
+                EasingFunction = easing,
+                FillBehavior = FillBehavior.Stop
+            });
+        outgoingTransform.BeginAnimation(
+            TranslateTransform.YProperty,
+            new DoubleAnimation(0, outgoingOffset, LyricTransitionDuration)
+            {
+                EasingFunction = easing,
+                FillBehavior = FillBehavior.Stop
+            });
+        InfoPanel.BeginAnimation(
+            OpacityProperty,
+            new DoubleAnimation(0, 1, LyricTransitionDuration)
+            {
+                EasingFunction = easing,
+                FillBehavior = FillBehavior.Stop
+            });
+        var incomingAnimation = new DoubleAnimation(incomingOffset, 0, LyricTransitionDuration)
+        {
+            EasingFunction = easing,
+            FillBehavior = FillBehavior.Stop
+        };
+        incomingAnimation.Completed += (_, _) =>
+        {
+            if (generation != _lyricTransitionGeneration)
+            {
+                return;
+            }
+
+            OutgoingInfoPanel.Visibility = Visibility.Collapsed;
+            Dispatcher.BeginInvoke(new Action(StartMarquee));
+        };
+        incomingTransform.BeginAnimation(TranslateTransform.YProperty, incomingAnimation);
+    }
+
+    private void StopLyricTransition()
+    {
+        _lyricTransitionGeneration++;
+        OutgoingInfoPanel.BeginAnimation(OpacityProperty, null);
+        InfoPanel.BeginAnimation(OpacityProperty, null);
+        var outgoingTransform = (TranslateTransform)OutgoingInfoPanel.RenderTransform;
+        var incomingTransform = (TranslateTransform)InfoPanel.RenderTransform;
+        outgoingTransform.BeginAnimation(TranslateTransform.YProperty, null);
+        incomingTransform.BeginAnimation(TranslateTransform.YProperty, null);
+        outgoingTransform.Y = 0;
+        incomingTransform.Y = 0;
+        OutgoingInfoPanel.Opacity = 0;
+        OutgoingInfoPanel.Visibility = Visibility.Collapsed;
+        InfoPanel.Opacity = 1;
     }
 
     private static void AnimatePanel(UIElement element, double opacity, double offset, int durationMilliseconds)
