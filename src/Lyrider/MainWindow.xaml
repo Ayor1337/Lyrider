@@ -178,7 +178,6 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <Border
@@ -241,14 +240,17 @@
                         FontSize="12"
                         Foreground="{StaticResource SubtleTextBrush}"
                         Text="0:00" />
-                    <ProgressBar
-                        x:Name="PlaybackProgressBar"
+                    <Slider
+                        x:Name="PlaybackProgressSlider"
                         Grid.Column="1"
-                        Height="4"
                         VerticalAlignment="Center"
-                        IsHitTestVisible="False"
+                        AutomationProperties.Name="播放进度"
                         Maximum="1"
-                        Value="0" />
+                        Minimum="0"
+                        SmallChange="5"
+                        StepFrequency="1"
+                        Value="0"
+                        ValueChanged="PlaybackProgressSlider_ValueChanged" />
                     <TextBlock
                         x:Name="RemainingTimeText"
                         Grid.Column="2"
@@ -293,44 +295,36 @@
                         x:Name="RepeatButton"
                         Click="RepeatButton_Click"
                         Style="{StaticResource PlaybackButtonStyle}"
-                        ToolTipService.ToolTip="循环播放">
-                        <FontIcon FontSize="21" Glyph="&#xE8EE;" />
+                        ToolTipService.ToolTip="循环：关闭">
+                        <Grid Width="26" Height="26">
+                            <FontIcon
+                                x:Name="RepeatIcon"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontSize="21"
+                                Glyph="&#xE8EE;"
+                                Opacity="0.55" />
+                            <Border
+                                x:Name="RepeatOneBadge"
+                                Width="13"
+                                Height="13"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Bottom"
+                                Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                CornerRadius="7"
+                                Visibility="Collapsed">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="9"
+                                    FontWeight="Bold"
+                                    Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                    Text="1" />
+                            </Border>
+                        </Grid>
                     </Button>
                 </StackPanel>
 
-                <Grid
-                    x:Name="VolumePanel"
-                    Grid.Row="4"
-                    MaxWidth="460"
-                    HorizontalAlignment="Stretch"
-                    ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <FontIcon
-                        VerticalAlignment="Center"
-                        FontSize="16"
-                        Glyph="&#xE767;" />
-                    <Slider
-                        x:Name="VolumeSlider"
-                        Grid.Column="1"
-                        Maximum="1"
-                        Minimum="0"
-                        StepFrequency="0.01"
-                        Value="1"
-                        ValueChanged="VolumeSlider_ValueChanged" />
-                    <TextBlock
-                        x:Name="VolumePercentText"
-                        Grid.Column="2"
-                        Width="48"
-                        VerticalAlignment="Center"
-                        FontSize="12"
-                        Foreground="{StaticResource SubtleTextBrush}"
-                        Text="100%"
-                        TextAlignment="Right" />
-                </Grid>
             </Grid>
 
             <Grid x:Name="DetailsPanel" Grid.Column="1">
@@ -521,6 +515,7 @@
                     <ColumnDefinition Width="50" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="50" />
                 </Grid.ColumnDefinitions>
                 <Button
                     Grid.Column="0"
@@ -879,43 +874,6 @@
                                             <ComboBoxItem Content="播放队列" Tag="Queue" />
                                             <ComboBoxItem Content="歌词" Tag="Lyrics" />
                                         </ComboBox>
-                                    </Grid>
-                                </Grid>
-                            </Border>
-                            <Border Style="{StaticResource SettingsCardStyle}">
-                                <Grid x:Name="VolumeSettingsRow" RowSpacing="10" ColumnSpacing="24">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="260" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Style="{StaticResource SettingsIconStyle}">
-                                            <FontIcon FontSize="16" Glyph="&#xE767;" />
-                                        </Border>
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                            <TextBlock FontWeight="SemiBold" Text="显示音量控制" />
-                                            <TextBlock Style="{StaticResource SettingsDescriptionStyle}" Text="在播放器底部显示音量滑块" />
-                                        </StackPanel>
-                                    </Grid>
-                                    <Grid
-                                        Grid.Column="1"
-                                        Style="{StaticResource SettingsControlHostStyle}"
-                                        Width="260"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Center">
-                                        <ToggleSwitch
-                                            x:Name="ShowVolumeToggle"
-                                            Style="{StaticResource SettingsToggleStyle}"
-                                            HorizontalAlignment="Right"
-                                            VerticalAlignment="Center" />
                                     </Grid>
                                 </Grid>
                             </Border>

@@ -21,6 +21,12 @@ public sealed class SettingsLayoutTests
         Assert.IsNotNull(saveButton);
         Assert.AreEqual("SettingsHeaderGrid", saveButton.Parent?.Attribute(XamlNamespace + "Name")?.Value);
         Assert.AreEqual("2", saveButton.Attribute("Grid.Column")?.Value);
+        var headerColumns = saveButton.Parent!
+            .Elements()
+            .Single(element => element.Name.LocalName == "Grid.ColumnDefinitions")
+            .Elements()
+            .ToArray();
+        Assert.AreEqual("50", headerColumns[^1].Attribute("Width")?.Value);
     }
 
     private static XElement? FindNamedElement(XDocument document, string name) =>

@@ -39,12 +39,13 @@ public sealed partial class MainWindow : Window
 
     private AppSettings _settings;
     private IReadOnlyList<LyricLineInfo> _lyrics = [];
-    private CancellationTokenSource? _volumeChangeCancellation;
+    private CancellationTokenSource? _playbackSeekDebounceCancellation;
     private string? _appToken;
     private string? _artworkUrl;
     private string? _currentTrackKey;
     private bool _isRefreshing;
-    private bool _isUpdatingVolume;
+    private bool _isUpdatingPlaybackProgress;
+    private bool _isDraggingPlaybackProgress;
     private bool _lyricsAreTimeSynced;
     private bool _isInitialized;
     private bool _isRunningTaskbarCommand;
@@ -58,10 +59,12 @@ public sealed partial class MainWindow : Window
     private int _optimisticSeekIndex = -1;
     private int _hoveredLyricIndex = -1;
     private double _optimisticSeekTarget;
+    private double? _optimisticPlaybackPosition;
     private double? _pendingAutoScrollOffset;
     private DateTimeOffset _lastManualLyricsScroll = DateTimeOffset.MinValue;
     private DateTimeOffset _autoScrollDeadline;
     private DateTimeOffset _optimisticSeekDeadline;
+    private DateTimeOffset _optimisticPlaybackDeadline;
 
     private const int LyricAnimationMilliseconds = 180;
     private const int AutoScrollSettleMilliseconds = 700;
@@ -74,6 +77,18 @@ public sealed partial class MainWindow : Window
         _ciderService = new CiderService(_settings.ApiBaseUrl);
 
         InitializeComponent();
+        PlaybackProgressSlider.AddHandler(
+            UIElement.PointerPressedEvent,
+            new PointerEventHandler(PlaybackProgressSlider_PointerPressed),
+            true);
+        PlaybackProgressSlider.AddHandler(
+            UIElement.PointerReleasedEvent,
+            new PointerEventHandler(PlaybackProgressSlider_PointerReleased),
+            true);
+        PlaybackProgressSlider.AddHandler(
+            UIElement.PointerCaptureLostEvent,
+            new PointerEventHandler(PlaybackProgressSlider_PointerCaptureLost),
+            true);
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         _artworkBackdrop = new ArtworkBackdrop(BackgroundArtworkHost);
@@ -161,8 +176,7 @@ public sealed partial class MainWindow : Window
         PlaybackPanel.RowSpacing = compact ? 6 : 14;
         var playerWidth = compact ? RootGrid.ActualWidth - padding * 2
             : (RootGrid.ActualWidth - padding * 2 - 32) * 5 / 12;
-        var artworkSize = Math.Max(0, Math.Min(420, Math.Min(playerWidth,
-            playerHeight - (_settings.ShowVolume ? 210 : 170))));
+        var artworkSize = Math.Max(0, Math.Min(420, Math.Min(playerWidth, playerHeight - 170)));
         ArtworkBorder.Width = artworkSize;
         ArtworkBorder.Height = artworkSize;
         ArtworkBorder.Visibility = artworkSize < 48 ? Visibility.Collapsed : Visibility.Visible;
@@ -181,7 +195,7 @@ public sealed partial class MainWindow : Window
         SettingsContentGrid.Width = settingsLayoutWidth;
 
         foreach (var row in new[] { ThemeSettingsRow, BackgroundSettingsRow, BackgroundBlurSettingsRow,
-            LyricFontSettingsRow, ChineseLyricsSettingsRow, AutoScrollSettingsRow, DefaultPanelSettingsRow, VolumeSettingsRow,
+            LyricFontSettingsRow, ChineseLyricsSettingsRow, AutoScrollSettingsRow, DefaultPanelSettingsRow,
             AlwaysOnTopSettingsRow, TaskbarWidgetSettingsRow, MinimizeToTraySettingsRow })
         {
             var stacked = RootGrid.ActualWidth < 720;
@@ -330,12 +344,6 @@ public sealed partial class MainWindow : Window
         }
 
         PlayPauseIcon.Glyph = status.IsPlaying ? "\uE769" : "\uE768";
-        _isUpdatingVolume = true;
-        VolumeSlider.Value = status.Volume;
-        _isUpdatingVolume = false;
-        // The slider only raises ValueChanged when the value actually moves, so the label is
-        // synced here as well rather than relying on the event.
-        VolumePercentText.Text = FormatPercent(status.Volume * 100);
     }
 
     private void UpdateNowPlaying(NowPlayingInfo? track)
@@ -349,8 +357,8 @@ public sealed partial class MainWindow : Window
             CurrentQueueArtistText.Text = "—";
             CurrentTimeText.Text = "0:00";
             RemainingTimeText.Text = "−0:00";
-            PlaybackProgressBar.Maximum = 1;
-            PlaybackProgressBar.Value = 0;
+            SetPlaybackProgress(0, 0);
+            ClearOptimisticPlaybackPosition();
             SetArtwork(null);
             ApplyQueue(new QueueSnapshot([], -1));
             _lyrics = [];
@@ -361,6 +369,11 @@ public sealed partial class MainWindow : Window
 
         var durationSeconds = Math.Max(0, track.DurationInMillis / 1000);
         var currentSeconds = Math.Clamp(track.CurrentPlaybackTime, 0, durationSeconds);
+        if (!string.Equals(GetTrackKey(track), _currentTrackKey, StringComparison.Ordinal))
+        {
+            ClearOptimisticPlaybackPosition();
+        }
+
         _lastPlaybackTime = currentSeconds;
         var songName = ValueOrFallback(track.Name);
         var artistName = ValueOrFallback(track.ArtistName);
@@ -370,13 +383,20 @@ public sealed partial class MainWindow : Window
         ArtistAlbumText.Text = $"{albumName} — {artistName}";
         CurrentQueueSongText.Text = songName;
         CurrentQueueArtistText.Text = $"{artistName} — {albumName}";
-        CurrentTimeText.Text = FormatTime(currentSeconds);
-        RemainingTimeText.Text = $"−{FormatTime(Math.Max(0, durationSeconds - currentSeconds))}";
-        PlaybackProgressBar.Maximum = Math.Max(1, durationSeconds);
-        PlaybackProgressBar.Value = currentSeconds;
+        var displayedSeconds = ResolveDisplayedPlaybackPosition(currentSeconds, durationSeconds);
+        SetPlaybackProgress(displayedSeconds, durationSeconds);
         ShuffleButton.Opacity = track.ShuffleMode > 0 ? 1 : 0.55;
-        RepeatButton.Opacity = track.RepeatMode > 0 ? 1 : 0.55;
+        UpdateRepeatButton(track.RepeatMode);
         SetArtwork(NormalizeArtworkUrl(track.Artwork?.Url));
+    }
+
+    private void UpdateRepeatButton(int repeatMode)
+    {
+        var state = RepeatPresentation.ForMode(repeatMode);
+        RepeatIcon.Opacity = state.IconOpacity;
+        RepeatOneBadge.Visibility = state.ShowOneBadge ? Visibility.Visible : Visibility.Collapsed;
+        ToolTipService.SetToolTip(RepeatButton, state.Label);
+        AutomationProperties.SetName(RepeatButton, state.Label);
     }
 
     private void RootGrid_ActualThemeChanged(FrameworkElement sender, object args)
@@ -1102,30 +1122,6 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async void VolumeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
-    {
-        if (!_isInitialized || _isUpdatingVolume)
-        {
-            return;
-        }
-
-        VolumePercentText.Text = FormatPercent(e.NewValue * 100);
-        _volumeChangeCancellation?.Cancel();
-        _volumeChangeCancellation?.Dispose();
-        _volumeChangeCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
-        var cancellationToken = _volumeChangeCancellation.Token;
-
-        try
-        {
-            await Task.Delay(160, cancellationToken);
-            await _ciderService.SetVolumeAsync(e.NewValue, _appToken, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            // A newer slider value superseded this request.
-        }
-    }
-
     private async void QueueListView_ItemClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is not QueueItemInfo item)
@@ -1159,6 +1155,151 @@ public sealed partial class MainWindow : Window
         {
             EndSettingsAction();
         }
+    }
+
+    private void PlaybackProgressSlider_PointerPressed(object sender, PointerRoutedEventArgs e)
+    {
+        if (PlaybackProgressSlider.Maximum <= 1)
+        {
+            return;
+        }
+
+        _isDraggingPlaybackProgress = true;
+        CancelPlaybackSeekDebounce();
+    }
+
+    private async void PlaybackProgressSlider_PointerReleased(object sender, PointerRoutedEventArgs e) =>
+        await CompletePlaybackProgressDragAsync();
+
+    private async void PlaybackProgressSlider_PointerCaptureLost(object sender, PointerRoutedEventArgs e) =>
+        await CompletePlaybackProgressDragAsync();
+
+    private async Task CompletePlaybackProgressDragAsync()
+    {
+        if (!_isDraggingPlaybackProgress)
+        {
+            return;
+        }
+
+        _isDraggingPlaybackProgress = false;
+        await SeekPlaybackAsync(PlaybackProgressSlider.Value);
+    }
+
+    private async void PlaybackProgressSlider_ValueChanged(
+        object sender,
+        RangeBaseValueChangedEventArgs e)
+    {
+        if (_isUpdatingPlaybackProgress)
+        {
+            return;
+        }
+
+        UpdatePlaybackTimeText(e.NewValue, PlaybackProgressSlider.Maximum);
+        if (!_isInitialized || _isDraggingPlaybackProgress)
+        {
+            return;
+        }
+
+        CancelPlaybackSeekDebounce();
+        _playbackSeekDebounceCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            _lifetimeCancellation.Token);
+        var cancellationToken = _playbackSeekDebounceCancellation.Token;
+        try
+        {
+            await Task.Delay(250, cancellationToken);
+            await SeekPlaybackAsync(e.NewValue, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer keyboard adjustment or pointer drag superseded this request.
+        }
+    }
+
+    private async Task SeekPlaybackAsync(
+        double position,
+        CancellationToken cancellationToken = default)
+    {
+        var target = Math.Clamp(position, 0, PlaybackProgressSlider.Maximum);
+        _optimisticPlaybackPosition = target;
+        _optimisticPlaybackDeadline = DateTimeOffset.Now.AddSeconds(OptimisticSeekSeconds);
+        UpdatePlaybackTimeText(target, PlaybackProgressSlider.Maximum);
+
+        var token = cancellationToken.CanBeCanceled
+            ? cancellationToken
+            : _lifetimeCancellation.Token;
+        try
+        {
+            if (!await _ciderService.SeekAsync(target, _appToken, token))
+            {
+                if (_optimisticPlaybackPosition == target)
+                {
+                    _optimisticPlaybackPosition = null;
+                }
+
+                ReportCommandRejected("Cider 未接受跳转指令");
+            }
+
+            await RefreshAsync();
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            if (_optimisticPlaybackPosition == target)
+            {
+                _optimisticPlaybackPosition = null;
+            }
+        }
+    }
+
+    private double ResolveDisplayedPlaybackPosition(double serverPosition, double duration)
+    {
+        if (_isDraggingPlaybackProgress)
+        {
+            return Math.Clamp(PlaybackProgressSlider.Value, 0, duration);
+        }
+
+        if (_optimisticPlaybackPosition is not double target)
+        {
+            return serverPosition;
+        }
+
+        if (Math.Abs(serverPosition - target) <= OptimisticSeekToleranceSeconds ||
+            DateTimeOffset.Now > _optimisticPlaybackDeadline)
+        {
+            _optimisticPlaybackPosition = null;
+            return serverPosition;
+        }
+
+        return Math.Clamp(target, 0, duration);
+    }
+
+    private void SetPlaybackProgress(double position, double duration)
+    {
+        _isUpdatingPlaybackProgress = true;
+        PlaybackProgressSlider.Maximum = Math.Max(1, duration);
+        PlaybackProgressSlider.Value = Math.Clamp(position, 0, PlaybackProgressSlider.Maximum);
+        _isUpdatingPlaybackProgress = false;
+        UpdatePlaybackTimeText(position, duration);
+    }
+
+    private void UpdatePlaybackTimeText(double position, double duration)
+    {
+        var current = Math.Clamp(position, 0, Math.Max(0, duration));
+        CurrentTimeText.Text = FormatTime(current);
+        RemainingTimeText.Text = $"−{FormatTime(Math.Max(0, duration - current))}";
+    }
+
+    private void CancelPlaybackSeekDebounce()
+    {
+        _playbackSeekDebounceCancellation?.Cancel();
+        _playbackSeekDebounceCancellation?.Dispose();
+        _playbackSeekDebounceCancellation = null;
+    }
+
+    private void ClearOptimisticPlaybackPosition()
+    {
+        _isDraggingPlaybackProgress = false;
+        _optimisticPlaybackPosition = null;
+        CancelPlaybackSeekDebounce();
     }
 
     private async Task TestConnectionAsync()
@@ -1227,7 +1368,6 @@ public sealed partial class MainWindow : Window
         _settings.AlwaysOnTop = AlwaysOnTopToggle.IsOn;
         _settings.TaskbarWidgetEnabled = TaskbarWidgetToggle.IsOn;
         _settings.MinimizeToTrayOnClose = MinimizeToTrayToggle.IsOn;
-        _settings.ShowVolume = ShowVolumeToggle.IsOn;
         _settings.DefaultPanel = SelectedTag(DefaultPanelComboBox, "Queue");
         _settings.BackgroundOpacity = BackgroundOpacitySlider.Value / 100;
         _settings.BackgroundBlur = BackgroundBlurSlider.Value;
@@ -1323,7 +1463,6 @@ public sealed partial class MainWindow : Window
         AlwaysOnTopToggle.IsOn = _settings.AlwaysOnTop;
         TaskbarWidgetToggle.IsOn = _settings.TaskbarWidgetEnabled;
         MinimizeToTrayToggle.IsOn = _settings.MinimizeToTrayOnClose;
-        ShowVolumeToggle.IsOn = _settings.ShowVolume;
         // The sliders work in whole percentages while the model keeps the 0–1 fraction, so
         // settings files written by earlier versions keep their original look.
         BackgroundOpacitySlider.Value = _settings.BackgroundOpacity * 100;
@@ -1357,7 +1496,6 @@ public sealed partial class MainWindow : Window
         ApplyTitleBarTheme();
         _trayIconHost.SetLightTheme(RootGrid.ActualTheme == ElementTheme.Light);
         _artworkBackdrop.Apply(_settings.BackgroundOpacity, _settings.BackgroundBlur);
-        VolumePanel.Visibility = _settings.ShowVolume ? Visibility.Visible : Visibility.Collapsed;
         UpdateResponsiveLayout();
         if (_appWindow.Presenter is OverlappedPresenter presenter)
         {
@@ -1440,8 +1578,7 @@ public sealed partial class MainWindow : Window
         RootGrid.ActualThemeChanged -= RootGrid_ActualThemeChanged;
         RootGrid.XamlRoot.Changed -= XamlRoot_Changed;
         _refreshTimer.Stop();
-        _volumeChangeCancellation?.Cancel();
-        _volumeChangeCancellation?.Dispose();
+        CancelPlaybackSeekDebounce();
         _lifetimeCancellation.Cancel();
         _taskbarWidgetHost.CommandRequested -= TaskbarWidgetHost_CommandRequested;
         _taskbarWidgetHost.Dispose();

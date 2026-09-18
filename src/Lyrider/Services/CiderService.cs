@@ -282,16 +282,6 @@ public sealed class CiderService : IDisposable
     public Task<bool> ToggleRepeatAsync(string? appToken, CancellationToken cancellationToken = default) =>
         SendCommandAsync("api/v1/playback/toggle-repeat", appToken, null, cancellationToken);
 
-    public Task<bool> SetVolumeAsync(
-        double volume,
-        string? appToken,
-        CancellationToken cancellationToken = default) =>
-        SendCommandAsync(
-            "api/v1/playback/volume",
-            appToken,
-            new { volume = Math.Clamp(volume, 0, 1) },
-            cancellationToken);
-
     public Task<bool> SeekAsync(
         double position,
         string? appToken,
