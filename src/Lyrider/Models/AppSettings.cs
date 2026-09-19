@@ -8,6 +8,8 @@ public sealed class AppSettings
 
     public string Theme { get; set; } = "Dark";
 
+    public string Language { get; set; } = "System";
+
     public double LyricFontSize { get; set; } = 42;
 
     public bool AutoScrollLyrics { get; set; } = true;

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Main_001.AutomationProperties.Name" xml:space="preserve"><value>App menu</value></data>
+  <data name="Main_001.ToolTipService.ToolTip" xml:space="preserve"><value>App menu</value></data>
+  <data name="Main_002.Text" xml:space="preserve"><value>Connecting…</value></data>
+  <data name="Main_003.Text" xml:space="preserve"><value>Play Queue</value></data>
+  <data name="Main_004.Text" xml:space="preserve"><value>Lyrics</value></data>
+  <data name="Main_005.Text" xml:space="preserve"><value>Settings</value></data>
+  <data name="Main_006.Text" xml:space="preserve"><value>Exit Lyrider</value></data>
+  <data name="Main_007.Text" xml:space="preserve"><value>Not Playing</value></data>
+  <data name="Main_008.ToolTipService.ToolTip" xml:space="preserve"><value>More</value></data>
+  <data name="Main_009.AutomationProperties.Name" xml:space="preserve"><value>Playback position</value></data>
+  <data name="Main_010.ToolTipService.ToolTip" xml:space="preserve"><value>Shuffle</value></data>
+  <data name="Main_011.ToolTipService.ToolTip" xml:space="preserve"><value>Previous</value></data>
+  <data name="Main_012.ToolTipService.ToolTip" xml:space="preserve"><value>Play or pause</value></data>
+  <data name="Main_013.ToolTipService.ToolTip" xml:space="preserve"><value>Next</value></data>
+  <data name="Main_014.ToolTipService.ToolTip" xml:space="preserve"><value>Repeat: Off</value></data>
+  <data name="Main_015.Text" xml:space="preserve"><value>Play Queue</value></data>
+  <data name="Main_016.Text" xml:space="preserve"><value>0 songs</value></data>
+  <data name="Main_017.Text" xml:space="preserve"><value>Now Playing</value></data>
+  <data name="Main_018.Text" xml:space="preserve"><value>Not Playing</value></data>
+  <data name="Main_019.Text" xml:space="preserve"><value>Up Next</value></data>
+  <data name="Main_020.Text" xml:space="preserve"><value>From the current Cider queue</value></data>
+  <data name="Main_021.Text" xml:space="preserve"><value>The play queue is empty</value></data>
+  <data name="Main_022.Text" xml:space="preserve"><value>No lyrics are available for this song</value></data>
+  <data name="Main_023.ToolTipService.ToolTip" xml:space="preserve"><value>Play Queue</value></data>
+  <data name="Main_024.ToolTipService.ToolTip" xml:space="preserve"><value>Lyrics</value></data>
+  <data name="Main_025.AutomationProperties.Name" xml:space="preserve"><value>Back to player</value></data>
+  <data name="Main_025.ToolTipService.ToolTip" xml:space="preserve"><value>Back to player</value></data>
+  <data name="Main_026.Text" xml:space="preserve"><value>Settings</value></data>
+  <data name="Main_027.Text" xml:space="preserve"><value>Customize Lyrider's appearance, playback, and Cider connection</value></data>
+  <data name="Main_028.Content" xml:space="preserve"><value>Save Settings</value></data>
+  <data name="Main_029.Text" xml:space="preserve"><value>Appearance</value></data>
+  <data name="Main_030.Text" xml:space="preserve"><value>Theme</value></data>
+  <data name="Main_031.Text" xml:space="preserve"><value>Choose the app's light or dark appearance</value></data>
+  <data name="Main_032.Content" xml:space="preserve"><value>Use system setting</value></data>
+  <data name="Main_033.Content" xml:space="preserve"><value>Light</value></data>
+  <data name="Main_034.Content" xml:space="preserve"><value>Dark</value></data>
+  <data name="Main_035.Text" xml:space="preserve"><value>Background artwork intensity</value></data>
+  <data name="Main_036.Text" xml:space="preserve"><value>Adjust how visible the artwork is in the player background</value></data>
+  <data name="Main_037.Text" xml:space="preserve"><value>Background artwork blur</value></data>
+  <data name="Main_038.Text" xml:space="preserve"><value>Adjust the Gaussian blur radius; 0% keeps the artwork sharp</value></data>
+  <data name="Main_039.Text" xml:space="preserve"><value>Lyrics and Playback</value></data>
+  <data name="Main_040.Text" xml:space="preserve"><value>Lyric font size</value></data>
+  <data name="Main_041.Text" xml:space="preserve"><value>Adjust the timeline lyric text size</value></data>
+  <data name="Main_042.Text" xml:space="preserve"><value>Convert Traditional Chinese lyrics</value></data>
+  <data name="Main_043.Text" xml:space="preserve"><value>Convert Traditional Chinese lyrics to Simplified Chinese in the lyrics view and taskbar</value></data>
+  <data name="Main_044.Text" xml:space="preserve"><value>Auto-scroll lyrics</value></data>
+  <data name="Main_045.Text" xml:space="preserve"><value>Keep the current lyric one third from the top while playing</value></data>
+  <data name="Main_046.Text" xml:space="preserve"><value>Default view</value></data>
+  <data name="Main_047.Text" xml:space="preserve"><value>Choose what appears on the right when the app starts</value></data>
+  <data name="Main_048.Content" xml:space="preserve"><value>Play Queue</value></data>
+  <data name="Main_049.Content" xml:space="preserve"><value>Lyrics</value></data>
+  <data name="Main_050.Text" xml:space="preserve"><value>Always on top</value></data>
+  <data name="Main_051.Text" xml:space="preserve"><value>Keep Lyrider above other windows</value></data>
+  <data name="Main_052.Text" xml:space="preserve"><value>Taskbar playback status</value></data>
+  <data name="Main_053.Text" xml:space="preserve"><value>Show playback information beside Widgets on the Windows 11 taskbar</value></data>
+  <data name="Main_054.Text" xml:space="preserve"><value>Show lyrics in taskbar</value></data>
+  <data name="Main_055.Text" xml:space="preserve"><value>When off, show the song and artist instead</value></data>
+  <data name="Main_056.Text" xml:space="preserve"><value>Minimize to tray on close</value></data>
+  <data name="Main_057.Text" xml:space="preserve"><value>Hide in the system tray when the close button is clicked; Exit in the app menu still quits</value></data>
+  <data name="Main_058.Text" xml:space="preserve"><value>Cider Connection</value></data>
+  <data name="Main_059.Text" xml:space="preserve"><value>Local API</value></data>
+  <data name="Main_060.Text" xml:space="preserve"><value>Read Cider's playback status and send playback commands</value></data>
+  <data name="Main_061.Header" xml:space="preserve"><value>API address</value></data>
+  <data name="Main_062.Header" xml:space="preserve"><value>App Token (optional)</value></data>
+  <data name="Main_062.PlaceholderText" xml:space="preserve"><value>Encrypted for the current Windows user</value></data>
+  <data name="Main_063.Content" xml:space="preserve"><value>Test Connection</value></data>
+  <data name="Main_064.Text" xml:space="preserve"><value>Connect Cider to get started with Lyrider</value></data>
+  <data name="Main_065.Text" xml:space="preserve"><value>Follow these steps to configure an App Token. It is encrypted locally using your current Windows credentials.</value></data>
+  <data name="Main_066.Text" xml:space="preserve"><value>Open Cider's connection settings</value></data>
+  <data name="Main_067.Text" xml:space="preserve"><value>Open Settings in Cider, then go to Connectivity.</value></data>
+  <data name="Main_068.Text" xml:space="preserve"><value>Open external app access</value></data>
+  <data name="Main_069.Text" xml:space="preserve"><value>Under External Applications, open Manage External Application Access, then create and copy a token.</value></data>
+  <data name="Main_070.Text" xml:space="preserve"><value>Paste the token and verify the connection</value></data>
+  <data name="Main_071.Header" xml:space="preserve"><value>API address</value></data>
+  <data name="Main_072.PlaceholderText" xml:space="preserve"><value>Paste the token copied from Cider</value></data>
+  <data name="Main_073.Content" xml:space="preserve"><value>Set Up Later</value></data>
+  <data name="Main_074.Content" xml:space="preserve"><value>Verify Connection</value></data>
+  <data name="Main_075.Content" xml:space="preserve"><value>Confirm and Continue</value></data>
+  <data name="Main_076.Text" xml:space="preserve"><value>Writing the melody into this moment…</value></data>
+  <data name="Main_077.Text" xml:space="preserve"><value>Language</value></data>
+  <data name="Main_078.Text" xml:space="preserve"><value>Choose Lyrider's display language; restart to apply</value></data>
+  <data name="Main_079.Content" xml:space="preserve"><value>Use system setting</value></data>
+  <data name="Main_080.Content" xml:space="preserve"><value>Simplified Chinese</value></data>
+  <data name="Main_081.Content" xml:space="preserve"><value>English</value></data>
+</root>

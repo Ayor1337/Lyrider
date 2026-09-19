@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Main_001.AutomationProperties.Name" xml:space="preserve"><value>应用菜单</value></data>
+  <data name="Main_001.ToolTipService.ToolTip" xml:space="preserve"><value>应用菜单</value></data>
+  <data name="Main_002.Text" xml:space="preserve"><value>正在连接…</value></data>
+  <data name="Main_003.Text" xml:space="preserve"><value>播放队列</value></data>
+  <data name="Main_004.Text" xml:space="preserve"><value>歌词</value></data>
+  <data name="Main_005.Text" xml:space="preserve"><value>设置</value></data>
+  <data name="Main_006.Text" xml:space="preserve"><value>退出 Lyrider</value></data>
+  <data name="Main_007.Text" xml:space="preserve"><value>未在播放</value></data>
+  <data name="Main_008.ToolTipService.ToolTip" xml:space="preserve"><value>更多</value></data>
+  <data name="Main_009.AutomationProperties.Name" xml:space="preserve"><value>播放进度</value></data>
+  <data name="Main_010.ToolTipService.ToolTip" xml:space="preserve"><value>随机播放</value></data>
+  <data name="Main_011.ToolTipService.ToolTip" xml:space="preserve"><value>上一首</value></data>
+  <data name="Main_012.ToolTipService.ToolTip" xml:space="preserve"><value>播放或暂停</value></data>
+  <data name="Main_013.ToolTipService.ToolTip" xml:space="preserve"><value>下一首</value></data>
+  <data name="Main_014.ToolTipService.ToolTip" xml:space="preserve"><value>循环：关闭</value></data>
+  <data name="Main_015.Text" xml:space="preserve"><value>播放队列</value></data>
+  <data name="Main_016.Text" xml:space="preserve"><value>0 首</value></data>
+  <data name="Main_017.Text" xml:space="preserve"><value>正在播放</value></data>
+  <data name="Main_018.Text" xml:space="preserve"><value>未在播放</value></data>
+  <data name="Main_019.Text" xml:space="preserve"><value>接下来播放</value></data>
+  <data name="Main_020.Text" xml:space="preserve"><value>来自 Cider 当前播放队列</value></data>
+  <data name="Main_021.Text" xml:space="preserve"><value>播放队列为空</value></data>
+  <data name="Main_022.Text" xml:space="preserve"><value>这首歌暂时没有歌词</value></data>
+  <data name="Main_023.ToolTipService.ToolTip" xml:space="preserve"><value>播放队列</value></data>
+  <data name="Main_024.ToolTipService.ToolTip" xml:space="preserve"><value>歌词</value></data>
+  <data name="Main_025.AutomationProperties.Name" xml:space="preserve"><value>返回播放器</value></data>
+  <data name="Main_025.ToolTipService.ToolTip" xml:space="preserve"><value>返回播放器</value></data>
+  <data name="Main_026.Text" xml:space="preserve"><value>设置</value></data>
+  <data name="Main_027.Text" xml:space="preserve"><value>调整 Lyrider 的外观、播放体验与 Cider 连接</value></data>
+  <data name="Main_028.Content" xml:space="preserve"><value>保存设置</value></data>
+  <data name="Main_029.Text" xml:space="preserve"><value>外观</value></data>
+  <data name="Main_030.Text" xml:space="preserve"><value>主题</value></data>
+  <data name="Main_031.Text" xml:space="preserve"><value>选择应用的明暗外观</value></data>
+  <data name="Main_032.Content" xml:space="preserve"><value>跟随系统</value></data>
+  <data name="Main_033.Content" xml:space="preserve"><value>浅色</value></data>
+  <data name="Main_034.Content" xml:space="preserve"><value>深色</value></data>
+  <data name="Main_035.Text" xml:space="preserve"><value>背景封面强度</value></data>
+  <data name="Main_036.Text" xml:space="preserve"><value>调节封面在播放器背景中的可见程度</value></data>
+  <data name="Main_037.Text" xml:space="preserve"><value>背景封面模糊</value></data>
+  <data name="Main_038.Text" xml:space="preserve"><value>调节背景封面的高斯模糊半径，0% 保持原图清晰</value></data>
+  <data name="Main_039.Text" xml:space="preserve"><value>歌词与播放</value></data>
+  <data name="Main_040.Text" xml:space="preserve"><value>歌词字号</value></data>
+  <data name="Main_041.Text" xml:space="preserve"><value>调整时间轴歌词的显示大小</value></data>
+  <data name="Main_042.Text" xml:space="preserve"><value>繁体歌词转简体</value></data>
+  <data name="Main_043.Text" xml:space="preserve"><value>自动将歌词页面和任务栏中的繁体歌词转换为简体</value></data>
+  <data name="Main_044.Text" xml:space="preserve"><value>歌词自动滚动</value></data>
+  <data name="Main_045.Text" xml:space="preserve"><value>播放时将当前歌词定位到视图上方三分之一处</value></data>
+  <data name="Main_046.Text" xml:space="preserve"><value>默认视图</value></data>
+  <data name="Main_047.Text" xml:space="preserve"><value>应用启动时右侧显示的内容</value></data>
+  <data name="Main_048.Content" xml:space="preserve"><value>播放队列</value></data>
+  <data name="Main_049.Content" xml:space="preserve"><value>歌词</value></data>
+  <data name="Main_050.Text" xml:space="preserve"><value>窗口置顶</value></data>
+  <data name="Main_051.Text" xml:space="preserve"><value>让 Lyrider 保持在其他窗口上方</value></data>
+  <data name="Main_052.Text" xml:space="preserve"><value>任务栏播放状态</value></data>
+  <data name="Main_053.Text" xml:space="preserve"><value>在 Windows 11 主任务栏的小组件旁显示播放信息</value></data>
+  <data name="Main_054.Text" xml:space="preserve"><value>任务栏显示歌词</value></data>
+  <data name="Main_055.Text" xml:space="preserve"><value>关闭后显示歌曲名和作者名</value></data>
+  <data name="Main_056.Text" xml:space="preserve"><value>关闭时最小化到托盘</value></data>
+  <data name="Main_057.Text" xml:space="preserve"><value>点击关闭按钮时隐藏到系统托盘；应用菜单中的退出仍会直接关闭</value></data>
+  <data name="Main_058.Text" xml:space="preserve"><value>Cider 连接</value></data>
+  <data name="Main_059.Text" xml:space="preserve"><value>本地 API</value></data>
+  <data name="Main_060.Text" xml:space="preserve"><value>用于读取 Cider 的播放状态并发送播放控制命令</value></data>
+  <data name="Main_061.Header" xml:space="preserve"><value>API 地址</value></data>
+  <data name="Main_062.Header" xml:space="preserve"><value>App Token（可选）</value></data>
+  <data name="Main_062.PlaceholderText" xml:space="preserve"><value>使用当前 Windows 用户加密保存</value></data>
+  <data name="Main_063.Content" xml:space="preserve"><value>测试连接</value></data>
+  <data name="Main_064.Text" xml:space="preserve"><value>连接 Cider，开始使用 Lyrider</value></data>
+  <data name="Main_065.Text" xml:space="preserve"><value>跟随下面的步骤配置 App Token。Token 只会使用 Windows 当前用户的凭据加密保存在本机。</value></data>
+  <data name="Main_066.Text" xml:space="preserve"><value>进入 Cider 的连接设置</value></data>
+  <data name="Main_067.Text" xml:space="preserve"><value>打开 Cider“设置”，进入“连接”。</value></data>
+  <data name="Main_068.Text" xml:space="preserve"><value>打开外部应用访问管理</value></data>
+  <data name="Main_069.Text" xml:space="preserve"><value>在“外部应用”中打开“管理外部应用对 Cider 的访问”，然后创建并复制 Token。</value></data>
+  <data name="Main_070.Text" xml:space="preserve"><value>粘贴并验证连接</value></data>
+  <data name="Main_071.Header" xml:space="preserve"><value>API 地址</value></data>
+  <data name="Main_072.PlaceholderText" xml:space="preserve"><value>粘贴从 Cider 复制的 Token</value></data>
+  <data name="Main_073.Content" xml:space="preserve"><value>稍后设置</value></data>
+  <data name="Main_074.Content" xml:space="preserve"><value>验证连接</value></data>
+  <data name="Main_075.Content" xml:space="preserve"><value>确认并进入</value></data>
+  <data name="Main_076.Text" xml:space="preserve"><value>正在把旋律写进此刻…</value></data>
+  <data name="Main_077.Text" xml:space="preserve"><value>语言</value></data>
+  <data name="Main_078.Text" xml:space="preserve"><value>选择 Lyrider 的界面语言，重启后生效</value></data>
+  <data name="Main_079.Content" xml:space="preserve"><value>跟随系统</value></data>
+  <data name="Main_080.Content" xml:space="preserve"><value>简体中文</value></data>
+  <data name="Main_081.Content" xml:space="preserve"><value>英语</value></data>
+</root>

@@ -94,7 +94,8 @@
         BorderThickness="1"
         CornerRadius="8">
         <StackPanel>
-            <Button
+            <Button x:Uid="Tray_001"
+                x:Name="OpenButton"
                 AutomationProperties.Name="打开 Lyrider"
                 Click="OpenButton_Click"
                 Content="打开 Lyrider"
@@ -103,7 +104,8 @@
                 Height="1"
                 Margin="8,3,8,3"
                 Background="{DynamicResource TrayMenuSeparatorBrush}" />
-            <Button
+            <Button x:Uid="Tray_002"
+                x:Name="ExitButton"
                 AutomationProperties.Name="退出 Lyrider"
                 Click="ExitButton_Click"
                 Content="退出 Lyrider"

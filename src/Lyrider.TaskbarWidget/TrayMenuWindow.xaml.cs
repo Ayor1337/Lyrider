@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -24,6 +25,10 @@ public partial class TrayMenuWindow : Window
         _openWindow = openWindow;
         _exitApplication = exitApplication;
         InitializeComponent();
+        OpenButton.Content = WidgetText.Get("打开 Lyrider", "Open Lyrider");
+        AutomationProperties.SetName(OpenButton, OpenButton.Content.ToString()!);
+        ExitButton.Content = WidgetText.Get("退出 Lyrider", "Exit Lyrider");
+        AutomationProperties.SetName(ExitButton, ExitButton.Content.ToString()!);
         SourceInitialized += TrayMenuWindow_SourceInitialized;
         Closing += TrayMenuWindow_Closing;
     }

@@ -200,19 +200,22 @@
                     <StackPanel.RenderTransform>
                         <TranslateTransform X="2" />
                     </StackPanel.RenderTransform>
-                    <Button
+                    <Button x:Uid="Taskbar_001"
+                        x:Name="PreviousButton"
                         Click="PreviousButton_Click"
                         Style="{StaticResource PlaybackButtonStyle}"
                         ToolTip="上一首">
                         <TextBlock FontFamily="Segoe Fluent Icons" FontSize="16" Text="&#xE892;" />
                     </Button>
-                    <Button
+                    <Button x:Uid="Taskbar_002"
+                        x:Name="PlayPauseButton"
                         Click="PlayPauseButton_Click"
                         Style="{StaticResource PlaybackButtonStyle}"
                         ToolTip="播放/暂停">
                         <TextBlock x:Name="PlayPauseIcon" FontFamily="Segoe Fluent Icons" FontSize="16" Text="&#xE769;" />
                     </Button>
-                    <Button
+                    <Button x:Uid="Taskbar_003"
+                        x:Name="NextButton"
                         Click="NextButton_Click"
                         Style="{StaticResource PlaybackButtonStyle}"
                         ToolTip="下一首">

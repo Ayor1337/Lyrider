@@ -45,6 +45,9 @@ public partial class TaskbarWidgetWindow : Window
     public TaskbarWidgetWindow()
     {
         InitializeComponent();
+        PreviousButton.ToolTip = WidgetText.Get("上一首", "Previous");
+        PlayPauseButton.ToolTip = WidgetText.Get("播放/暂停", "Play/Pause");
+        NextButton.ToolTip = WidgetText.Get("下一首", "Next");
         Opacity = 0;
         RootBorder.Background = _rootBackgroundBrush;
         ApplySystemTheme();

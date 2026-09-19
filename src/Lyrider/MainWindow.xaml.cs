@@ -202,7 +202,7 @@ public sealed partial class MainWindow : Window
         SettingsHeaderGrid.Width = settingsLayoutWidth;
         SettingsContentGrid.Width = settingsLayoutWidth;
 
-        foreach (var row in new[] { ThemeSettingsRow, BackgroundSettingsRow, BackgroundBlurSettingsRow,
+        foreach (var row in new[] { ThemeSettingsRow, LanguageSettingsRow, BackgroundSettingsRow, BackgroundBlurSettingsRow,
             LyricFontSettingsRow, ChineseLyricsSettingsRow, AutoScrollSettingsRow, DefaultPanelSettingsRow,
             AlwaysOnTopSettingsRow, TaskbarWidgetSettingsRow, TaskbarLyricsSettingsRow,
             MinimizeToTraySettingsRow })
@@ -445,9 +445,9 @@ public sealed partial class MainWindow : Window
         if (track is null)
         {
             _currentTrackKey = null;
-            SongNameText.Text = "未在播放";
+            SongNameText.Text = AppText.Get("未在播放", "Not Playing");
             ArtistAlbumText.Text = "—";
-            CurrentQueueSongText.Text = "未在播放";
+            CurrentQueueSongText.Text = AppText.Get("未在播放", "Not Playing");
             CurrentQueueArtistText.Text = "—";
             CurrentTimeText.Text = "0:00";
             RemainingTimeText.Text = "−0:00";
@@ -587,7 +587,9 @@ public sealed partial class MainWindow : Window
             .ToArray();
         QueueCollectionSynchronizer.Synchronize(_queueItems, desiredItems);
 
-        QueueCountText.Text = $"{_queueItems.Count} 首";
+        QueueCountText.Text = AppText.IsChinese
+            ? $"{_queueItems.Count} 首"
+            : $"{_queueItems.Count} {(_queueItems.Count == 1 ? "song" : "songs")}";
         EmptyQueueText.Visibility = _queueItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         QueueListView.Visibility = _queueItems.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
@@ -653,9 +655,10 @@ public sealed partial class MainWindow : Window
                 button.PointerEntered += LyricLine_PointerEntered;
                 button.PointerExited += LyricLine_PointerExited;
                 button.Click += LyricLine_Click;
-                ToolTipService.SetToolTip(button, $"跳转到 {FormatTime(line.StartTime)}");
+                var seekLabel = AppText.Format("跳转到 {0}", "Seek to {0}", FormatTime(line.StartTime));
+                ToolTipService.SetToolTip(button, seekLabel);
                 AutomationProperties.SetName(button, displayText);
-                AutomationProperties.SetHelpText(button, $"跳转到 {FormatTime(line.StartTime)}");
+                AutomationProperties.SetHelpText(button, seekLabel);
                 root = button;
             }
 
@@ -908,7 +911,7 @@ public sealed partial class MainWindow : Window
             if (!await _ciderService.SeekAsync(startTime, _appToken, _lifetimeCancellation.Token))
             {
                 _optimisticSeekIndex = -1;
-                ReportCommandRejected("Cider 未接受跳转指令");
+                ReportCommandRejected(AppText.Get("Cider 未接受跳转指令", "Cider did not accept the seek command"));
                 return;
             }
 
@@ -1178,9 +1181,11 @@ public sealed partial class MainWindow : Window
         await RefreshAsync(forceDetails: true);
     }
 
-    private void ReportCommandRejected(string message = "Cider 未接受播放指令")
+    private void ReportCommandRejected(string? message = null)
     {
-        ConnectionStatusMenuItem.Text = message;
+        ConnectionStatusMenuItem.Text = message ?? AppText.Get(
+            "Cider 未接受播放指令",
+            "Cider did not accept the playback command");
         ConnectionStatusIcon.Foreground = (Brush)RootGrid.Resources["DisconnectedBrush"];
     }
 
@@ -1285,8 +1290,8 @@ public sealed partial class MainWindow : Window
             {
                 ShowOnboardingStatus(
                     InfoBarSeverity.Error,
-                    "API 地址无效",
-                    "请输入有效的 HTTP 或 HTTPS 地址。");
+                    AppText.Get("API 地址无效", "Invalid API address"),
+                    AppText.Get("请输入有效的 HTTP 或 HTTPS 地址。", "Enter a valid HTTP or HTTPS address."));
                 return;
             }
 
@@ -1295,15 +1300,15 @@ public sealed partial class MainWindow : Window
             {
                 ShowOnboardingStatus(
                     InfoBarSeverity.Warning,
-                    "需要 App Token",
-                    "请先粘贴从 Cider 复制的 Token。");
+                    AppText.Get("需要 App Token", "App Token required"),
+                    AppText.Get("请先粘贴从 Cider 复制的 Token。", "Paste the token copied from Cider first."));
                 return;
             }
 
             ShowOnboardingStatus(
                 InfoBarSeverity.Informational,
-                "正在验证连接",
-                "请保持 Cider 运行。");
+                AppText.Get("正在验证连接", "Verifying connection"),
+                AppText.Get("请保持 Cider 运行。", "Keep Cider running."));
 
             using var service = new CiderService(apiBaseUrl);
             var result = await service.GetNowPlayingAsync(token, _lifetimeCancellation.Token);
@@ -1311,7 +1316,7 @@ public sealed partial class MainWindow : Window
             {
                 ShowOnboardingStatus(
                     InfoBarSeverity.Error,
-                    "无法连接 Cider",
+                    AppText.Get("无法连接 Cider", "Could not connect to Cider"),
                     result.Message);
                 return;
             }
@@ -1322,8 +1327,10 @@ public sealed partial class MainWindow : Window
             ConfirmOnboardingButton.Visibility = Visibility.Visible;
             ShowOnboardingStatus(
                 InfoBarSeverity.Success,
-                "连接成功",
-                "已成功连接到 Cider。确认后将保存 Token 并进入 Lyrider。");
+                AppText.Get("连接成功", "Connection successful"),
+                AppText.Get(
+                    "已成功连接到 Cider。确认后将保存 Token 并进入 Lyrider。",
+                    "Connected to Cider. Confirm to save the token and continue to Lyrider."));
         }
         finally
         {
@@ -1352,8 +1359,10 @@ public sealed partial class MainWindow : Window
             {
                 ShowOnboardingStatus(
                     InfoBarSeverity.Error,
-                    "无法保存 Token",
-                    "Windows 无法加密并保存这个 Token，请重试。");
+                    AppText.Get("无法保存 Token", "Could not save the token"),
+                    AppText.Get(
+                        "Windows 无法加密并保存这个 Token，请重试。",
+                        "Windows could not encrypt and save this token. Try again."));
                 return;
             }
 
@@ -1367,8 +1376,8 @@ public sealed partial class MainWindow : Window
                 _settings.HasCompletedOnboarding = false;
                 ShowOnboardingStatus(
                     InfoBarSeverity.Error,
-                    "无法保存设置",
-                    "应用设置未能写入本机，请重试。");
+                    AppText.Get("无法保存设置", "Could not save settings"),
+                    AppText.Get("应用设置未能写入本机，请重试。", "The app settings could not be saved. Try again."));
                 return;
             }
 
@@ -1398,8 +1407,8 @@ public sealed partial class MainWindow : Window
                 _settings.HasCompletedOnboarding = false;
                 ShowOnboardingStatus(
                     InfoBarSeverity.Error,
-                    "无法保存设置",
-                    "无法记录引导状态，请重试。");
+                    AppText.Get("无法保存设置", "Could not save settings"),
+                    AppText.Get("无法记录引导状态，请重试。", "The setup status could not be saved. Try again."));
                 return;
             }
 
@@ -1544,7 +1553,7 @@ public sealed partial class MainWindow : Window
                     _optimisticPlaybackPosition = null;
                 }
 
-                ReportCommandRejected("Cider 未接受跳转指令");
+                ReportCommandRejected(AppText.Get("Cider 未接受跳转指令", "Cider did not accept the seek command"));
             }
 
             await RefreshAsync();
@@ -1615,11 +1624,13 @@ public sealed partial class MainWindow : Window
         if (!Uri.TryCreate(ApiBaseUrlTextBox.Text, UriKind.Absolute, out var uri) ||
             uri.Scheme is not ("http" or "https"))
         {
-            await ShowSettingsDialogAsync("连接测试", "API 地址必须是有效的 HTTP 或 HTTPS 地址");
+            await ShowSettingsDialogAsync(
+                AppText.Get("连接测试", "Connection test"),
+                AppText.Get("API 地址必须是有效的 HTTP 或 HTTPS 地址", "The API address must be a valid HTTP or HTTPS address"));
             return;
         }
 
-        TestConnectionButton.Content = "正在测试…";
+        TestConnectionButton.Content = AppText.Get("正在测试…", "Testing…");
         try
         {
             using var service = new CiderService(ApiBaseUrlTextBox.Text);
@@ -1627,12 +1638,16 @@ public sealed partial class MainWindow : Window
                 NormalizeToken(TokenPasswordBox.Password),
                 _lifetimeCancellation.Token);
             await ShowSettingsDialogAsync(
-                result.State == CiderConnectionState.Connected ? "连接成功" : "连接失败",
-                result.State == CiderConnectionState.Connected ? "已成功连接到 Cider 本地 API。" : result.Message);
+                result.State == CiderConnectionState.Connected
+                    ? AppText.Get("连接成功", "Connection successful")
+                    : AppText.Get("连接失败", "Connection failed"),
+                result.State == CiderConnectionState.Connected
+                    ? AppText.Get("已成功连接到 Cider 本地 API。", "Connected to the local Cider API.")
+                    : result.Message);
         }
         finally
         {
-            TestConnectionButton.Content = "测试连接";
+            TestConnectionButton.Content = AppText.Get("测试连接", "Test Connection");
         }
     }
 
@@ -1657,19 +1672,25 @@ public sealed partial class MainWindow : Window
     {
         if (!_ciderService.TryUpdateBaseAddress(ApiBaseUrlTextBox.Text))
         {
-            await ShowSettingsDialogAsync("无法保存设置", "API 地址必须是有效的 HTTP 或 HTTPS 地址");
+            await ShowSettingsDialogAsync(
+                AppText.Get("无法保存设置", "Could not save settings"),
+                AppText.Get("API 地址必须是有效的 HTTP 或 HTTPS 地址", "The API address must be a valid HTTP or HTTPS address"));
             return;
         }
 
         var token = NormalizeToken(TokenPasswordBox.Password);
         if (!_tokenStore.TrySave(token))
         {
-            await ShowSettingsDialogAsync("无法保存设置", "无法保存 Token");
+            await ShowSettingsDialogAsync(
+                AppText.Get("无法保存设置", "Could not save settings"),
+                AppText.Get("无法保存 Token", "Could not save the token"));
             return;
         }
 
         _settings.ApiBaseUrl = ApiBaseUrlTextBox.Text.Trim();
         _settings.Theme = SelectedTag(ThemeComboBox, "System");
+        var previousLanguage = _settings.Language;
+        _settings.Language = SelectedTag(LanguageComboBox, "System");
         _settings.LyricFontSize = LyricFontSizeSlider.Value;
         _settings.AutoScrollLyrics = AutoScrollToggle.IsOn;
         _settings.ConvertTraditionalLyricsToSimplified = ChineseLyricsToggle.IsOn;
@@ -1683,7 +1704,9 @@ public sealed partial class MainWindow : Window
 
         if (!_settingsStore.TrySave(_settings))
         {
-            await ShowSettingsDialogAsync("无法保存设置", "无法保存应用设置");
+            await ShowSettingsDialogAsync(
+                AppText.Get("无法保存设置", "Could not save settings"),
+                AppText.Get("无法保存应用设置", "Could not save the app settings"));
             return;
         }
 
@@ -1692,10 +1715,16 @@ public sealed partial class MainWindow : Window
         var taskbarWidgetUnsupported = _settings.TaskbarWidgetEnabled && !_taskbarWidgetHost.IsSupported;
         await RefreshAsync(forceDetails: true);
         await ShowSettingsDialogAsync(
-            "设置已保存",
-            taskbarWidgetUnsupported
-                ? "应用设置已更新；任务栏播放状态仅支持 Windows 11。"
-                : "应用设置已更新。");
+            AppText.Get("设置已保存", "Settings saved"),
+            !string.Equals(previousLanguage, _settings.Language, StringComparison.Ordinal)
+                ? AppText.Get(
+                    "应用设置已更新；界面语言将在重启 Lyrider 后生效。",
+                    "App settings updated. Restart Lyrider to apply the display language.")
+                : taskbarWidgetUnsupported
+                ? AppText.Get(
+                    "应用设置已更新；任务栏播放状态仅支持 Windows 11。",
+                    "App settings updated. Taskbar playback status is available only on Windows 11.")
+                : AppText.Get("应用设置已更新。", "App settings updated."));
     }
 
     private bool BeginSettingsAction()
@@ -1727,7 +1756,9 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        ConnectionStatusMenuItem.Text = "无法读取已保存的 Token";
+        ConnectionStatusMenuItem.Text = AppText.Get(
+            "无法读取已保存的 Token",
+            "Could not read the saved token");
         ConnectionStatusIcon.Foreground = (Brush)RootGrid.Resources["DisconnectedBrush"];
     }
 
@@ -1765,6 +1796,7 @@ public sealed partial class MainWindow : Window
         ApiBaseUrlTextBox.Text = _settings.ApiBaseUrl;
         TokenPasswordBox.Password = _appToken ?? string.Empty;
         SelectByTag(ThemeComboBox, _settings.Theme);
+        SelectByTag(LanguageComboBox, _settings.Language);
         SelectByTag(DefaultPanelComboBox, _settings.DefaultPanel);
         LyricFontSizeSlider.Value = _settings.LyricFontSize;
         AutoScrollToggle.IsOn = _settings.AutoScrollLyrics;
@@ -1788,7 +1820,7 @@ public sealed partial class MainWindow : Window
         {
             Title = title,
             Content = message,
-            CloseButtonText = "确定",
+            CloseButtonText = AppText.Get("确定", "OK"),
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = RootGrid.XamlRoot
         };

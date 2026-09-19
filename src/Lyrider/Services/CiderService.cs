@@ -42,12 +42,12 @@ public sealed class CiderService : IDisposable
 
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
             {
-                return CiderResult.Unauthorized("Token 缺失或无效");
+                return CiderResult.Unauthorized(AppText.Get("Token 缺失或无效", "The token is missing or invalid"));
             }
 
             if (!response.IsSuccessStatusCode)
             {
-                return CiderResult.Error($"Cider API 返回 {(int)response.StatusCode}");
+                return CiderResult.Error(AppText.Format("Cider API 返回 {0}", "Cider API returned {0}", (int)response.StatusCode));
             }
 
             var payload = await response.Content.ReadFromJsonAsync<CiderNowPlayingResponse>(
@@ -56,20 +56,20 @@ public sealed class CiderService : IDisposable
 
             if (payload is null)
             {
-                return CiderResult.Error("Cider API 返回了空响应");
+                return CiderResult.Error(AppText.Get("Cider API 返回了空响应", "Cider API returned an empty response"));
             }
 
             if (!string.IsNullOrWhiteSpace(payload.Status) &&
                 !string.Equals(payload.Status, "ok", StringComparison.OrdinalIgnoreCase))
             {
-                return CiderResult.Error("Cider API 返回了错误状态");
+                return CiderResult.Error(AppText.Get("Cider API 返回了错误状态", "Cider API returned an error status"));
             }
 
             return CiderResult.Connected(payload.Info);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return CiderResult.Offline("连接 Cider 超时");
+            return CiderResult.Offline(AppText.Get("连接 Cider 超时", "The connection to Cider timed out"));
         }
         catch (OperationCanceledException)
         {
@@ -77,15 +77,15 @@ public sealed class CiderService : IDisposable
         }
         catch (HttpRequestException)
         {
-            return CiderResult.Offline("无法连接 Cider，请确认应用已运行");
+            return CiderResult.Offline(AppText.Get("无法连接 Cider，请确认应用已运行", "Could not connect to Cider. Make sure it is running"));
         }
         catch (JsonException)
         {
-            return CiderResult.Error("无法解析 Cider 返回的数据");
+            return CiderResult.Error(AppText.Get("无法解析 Cider 返回的数据", "Could not parse the data returned by Cider"));
         }
         catch (Exception)
         {
-            return CiderResult.Error("读取 Cider 状态时发生错误");
+            return CiderResult.Error(AppText.Get("读取 Cider 状态时发生错误", "An error occurred while reading Cider's status"));
         }
     }
 
@@ -627,7 +627,7 @@ public sealed record CiderResult(
     string Message)
 {
     public static CiderResult Connected(NowPlayingInfo? track) =>
-        new(CiderConnectionState.Connected, track, "已连接 Cider");
+        new(CiderConnectionState.Connected, track, AppText.Get("已连接 Cider", "Connected to Cider"));
 
     public static CiderResult Offline(string message) =>
         new(CiderConnectionState.Offline, null, message);

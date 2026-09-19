@@ -198,6 +198,7 @@ $manifest = @"
   </Properties>
   <Resources>
     <Resource Language="en-US" />
+    <Resource Language="zh-CN" />
   </Resources>
   <Dependencies>
     <TargetDeviceFamily

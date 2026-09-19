@@ -56,6 +56,21 @@ public sealed class SettingsLayoutTests
     }
 
     [TestMethod]
+    public void SettingsPage_LanguageSelector_OffersSystemChineseAndEnglish()
+    {
+        var document = XDocument.Load(Path.Combine(
+            AppContext.BaseDirectory,
+            "Fixtures",
+            "MainWindow.xaml"));
+
+        var selector = FindNamedElement(document, "LanguageComboBox");
+        Assert.IsNotNull(selector);
+        CollectionAssert.AreEqual(
+            new[] { "System", "zh-CN", "en-US" },
+            selector.Elements().Select(element => element.Attribute("Tag")?.Value).ToArray());
+    }
+
+    [TestMethod]
     public void OnboardingPage_GuidesTokenSetupAndProvidesExplicitActions()
     {
         var document = XDocument.Load(Path.Combine(

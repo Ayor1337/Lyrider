@@ -16,10 +16,13 @@
 
   <ItemGroup>
     <None Include="..\..\src\Lyrider\MainWindow.xaml" Link="Fixtures\MainWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Lyrider\Strings\en-US\Resources.resw" Link="Fixtures\Strings\en-US\Resources.resw" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Lyrider\Strings\zh-CN\Resources.resw" Link="Fixtures\Strings\zh-CN\Resources.resw" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\..\src\Lyrider\Models\AppSettings.cs" Link="Production\AppSettings.cs" />
     <Compile Include="..\..\src\Lyrider\Models\CiderNowPlayingResponse.cs" Link="Production\CiderNowPlayingResponse.cs" />
     <Compile Include="..\..\src\Lyrider\Models\CiderPlaybackModels.cs" Link="Production\CiderPlaybackModels.cs" />
     <Compile Include="..\..\src\Lyrider\Services\CiderService.cs" Link="Production\CiderService.cs" />
+    <Compile Include="..\..\src\Lyrider\Services\AppText.cs" Link="Production\AppText.cs" />
     <Compile Include="..\..\src\Lyrider\Services\ChineseTextConverter.cs" Link="Production\ChineseTextConverter.cs" />
     <Compile Include="..\..\src\Lyrider\Services\LyricPresentation.cs" Link="Production\LyricPresentation.cs" />
     <Compile Include="..\..\src\Lyrider\Services\LyricsService.cs" Link="Production\LyricsService.cs" />

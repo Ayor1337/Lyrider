@@ -5,9 +5,9 @@ internal static class RepeatPresentation
     public static RepeatDisplayState ForMode(int mode) =>
         mode switch
         {
-            1 => new RepeatDisplayState("循环：单曲循环", true, 1),
-            2 => new RepeatDisplayState("循环：列表循环", false, 1),
-            _ => new RepeatDisplayState("循环：关闭", false, 0.55)
+            1 => new RepeatDisplayState(AppText.Get("循环：单曲循环", "Repeat: One"), true, 1),
+            2 => new RepeatDisplayState(AppText.Get("循环：列表循环", "Repeat: All"), false, 1),
+            _ => new RepeatDisplayState(AppText.Get("循环：关闭", "Repeat: Off"), false, 0.55)
         };
 }
 
