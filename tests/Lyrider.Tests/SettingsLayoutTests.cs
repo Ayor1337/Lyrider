@@ -55,6 +55,43 @@ public sealed class SettingsLayoutTests
         Assert.AreEqual("True", progressRing.Attribute("IsActive")?.Value);
     }
 
+    [TestMethod]
+    public void OnboardingPage_GuidesTokenSetupAndProvidesExplicitActions()
+    {
+        var document = XDocument.Load(Path.Combine(
+            AppContext.BaseDirectory,
+            "Fixtures",
+            "MainWindow.xaml"));
+
+        var page = FindNamedElement(document, "OnboardingPageGrid");
+        Assert.IsNotNull(page);
+        Assert.AreEqual("2", page.Attribute("Grid.RowSpan")?.Value);
+        Assert.AreEqual("Collapsed", page.Attribute("Visibility")?.Value);
+        Assert.IsTrue(page.Descendants().Any(element =>
+            string.Equals(element.Attribute("Text")?.Value, "打开 Cider“设置”，进入“连接”。", StringComparison.Ordinal)));
+        Assert.IsTrue(page.Descendants().Any(element =>
+            string.Equals(
+                element.Attribute("Text")?.Value,
+                "在“外部应用”中打开“管理外部应用对 Cider 的访问”，然后创建并复制 Token。",
+                StringComparison.Ordinal)));
+        Assert.IsNotNull(FindNamedElement(document, "OnboardingApiBaseUrlTextBox"));
+        Assert.AreEqual(
+            "PasswordBox",
+            FindNamedElement(document, "OnboardingTokenPasswordBox")?.Name.LocalName);
+        Assert.AreEqual(
+            "验证连接",
+            FindNamedElement(document, "ValidateOnboardingButton")?.Attribute("Content")?.Value);
+        Assert.AreEqual(
+            "确认并进入",
+            FindNamedElement(document, "ConfirmOnboardingButton")?.Attribute("Content")?.Value);
+        Assert.AreEqual(
+            "Collapsed",
+            FindNamedElement(document, "ConfirmOnboardingButton")?.Attribute("Visibility")?.Value);
+        Assert.AreEqual(
+            "稍后设置",
+            FindNamedElement(document, "SkipOnboardingButton")?.Attribute("Content")?.Value);
+    }
+
     private static XElement? FindNamedElement(XDocument document, string name) =>
         document.Descendants().SingleOrDefault(element =>
             string.Equals(element.Attribute(XamlNamespace + "Name")?.Value, name, StringComparison.Ordinal));

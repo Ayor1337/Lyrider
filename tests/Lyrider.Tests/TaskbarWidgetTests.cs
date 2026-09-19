@@ -17,10 +17,12 @@ public sealed class TaskbarWidgetTests
         Assert.IsTrue(settings.ShowLyricsInTaskbar);
         Assert.IsFalse(settings.MinimizeToTrayOnClose);
         Assert.IsFalse(settings.ConvertTraditionalLyricsToSimplified);
+        Assert.IsFalse(settings.HasCompletedOnboarding);
         settings.TaskbarWidgetEnabled = true;
         settings.ShowLyricsInTaskbar = false;
         settings.MinimizeToTrayOnClose = true;
         settings.ConvertTraditionalLyricsToSimplified = true;
+        settings.HasCompletedOnboarding = true;
 
         var restored = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(settings));
 
@@ -29,10 +31,12 @@ public sealed class TaskbarWidgetTests
         Assert.IsFalse(restored.ShowLyricsInTaskbar);
         Assert.IsTrue(restored.MinimizeToTrayOnClose);
         Assert.IsTrue(restored.ConvertTraditionalLyricsToSimplified);
+        Assert.IsTrue(restored.HasCompletedOnboarding);
 
         var upgraded = JsonSerializer.Deserialize<AppSettings>("{}");
         Assert.IsNotNull(upgraded);
         Assert.IsTrue(upgraded.ShowLyricsInTaskbar);
+        Assert.IsFalse(upgraded.HasCompletedOnboarding);
     }
 
     [TestMethod]

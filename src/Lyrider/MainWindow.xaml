@@ -1080,6 +1080,167 @@
         </Grid>
 
         <Grid
+            x:Name="OnboardingPageGrid"
+            Grid.RowSpan="2"
+            Canvas.ZIndex="5"
+            Background="{ThemeResource LyriderRootBrush}"
+            Visibility="Collapsed">
+            <ScrollViewer
+                HorizontalContentAlignment="Stretch"
+                HorizontalScrollBarVisibility="Disabled"
+                HorizontalScrollMode="Disabled">
+                <Grid Padding="32,56">
+                    <StackPanel
+                        MaxWidth="640"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="28">
+                        <StackPanel Spacing="10">
+                            <Image
+                                Width="72"
+                                Height="72"
+                                HorizontalAlignment="Left"
+                                Source="Assets/Lyrider.png"
+                                Stretch="Uniform" />
+                            <TextBlock
+                                FontSize="32"
+                                FontWeight="SemiBold"
+                                Text="连接 Cider，开始使用 Lyrider"
+                                TextWrapping="Wrap" />
+                            <TextBlock
+                                FontSize="15"
+                                Foreground="{StaticResource MutedTextBrush}"
+                                Text="跟随下面的步骤配置 App Token。Token 只会使用 Windows 当前用户的凭据加密保存在本机。"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <Border Style="{StaticResource SettingsCardStyle}" Padding="20">
+                            <StackPanel Spacing="18">
+                                <Grid ColumnSpacing="14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="36" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border
+                                        Width="32"
+                                        Height="32"
+                                        VerticalAlignment="Top"
+                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                        CornerRadius="16">
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                            FontWeight="SemiBold"
+                                            Text="1" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="3">
+                                        <TextBlock FontWeight="SemiBold" Text="进入 Cider 的连接设置" />
+                                        <TextBlock
+                                            Style="{StaticResource SettingsDescriptionStyle}"
+                                            Text="打开 Cider“设置”，进入“连接”。"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                                <Grid ColumnSpacing="14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="36" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border
+                                        Width="32"
+                                        Height="32"
+                                        VerticalAlignment="Top"
+                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                        CornerRadius="16">
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                            FontWeight="SemiBold"
+                                            Text="2" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="3">
+                                        <TextBlock FontWeight="SemiBold" Text="打开外部应用访问管理" />
+                                        <TextBlock
+                                            Style="{StaticResource SettingsDescriptionStyle}"
+                                            Text="在“外部应用”中打开“管理外部应用对 Cider 的访问”，然后创建并复制 Token。"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                                <Grid ColumnSpacing="14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="36" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border
+                                        Width="32"
+                                        Height="32"
+                                        VerticalAlignment="Top"
+                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                        CornerRadius="16">
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                            FontWeight="SemiBold"
+                                            Text="3" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="12">
+                                        <TextBlock FontWeight="SemiBold" Text="粘贴并验证连接" />
+                                        <TextBox
+                                            x:Name="OnboardingApiBaseUrlTextBox"
+                                            Header="API 地址"
+                                            TextChanged="OnboardingApiBaseUrlTextBox_TextChanged"
+                                            PlaceholderText="http://localhost:10767/" />
+                                        <PasswordBox
+                                            x:Name="OnboardingTokenPasswordBox"
+                                            Header="App Token"
+                                            PasswordChanged="OnboardingTokenPasswordBox_PasswordChanged"
+                                            PlaceholderText="粘贴从 Cider 复制的 Token" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <InfoBar
+                            x:Name="OnboardingStatusInfoBar"
+                            IsClosable="False"
+                            IsOpen="False"
+                            Severity="Informational" />
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Button
+                                x:Name="SkipOnboardingButton"
+                                Grid.Column="1"
+                                Click="SkipOnboardingButton_Click"
+                                Content="稍后设置" />
+                            <Button
+                                x:Name="ValidateOnboardingButton"
+                                Grid.Column="2"
+                                Click="ValidateOnboardingButton_Click"
+                                Content="验证连接"
+                                IsEnabled="False"
+                                Style="{StaticResource AccentButtonStyle}" />
+                            <Button
+                                x:Name="ConfirmOnboardingButton"
+                                Grid.Column="2"
+                                Click="ConfirmOnboardingButton_Click"
+                                Content="确认并进入"
+                                Style="{StaticResource AccentButtonStyle}"
+                                Visibility="Collapsed" />
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+        </Grid>
+
+        <Grid
             x:Name="StartupLoadingOverlay"
             Grid.RowSpan="2"
             Canvas.ZIndex="10"

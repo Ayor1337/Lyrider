@@ -22,6 +22,8 @@ public sealed class AppSettings
 
     public bool MinimizeToTrayOnClose { get; set; }
 
+    public bool HasCompletedOnboarding { get; set; }
+
     public string DefaultPanel { get; set; } = "Queue";
 
     /// <summary>Backdrop artwork opacity, as a 0–1 fraction.</summary>

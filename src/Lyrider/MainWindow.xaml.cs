@@ -41,6 +41,8 @@ public sealed partial class MainWindow : Window
     private IReadOnlyList<LyricLineInfo> _lyrics = [];
     private CancellationTokenSource? _playbackSeekDebounceCancellation;
     private string? _appToken;
+    private string? _validatedOnboardingApiBaseUrl;
+    private string? _validatedOnboardingToken;
     private string? _artworkUrl;
     private string? _currentTrackKey;
     private bool _isRefreshing;
@@ -52,6 +54,7 @@ public sealed partial class MainWindow : Window
     private bool _isExitRequested;
     private bool _isSettingsTransitioning;
     private bool _isRunningSettingsAction;
+    private bool _isRunningOnboardingAction;
     private DateTimeOffset? _startupLoadingStartedAt;
     private int _currentLyricIndex = -1;
     private int _refreshCount;
@@ -114,6 +117,7 @@ public sealed partial class MainWindow : Window
         _taskbarWidgetHost.CommandRequested += TaskbarWidgetHost_CommandRequested;
         LoadSavedToken();
         LoadSettingsControls();
+        InitializeOnboarding();
         ApplySettings();
         ShowPanel(_settings.DefaultPanel);
 
@@ -222,13 +226,38 @@ public sealed partial class MainWindow : Window
         Activated -= MainWindow_Activated;
         try
         {
-            await RefreshAsync(forceDetails: true);
+            if (OnboardingPageGrid.Visibility != Visibility.Visible)
+            {
+                await RefreshAsync(forceDetails: true);
+            }
         }
         finally
         {
             await HideStartupLoadingAsync();
-            _refreshTimer.Start();
+            if (OnboardingPageGrid.Visibility != Visibility.Visible)
+            {
+                _refreshTimer.Start();
+            }
         }
+    }
+
+    private void InitializeOnboarding()
+    {
+        OnboardingApiBaseUrlTextBox.Text = _settings.ApiBaseUrl;
+        OnboardingTokenPasswordBox.Password = _appToken ?? string.Empty;
+
+        // Users upgrading from an earlier release already completed the equivalent setup
+        // when they saved a token in Settings, so do not interrupt them with the new guide.
+        if (!_settings.HasCompletedOnboarding && !string.IsNullOrWhiteSpace(_appToken))
+        {
+            _settings.HasCompletedOnboarding = true;
+            _settingsStore.TrySave(_settings);
+        }
+
+        OnboardingPageGrid.Visibility = _settings.HasCompletedOnboarding
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        ValidateOnboardingButton.IsEnabled = !string.IsNullOrWhiteSpace(OnboardingTokenPasswordBox.Password);
     }
 
     private async Task HideStartupLoadingAsync()
@@ -1223,6 +1252,217 @@ public sealed partial class MainWindow : Window
         {
             EndSettingsAction();
         }
+    }
+
+    private void OnboardingTokenPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (_isInitialized && !_isRunningOnboardingAction)
+        {
+            InvalidateOnboardingValidation();
+        }
+    }
+
+    private void OnboardingApiBaseUrlTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_isInitialized && !_isRunningOnboardingAction)
+        {
+            InvalidateOnboardingValidation();
+        }
+    }
+
+    private async void ValidateOnboardingButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!BeginOnboardingAction())
+        {
+            return;
+        }
+
+        try
+        {
+            var apiBaseUrl = OnboardingApiBaseUrlTextBox.Text.Trim();
+            if (!Uri.TryCreate(apiBaseUrl, UriKind.Absolute, out var uri) ||
+                uri.Scheme is not ("http" or "https"))
+            {
+                ShowOnboardingStatus(
+                    InfoBarSeverity.Error,
+                    "API 地址无效",
+                    "请输入有效的 HTTP 或 HTTPS 地址。");
+                return;
+            }
+
+            var token = NormalizeToken(OnboardingTokenPasswordBox.Password);
+            if (token is null)
+            {
+                ShowOnboardingStatus(
+                    InfoBarSeverity.Warning,
+                    "需要 App Token",
+                    "请先粘贴从 Cider 复制的 Token。");
+                return;
+            }
+
+            ShowOnboardingStatus(
+                InfoBarSeverity.Informational,
+                "正在验证连接",
+                "请保持 Cider 运行。");
+
+            using var service = new CiderService(apiBaseUrl);
+            var result = await service.GetNowPlayingAsync(token, _lifetimeCancellation.Token);
+            if (result.State != CiderConnectionState.Connected)
+            {
+                ShowOnboardingStatus(
+                    InfoBarSeverity.Error,
+                    "无法连接 Cider",
+                    result.Message);
+                return;
+            }
+
+            _validatedOnboardingApiBaseUrl = apiBaseUrl;
+            _validatedOnboardingToken = token;
+            ValidateOnboardingButton.Visibility = Visibility.Collapsed;
+            ConfirmOnboardingButton.Visibility = Visibility.Visible;
+            ShowOnboardingStatus(
+                InfoBarSeverity.Success,
+                "连接成功",
+                "已成功连接到 Cider。确认后将保存 Token 并进入 Lyrider。");
+        }
+        finally
+        {
+            EndOnboardingAction();
+        }
+    }
+
+    private async void ConfirmOnboardingButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!BeginOnboardingAction())
+        {
+            return;
+        }
+
+        try
+        {
+            var apiBaseUrl = _validatedOnboardingApiBaseUrl;
+            var token = _validatedOnboardingToken;
+            if (apiBaseUrl is null || token is null)
+            {
+                InvalidateOnboardingValidation();
+                return;
+            }
+
+            if (!_tokenStore.TrySave(token))
+            {
+                ShowOnboardingStatus(
+                    InfoBarSeverity.Error,
+                    "无法保存 Token",
+                    "Windows 无法加密并保存这个 Token，请重试。");
+                return;
+            }
+
+            var previousApiBaseUrl = _settings.ApiBaseUrl;
+            _settings.ApiBaseUrl = apiBaseUrl;
+            _settings.HasCompletedOnboarding = true;
+            if (!_settingsStore.TrySave(_settings))
+            {
+                _tokenStore.TrySave(_appToken);
+                _settings.ApiBaseUrl = previousApiBaseUrl;
+                _settings.HasCompletedOnboarding = false;
+                ShowOnboardingStatus(
+                    InfoBarSeverity.Error,
+                    "无法保存设置",
+                    "应用设置未能写入本机，请重试。");
+                return;
+            }
+
+            _ciderService.TryUpdateBaseAddress(apiBaseUrl);
+            _appToken = token;
+            LoadSettingsControls();
+            await FinishOnboardingAsync();
+        }
+        finally
+        {
+            EndOnboardingAction();
+        }
+    }
+
+    private async void SkipOnboardingButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!BeginOnboardingAction())
+        {
+            return;
+        }
+
+        try
+        {
+            _settings.HasCompletedOnboarding = true;
+            if (!_settingsStore.TrySave(_settings))
+            {
+                _settings.HasCompletedOnboarding = false;
+                ShowOnboardingStatus(
+                    InfoBarSeverity.Error,
+                    "无法保存设置",
+                    "无法记录引导状态，请重试。");
+                return;
+            }
+
+            await FinishOnboardingAsync();
+        }
+        finally
+        {
+            EndOnboardingAction();
+        }
+    }
+
+    private bool BeginOnboardingAction()
+    {
+        if (_isRunningOnboardingAction)
+        {
+            return false;
+        }
+
+        _isRunningOnboardingAction = true;
+        ValidateOnboardingButton.IsEnabled = false;
+        ConfirmOnboardingButton.IsEnabled = false;
+        SkipOnboardingButton.IsEnabled = false;
+        return true;
+    }
+
+    private void EndOnboardingAction()
+    {
+        _isRunningOnboardingAction = false;
+        ValidateOnboardingButton.IsEnabled =
+            !string.IsNullOrWhiteSpace(OnboardingTokenPasswordBox.Password);
+        ConfirmOnboardingButton.IsEnabled =
+            _validatedOnboardingApiBaseUrl is not null && _validatedOnboardingToken is not null;
+        SkipOnboardingButton.IsEnabled = true;
+    }
+
+    private void InvalidateOnboardingValidation()
+    {
+        _validatedOnboardingApiBaseUrl = null;
+        _validatedOnboardingToken = null;
+        ConfirmOnboardingButton.Visibility = Visibility.Collapsed;
+        ValidateOnboardingButton.Visibility = Visibility.Visible;
+        ValidateOnboardingButton.IsEnabled =
+            !string.IsNullOrWhiteSpace(OnboardingTokenPasswordBox.Password);
+        OnboardingStatusInfoBar.IsOpen = false;
+    }
+
+    private void ShowOnboardingStatus(
+        InfoBarSeverity severity,
+        string title,
+        string message)
+    {
+        OnboardingStatusInfoBar.Severity = severity;
+        OnboardingStatusInfoBar.Title = title;
+        OnboardingStatusInfoBar.Message = message;
+        OnboardingStatusInfoBar.IsOpen = true;
+    }
+
+    private async Task FinishOnboardingAsync()
+    {
+        OnboardingStatusInfoBar.IsOpen = false;
+        OnboardingPageGrid.Visibility = Visibility.Collapsed;
+        await RefreshAsync(forceDetails: true);
+        _refreshTimer.Start();
     }
 
     private void PlaybackProgressSlider_PointerPressed(object sender, PointerRoutedEventArgs e)
