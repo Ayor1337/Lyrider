@@ -1,0 +1,115 @@
+name: Release MSIX
+
+on:
+  push:
+    tags:
+      - "v*.*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      MSIX_CERTIFICATE_BASE64: ${{ secrets.MSIX_CERTIFICATE_BASE64 }}
+      MSIX_CERTIFICATE_PASSWORD: ${{ secrets.MSIX_CERTIFICATE_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0"
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          if ($version -notmatch '^\d+\.\d+\.\d+\.\d+$') {
+              throw "Tag must use vMajor.Minor.Build.Revision format: $env:GITHUB_REF_NAME"
+          }
+
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Test
+        shell: pwsh
+        run: dotnet test .\tests\Lyrider.Tests\Lyrider.Tests.csproj -c Release
+
+      - name: Import signing certificate
+        id: certificate
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:MSIX_CERTIFICATE_BASE64)) {
+              throw 'Repository secret MSIX_CERTIFICATE_BASE64 is not configured.'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:MSIX_CERTIFICATE_PASSWORD)) {
+              throw 'Repository secret MSIX_CERTIFICATE_PASSWORD is not configured.'
+          }
+
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'Lyrider-signing.pfx'
+          try {
+              [IO.File]::WriteAllBytes(
+                  $pfxPath,
+                  [Convert]::FromBase64String($env:MSIX_CERTIFICATE_BASE64))
+              $password = ConvertTo-SecureString $env:MSIX_CERTIFICATE_PASSWORD -AsPlainText -Force
+              $certificate = Import-PfxCertificate `
+                  -FilePath $pfxPath `
+                  -CertStoreLocation Cert:\CurrentUser\My `
+                  -Password $password `
+                  -Exportable
+          }
+          finally {
+              Remove-Item -LiteralPath $pfxPath -Force -ErrorAction SilentlyContinue
+          }
+
+          if (-not $certificate.HasPrivateKey) {
+              throw 'The imported certificate does not contain a private key.'
+          }
+
+          "publisher=$($certificate.Subject)" >> $env:GITHUB_OUTPUT
+          "thumbprint=$($certificate.Thumbprint)" >> $env:GITHUB_OUTPUT
+
+      - name: Build and package
+        shell: pwsh
+        run: >-
+          .\scripts\package-msix.ps1
+          -Version '${{ steps.version.outputs.value }}'
+          -Platform x64
+          -Configuration Release
+          -Publisher '${{ steps.certificate.outputs.publisher }}'
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Lyrider_${{ steps.version.outputs.value }}_x64
+          path: |
+            AppPackages/Lyrider_${{ steps.version.outputs.value }}_x64/*.msix
+            AppPackages/Lyrider_${{ steps.version.outputs.value }}_x64/*.cer
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $outputDirectory = "AppPackages/Lyrider_${{ steps.version.outputs.value }}_x64"
+          $assets = Get-ChildItem $outputDirectory -File |
+              Where-Object Extension -in '.msix', '.cer' |
+              ForEach-Object FullName
+
+          gh release create $env:GITHUB_REF_NAME @assets `
+              --verify-tag `
+              --generate-notes `
+              --title $env:GITHUB_REF_NAME
+
+      - name: Remove signing certificate
+        if: always() && steps.certificate.outputs.thumbprint != ''
+        shell: pwsh
+        run: Remove-Item -LiteralPath 'Cert:\CurrentUser\My\${{ steps.certificate.outputs.thumbprint }}' -Force
