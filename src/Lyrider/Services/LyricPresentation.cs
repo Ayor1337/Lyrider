@@ -93,18 +93,21 @@ internal static class LyricPresentation
         IReadOnlyList<LyricLineInfo> lines,
         double fontSize,
         bool isTimeSynced,
-        bool convertTraditionalToSimplified = false)
+        bool convertTraditionalToSimplified = false,
+        bool showTranslation = false)
     {
         var hash = new HashCode();
         hash.Add(lines.Count);
         hash.Add(fontSize);
         hash.Add(isTimeSynced);
         hash.Add(convertTraditionalToSimplified);
+        hash.Add(showTranslation);
         foreach (var line in lines)
         {
             hash.Add(line.StartTime);
             hash.Add(line.EndTime);
             hash.Add(line.Text, StringComparer.Ordinal);
+            hash.Add(line.Translation, StringComparer.Ordinal);
         }
 
         return hash.ToHashCode();

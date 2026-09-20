@@ -1,74 +1,164 @@
-using System.Globalization;
-using System.Net;
-using System.Text.Json;
 using Lyrider.Models;
 
 namespace Lyrider.Services;
 
+public sealed record LyricsResolveOptions(
+    LyricsSource Source,
+    bool IncludeTranslation,
+    string? MusixmatchApiKey = null);
+
 public sealed class LyricsService : IDisposable
 {
-    private static readonly Uri LrclibBaseUri = new("https://lrclib.net/api/get");
-    private readonly HttpClient _httpClient;
-    private DateTimeOffset _retryAfter = DateTimeOffset.MinValue;
+    private static readonly LyricsSource[] AutomaticOrder =
+    [
+        LyricsSource.Cider,
+        LyricsSource.Netease,
+        LyricsSource.QqMusic,
+        LyricsSource.Musixmatch,
+        LyricsSource.Lrclib
+    ];
+
+    private readonly HttpClient? _httpClient;
+    private readonly IReadOnlyDictionary<LyricsSource, ILyricsProvider> _providers;
+    private readonly ILyricsTrackResolver? _trackResolver;
 
     public LyricsService(HttpMessageHandler? handler = null)
     {
         _httpClient = handler is null ? new HttpClient() : new HttpClient(handler);
-        _httpClient.Timeout = TimeSpan.FromSeconds(5);
+        _httpClient.Timeout = Timeout.InfiniteTimeSpan;
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
             "Lyrider/1.0 (+https://github.com/Ayor1337/Lyrider)");
+
+        _providers = new ILyricsProvider[]
+        {
+            new NeteaseLyricsProvider(_httpClient),
+            new QqMusicLyricsProvider(_httpClient),
+            new MusixmatchLyricsProvider(_httpClient),
+            new LrclibLyricsProvider(_httpClient)
+        }.ToDictionary(provider => provider.Source);
+        _trackResolver = new AppleMusicTrackResolver(_httpClient);
+    }
+
+    internal LyricsService(
+        IEnumerable<ILyricsProvider> providers,
+        ILyricsTrackResolver? trackResolver = null)
+    {
+        _providers = providers.ToDictionary(provider => provider.Source);
+        _trackResolver = trackResolver;
     }
 
     public async Task<LyricsSnapshot> ResolveAsync(
         NowPlayingInfo track,
         IReadOnlyList<LyricLineInfo> ciderLyrics,
+        LyricsResolveOptions options,
         CancellationToken cancellationToken = default)
     {
-        if (ciderLyrics.Count > 0)
+        var requestedSource = Enum.IsDefined(options.Source) ? options.Source : LyricsSource.Auto;
+        var sources = requestedSource == LyricsSource.Auto
+            ? AutomaticOrder
+            : [requestedSource];
+        var lookForTranslation = requestedSource == LyricsSource.Auto && options.IncludeTranslation;
+        LyricsSnapshot? fallback = null;
+        IReadOnlyList<LyricsSearchTrack>? searchTracks = null;
+
+        using var totalTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        totalTimeout.CancelAfter(TimeSpan.FromSeconds(12));
+
+        foreach (var source in sources)
         {
-            return new LyricsSnapshot(ciderLyrics, track.HasTimeSyncedLyrics);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (totalTimeout.IsCancellationRequested)
+            {
+                break;
+            }
+
+            if (source == LyricsSource.Cider)
+            {
+                if (ciderLyrics.Count > 0)
+                {
+                    var cider = new LyricsSnapshot(
+                        ciderLyrics,
+                        track.HasTimeSyncedLyrics,
+                        LyricsSource.Cider);
+                    if (!lookForTranslation || HasTranslation(cider))
+                    {
+                        return cider;
+                    }
+
+                    fallback = cider;
+                }
+
+                continue;
+            }
+
+            if (source == LyricsSource.Musixmatch && string.IsNullOrWhiteSpace(options.MusixmatchApiKey))
+            {
+                continue;
+            }
+
+            if (!_providers.TryGetValue(source, out var provider))
+            {
+                continue;
+            }
+
+            try
+            {
+                searchTracks ??= await ResolveSearchTracksAsync(track, totalTimeout.Token);
+                using var providerTimeout = CancellationTokenSource.CreateLinkedTokenSource(totalTimeout.Token);
+                providerTimeout.CancelAfter(TimeSpan.FromSeconds(4));
+                var result = await provider.FetchAsync(
+                    searchTracks,
+                    options.IncludeTranslation,
+                    options.MusixmatchApiKey,
+                    providerTimeout.Token);
+                if (result.Lines.Count > 0)
+                {
+                    if (!lookForTranslation || HasTranslation(result))
+                    {
+                        return result;
+                    }
+
+                    fallback ??= result;
+                }
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                if (totalTimeout.IsCancellationRequested)
+                {
+                    break;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                // A remote provider must never break playback or prevent the next fallback.
+            }
         }
 
-        if (string.IsNullOrWhiteSpace(track.Name) ||
-            string.IsNullOrWhiteSpace(track.ArtistName) ||
-            DateTimeOffset.UtcNow < _retryAfter)
+        return fallback ?? LyricsSnapshot.Empty;
+    }
+
+    private async Task<IReadOnlyList<LyricsSearchTrack>> ResolveSearchTracksAsync(
+        NowPlayingInfo track,
+        CancellationToken cancellationToken)
+    {
+        if (_trackResolver is null)
         {
-            return LyricsSnapshot.Empty;
+            return [LyricsSearchTrack.From(track)];
         }
 
+        using var resolverTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        resolverTimeout.CancelAfter(TimeSpan.FromSeconds(2));
         try
         {
-            using var response = await _httpClient.GetAsync(BuildRequestUri(track), cancellationToken);
-            if (response.StatusCode == HttpStatusCode.TooManyRequests)
-            {
-                _retryAfter = response.Headers.RetryAfter?.Date ??
-                    DateTimeOffset.UtcNow.Add(response.Headers.RetryAfter?.Delta ?? TimeSpan.FromMinutes(1));
-                return LyricsSnapshot.Empty;
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                return LyricsSnapshot.Empty;
-            }
-
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-            var root = document.RootElement;
-            var syncedLyrics = GetString(root, "syncedLyrics");
-            var syncedLines = ParseSyncedLyrics(syncedLyrics);
-            if (syncedLines.Count > 0)
-            {
-                return new LyricsSnapshot(syncedLines, true);
-            }
-
-            var plainLines = ParsePlainLyrics(GetString(root, "plainLyrics"));
-            return plainLines.Count > 0
-                ? new LyricsSnapshot(plainLines, false)
-                : LyricsSnapshot.Empty;
+            return await _trackResolver.ResolveAsync(track, resolverTimeout.Token);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return LyricsSnapshot.Empty;
+            return [LyricsSearchTrack.From(track)];
         }
         catch (OperationCanceledException)
         {
@@ -76,110 +166,17 @@ public sealed class LyricsService : IDisposable
         }
         catch (Exception)
         {
-            return LyricsSnapshot.Empty;
+            return [LyricsSearchTrack.From(track)];
         }
     }
 
-    private static Uri BuildRequestUri(NowPlayingInfo track)
-    {
-        var parameters = new List<string>
-        {
-            $"track_name={Uri.EscapeDataString(track.Name!)}",
-            $"artist_name={Uri.EscapeDataString(track.ArtistName!)}"
-        };
-        if (!string.IsNullOrWhiteSpace(track.AlbumName))
-        {
-            parameters.Add($"album_name={Uri.EscapeDataString(track.AlbumName)}");
-        }
+    private static bool HasTranslation(LyricsSnapshot snapshot) =>
+        snapshot.Lines.Any(line => !string.IsNullOrWhiteSpace(line.Translation));
 
-        var duration = Math.Round(track.DurationInMillis / 1000, MidpointRounding.AwayFromZero);
-        if (duration is >= 1 and <= 3600)
-        {
-            parameters.Add($"duration={duration.ToString(CultureInfo.InvariantCulture)}");
-        }
+    public static LyricsSource ParseSource(string? value) =>
+        Enum.TryParse<LyricsSource>(value, true, out var source) && Enum.IsDefined(source)
+            ? source
+            : LyricsSource.Auto;
 
-        return new UriBuilder(LrclibBaseUri) { Query = string.Join('&', parameters) }.Uri;
-    }
-
-    private static IReadOnlyList<LyricLineInfo> ParseSyncedLyrics(string? lyrics)
-    {
-        if (string.IsNullOrWhiteSpace(lyrics))
-        {
-            return [];
-        }
-
-        var parsed = new List<(double StartTime, string Text)>();
-        foreach (var line in lyrics.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-        {
-            var timestamps = new List<double>();
-            var offset = 0;
-            while (offset < line.Length && line[offset] == '[')
-            {
-                var closingBracket = line.IndexOf(']', offset + 1);
-                if (closingBracket < 0 ||
-                    !TryParseTimestamp(line.AsSpan(offset + 1, closingBracket - offset - 1), out var timestamp))
-                {
-                    break;
-                }
-
-                timestamps.Add(timestamp);
-                offset = closingBracket + 1;
-            }
-
-            var text = line[offset..].Trim();
-            if (timestamps.Count == 0 || text.Length == 0)
-            {
-                continue;
-            }
-
-            parsed.AddRange(timestamps.Select(timestamp => (timestamp, text)));
-        }
-
-        var ordered = parsed.OrderBy(line => line.StartTime).ToArray();
-        return ordered.Select((line, index) => new LyricLineInfo(
-            line.StartTime,
-            index + 1 < ordered.Length ? ordered[index + 1].StartTime : null,
-            line.Text)).ToArray();
-    }
-
-    private static bool TryParseTimestamp(ReadOnlySpan<char> value, out double timestamp)
-    {
-        timestamp = 0;
-        var colon = value.IndexOf(':');
-        if (colon <= 0 ||
-            !int.TryParse(value[..colon], NumberStyles.None, CultureInfo.InvariantCulture, out var minutes) ||
-            !double.TryParse(value[(colon + 1)..], NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var seconds) ||
-            seconds is < 0 or >= 60)
-        {
-            return false;
-        }
-
-        timestamp = minutes * 60 + seconds;
-        return true;
-    }
-
-    private static IReadOnlyList<LyricLineInfo> ParsePlainLyrics(string? lyrics) =>
-        string.IsNullOrWhiteSpace(lyrics)
-            ? []
-            : lyrics
-                .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Where(line => line.Length > 0)
-                .Select((line, index) => new LyricLineInfo(index, null, line))
-                .ToArray();
-
-    private static string? GetString(JsonElement element, string name)
-    {
-        foreach (var property in element.EnumerateObject())
-        {
-            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase) &&
-                property.Value.ValueKind == JsonValueKind.String)
-            {
-                return property.Value.GetString();
-            }
-        }
-
-        return null;
-    }
-
-    public void Dispose() => _httpClient.Dispose();
+    public void Dispose() => _httpClient?.Dispose();
 }

@@ -22,6 +22,7 @@ public sealed partial class MainWindow : Window
 {
     private readonly SettingsStore _settingsStore = new();
     private readonly TokenStore _tokenStore = new();
+    private readonly MusixmatchKeyStore _musixmatchKeyStore = new();
     private readonly DispatcherTimer _refreshTimer = new()
     {
         Interval = TimeSpan.FromSeconds(1)
@@ -40,7 +41,9 @@ public sealed partial class MainWindow : Window
     private AppSettings _settings;
     private IReadOnlyList<LyricLineInfo> _lyrics = [];
     private CancellationTokenSource? _playbackSeekDebounceCancellation;
+    private CancellationTokenSource? _lyricsRefreshCancellation;
     private string? _appToken;
+    private string? _musixmatchApiKey;
     private string? _validatedOnboardingApiBaseUrl;
     private string? _validatedOnboardingToken;
     private string? _artworkUrl;
@@ -115,7 +118,7 @@ public sealed partial class MainWindow : Window
 
         QueueListView.ItemsSource = _queueItems;
         _taskbarWidgetHost.CommandRequested += TaskbarWidgetHost_CommandRequested;
-        LoadSavedToken();
+        LoadSavedSecrets();
         LoadSettingsControls();
         InitializeOnboarding();
         ApplySettings();
@@ -203,7 +206,8 @@ public sealed partial class MainWindow : Window
         SettingsContentGrid.Width = settingsLayoutWidth;
 
         foreach (var row in new[] { ThemeSettingsRow, LanguageSettingsRow, BackgroundSettingsRow, BackgroundBlurSettingsRow,
-            LyricFontSettingsRow, ChineseLyricsSettingsRow, AutoScrollSettingsRow, DefaultPanelSettingsRow,
+            LyricFontSettingsRow, LyricsSourceSettingsRow, LyricsTranslationSettingsRow, MusixmatchSettingsRow,
+            ChineseLyricsSettingsRow, AutoScrollSettingsRow, DefaultPanelSettingsRow,
             AlwaysOnTopSettingsRow, TaskbarWidgetSettingsRow, TaskbarLyricsSettingsRow,
             MinimizeToTraySettingsRow })
         {
@@ -391,26 +395,61 @@ public sealed partial class MainWindow : Window
 
     private async Task RefreshTrackDetailsAsync(NowPlayingInfo track)
     {
-        var trackId = track.PlayParameters?.Id;
-        var queueTask = _ciderService.GetQueueAsync(
-            _appToken,
-            trackId,
-            _lifetimeCancellation.Token);
-        var ciderLyricsTask = _ciderService.GetLyricsAsync(
-            trackId,
-            _appToken,
-            _lifetimeCancellation.Token);
+        _lyricsRefreshCancellation?.Cancel();
+        var refreshCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
+        _lyricsRefreshCancellation = refreshCancellation;
+        var expectedTrackKey = GetTrackKey(track);
 
-        await Task.WhenAll(queueTask, ciderLyricsTask);
-        ApplyQueue(await queueTask);
-        var lyrics = await _lyricsService.ResolveAsync(
-            track,
-            await ciderLyricsTask,
-            _lifetimeCancellation.Token);
-        _lyrics = lyrics.Lines;
-        _lyricsAreTimeSynced = lyrics.IsTimeSynced;
-        var rebuilt = RenderLyrics();
-        UpdateCurrentLyric(track.CurrentPlaybackTime, forceScroll: rebuilt);
+        try
+        {
+            var trackId = track.PlayParameters?.Id;
+            var queueTask = _ciderService.GetQueueAsync(
+                _appToken,
+                trackId,
+                refreshCancellation.Token);
+            var ciderLyricsTask = _ciderService.GetLyricsAsync(
+                trackId,
+                _appToken,
+                refreshCancellation.Token);
+
+            await Task.WhenAll(queueTask, ciderLyricsTask);
+            if (!string.Equals(expectedTrackKey, _currentTrackKey, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            ApplyQueue(await queueTask);
+            var lyrics = await _lyricsService.ResolveAsync(
+                track,
+                await ciderLyricsTask,
+                new LyricsResolveOptions(
+                    LyricsService.ParseSource(_settings.LyricsSource),
+                    _settings.ShowLyricsTranslation,
+                    _musixmatchApiKey),
+                refreshCancellation.Token);
+            if (!string.Equals(expectedTrackKey, _currentTrackKey, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _lyrics = lyrics.Lines;
+            _lyricsAreTimeSynced = lyrics.IsTimeSynced;
+            var rebuilt = RenderLyrics();
+            UpdateCurrentLyric(track.CurrentPlaybackTime, forceScroll: rebuilt);
+        }
+        catch (OperationCanceledException) when (refreshCancellation.IsCancellationRequested)
+        {
+            // A newer track/settings refresh superseded this request, or the window is closing.
+        }
+        finally
+        {
+            if (ReferenceEquals(_lyricsRefreshCancellation, refreshCancellation))
+            {
+                _lyricsRefreshCancellation = null;
+            }
+
+            refreshCancellation.Dispose();
+        }
     }
 
     private async Task RefreshQueueAsync(NowPlayingInfo track)
@@ -546,8 +585,13 @@ public sealed partial class MainWindow : Window
             _settings.ShowLyricsInTaskbar &&
                 _lyricsAreTimeSynced &&
                 _currentLyricIndex >= 0 &&
-                _currentLyricIndex + 1 < _lyrics.Count
-                ? DisplayLyricText(_lyrics[_currentLyricIndex + 1].Text)
+                (_settings.ShowLyricsTranslation
+                    ? !string.IsNullOrWhiteSpace(_lyrics[_currentLyricIndex].Translation)
+                    : _currentLyricIndex + 1 < _lyrics.Count)
+                ? DisplayLyricText(
+                    _settings.ShowLyricsTranslation
+                        ? DisplayTranslationText(_lyrics[_currentLyricIndex].Translation!)
+                        : _lyrics[_currentLyricIndex + 1].Text)
                 : null,
             _settings.ShowLyricsInTaskbar && _lyricsAreTimeSynced && _currentLyricIndex >= 0
                 ? _currentLyricIndex
@@ -605,7 +649,8 @@ public sealed partial class MainWindow : Window
             _lyrics,
             _settings.LyricFontSize,
             _lyricsAreTimeSynced,
-            _settings.ConvertTraditionalLyricsToSimplified);
+            _settings.ConvertTraditionalLyricsToSimplified,
+            _settings.ShowLyricsTranslation);
         if (signature == _renderedLyricsSignature)
         {
             return false;
@@ -636,15 +681,39 @@ public sealed partial class MainWindow : Window
                 MaxWidth = 820,
                 HorizontalAlignment = HorizontalAlignment.Left
             };
+            var textPanel = new StackPanel
+            {
+                Spacing = 4,
+                MaxWidth = 820,
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            textPanel.Children.Add(block);
+            TextBlock? translationBlock = null;
+            if (_settings.ShowLyricsTranslation && !string.IsNullOrWhiteSpace(line.Translation))
+            {
+                translationBlock = new TextBlock
+                {
+                    Text = DisplayTranslationText(line.Translation),
+                    FontSize = Math.Max(14, _settings.LyricFontSize * 0.6),
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    Foreground = foreground,
+                    Opacity = 0.68,
+                    TextWrapping = TextWrapping.Wrap,
+                    MaxWidth = 820,
+                    HorizontalAlignment = HorizontalAlignment.Left
+                };
+                textPanel.Children.Add(translationBlock);
+            }
+
             var state = StateForLine(index);
             var scale = new ScaleTransform { ScaleX = state.Scale, ScaleY = state.Scale };
-            FrameworkElement root = block;
+            FrameworkElement root = textPanel;
             if (seekable)
             {
                 var button = new Button
                 {
                     Style = (Style)RootGrid.Resources["LyricLineButtonStyle"],
-                    Content = block,
+                    Content = textPanel,
                     Tag = index
                 };
 
@@ -657,7 +726,9 @@ public sealed partial class MainWindow : Window
                 button.Click += LyricLine_Click;
                 var seekLabel = AppText.Format("跳转到 {0}", "Seek to {0}", FormatTime(line.StartTime));
                 ToolTipService.SetToolTip(button, seekLabel);
-                AutomationProperties.SetName(button, displayText);
+                AutomationProperties.SetName(
+                    button,
+                    translationBlock is null ? displayText : $"{displayText}\n{translationBlock.Text}");
                 AutomationProperties.SetHelpText(button, seekLabel);
                 root = button;
             }
@@ -665,7 +736,7 @@ public sealed partial class MainWindow : Window
             root.Opacity = state.Opacity;
             root.RenderTransform = scale;
             root.RenderTransformOrigin = new Point(0, 0.5);
-            _lyricLines.Add(new LyricLineVisual(root, block, scale, state));
+            _lyricLines.Add(new LyricLineVisual(root, block, translationBlock, scale, state));
             LyricsStackPanel.Children.Add(root);
         }
 
@@ -862,6 +933,10 @@ public sealed partial class MainWindow : Window
         foreach (var line in _lyricLines)
         {
             line.Block.Foreground = foreground;
+            if (line.TranslationBlock is not null)
+            {
+                line.TranslationBlock.Foreground = foreground;
+            }
         }
     }
 
@@ -946,12 +1021,15 @@ public sealed partial class MainWindow : Window
     private sealed class LyricLineVisual(
         FrameworkElement root,
         TextBlock block,
+        TextBlock? translationBlock,
         ScaleTransform scale,
         LyricLineState state)
     {
         public FrameworkElement Root { get; } = root;
 
         public TextBlock Block { get; } = block;
+
+        public TextBlock? TranslationBlock { get; } = translationBlock;
 
         public ScaleTransform Scale { get; } = scale;
 
@@ -1678,12 +1756,34 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        var lyricsSource = LyricsService.ParseSource(SelectedTag(LyricsSourceComboBox, "Auto"));
+        var musixmatchApiKey = NormalizeToken(MusixmatchApiKeyPasswordBox.Password);
+        if (lyricsSource == LyricsSource.Musixmatch && musixmatchApiKey is null)
+        {
+            await ShowSettingsDialogAsync(
+                AppText.Get("无法保存设置", "Could not save settings"),
+                AppText.Get(
+                    "选择 Musixmatch 歌词源时必须填写 API Key",
+                    "An API Key is required when Musixmatch is selected as the lyrics source"));
+            return;
+        }
+
         var token = NormalizeToken(TokenPasswordBox.Password);
         if (!_tokenStore.TrySave(token))
         {
             await ShowSettingsDialogAsync(
                 AppText.Get("无法保存设置", "Could not save settings"),
                 AppText.Get("无法保存 Token", "Could not save the token"));
+            return;
+        }
+
+        if (!_musixmatchKeyStore.TrySave(musixmatchApiKey))
+        {
+            await ShowSettingsDialogAsync(
+                AppText.Get("无法保存设置", "Could not save settings"),
+                AppText.Get(
+                    "无法保存 Musixmatch API Key",
+                    "Could not save the Musixmatch API Key"));
             return;
         }
 
@@ -1694,6 +1794,8 @@ public sealed partial class MainWindow : Window
         _settings.LyricFontSize = LyricFontSizeSlider.Value;
         _settings.AutoScrollLyrics = AutoScrollToggle.IsOn;
         _settings.ConvertTraditionalLyricsToSimplified = ChineseLyricsToggle.IsOn;
+        _settings.LyricsSource = lyricsSource.ToString();
+        _settings.ShowLyricsTranslation = LyricsTranslationToggle.IsOn;
         _settings.AlwaysOnTop = AlwaysOnTopToggle.IsOn;
         _settings.TaskbarWidgetEnabled = TaskbarWidgetToggle.IsOn;
         _settings.ShowLyricsInTaskbar = TaskbarLyricsToggle.IsOn;
@@ -1711,6 +1813,7 @@ public sealed partial class MainWindow : Window
         }
 
         _appToken = token;
+        _musixmatchApiKey = musixmatchApiKey;
         ApplySettings();
         var taskbarWidgetUnsupported = _settings.TaskbarWidgetEnabled && !_taskbarWidgetHost.IsSupported;
         await RefreshAsync(forceDetails: true);
@@ -1747,19 +1850,26 @@ public sealed partial class MainWindow : Window
         TestConnectionButton.IsEnabled = true;
     }
 
-    private void LoadSavedToken()
+    private void LoadSavedSecrets()
     {
         if (_tokenStore.TryLoad(out var savedToken))
         {
             _appToken = savedToken;
             TokenPasswordBox.Password = savedToken ?? string.Empty;
-            return;
+        }
+        else
+        {
+            ConnectionStatusMenuItem.Text = AppText.Get(
+                "无法读取已保存的 Token",
+                "Could not read the saved token");
+            ConnectionStatusIcon.Foreground = (Brush)RootGrid.Resources["DisconnectedBrush"];
         }
 
-        ConnectionStatusMenuItem.Text = AppText.Get(
-            "无法读取已保存的 Token",
-            "Could not read the saved token");
-        ConnectionStatusIcon.Foreground = (Brush)RootGrid.Resources["DisconnectedBrush"];
+        if (_musixmatchKeyStore.TryLoad(out var savedKey))
+        {
+            _musixmatchApiKey = savedKey;
+            MusixmatchApiKeyPasswordBox.Password = savedKey ?? string.Empty;
+        }
     }
 
     /// <summary>
@@ -1798,9 +1908,12 @@ public sealed partial class MainWindow : Window
         SelectByTag(ThemeComboBox, _settings.Theme);
         SelectByTag(LanguageComboBox, _settings.Language);
         SelectByTag(DefaultPanelComboBox, _settings.DefaultPanel);
+        SelectByTag(LyricsSourceComboBox, LyricsService.ParseSource(_settings.LyricsSource).ToString());
         LyricFontSizeSlider.Value = _settings.LyricFontSize;
         AutoScrollToggle.IsOn = _settings.AutoScrollLyrics;
         ChineseLyricsToggle.IsOn = _settings.ConvertTraditionalLyricsToSimplified;
+        LyricsTranslationToggle.IsOn = _settings.ShowLyricsTranslation;
+        MusixmatchApiKeyPasswordBox.Password = _musixmatchApiKey ?? string.Empty;
         AlwaysOnTopToggle.IsOn = _settings.AlwaysOnTop;
         TaskbarWidgetToggle.IsOn = _settings.TaskbarWidgetEnabled;
         TaskbarLyricsToggle.IsOn = _settings.ShowLyricsInTaskbar;
@@ -1864,6 +1977,9 @@ public sealed partial class MainWindow : Window
             ? ChineseTextConverter.ToSimplified(text)
             : text;
 
+    private static string DisplayTranslationText(string text) =>
+        ChineseTextConverter.ToSimplified(text);
+
     private static void SelectByTag(ComboBox comboBox, string tag)
     {
         foreach (var item in comboBox.Items.OfType<ComboBoxItem>())
@@ -1921,6 +2037,7 @@ public sealed partial class MainWindow : Window
         RootGrid.XamlRoot.Changed -= XamlRoot_Changed;
         _refreshTimer.Stop();
         CancelPlaybackSeekDebounce();
+        _lyricsRefreshCancellation?.Cancel();
         _lifetimeCancellation.Cancel();
         _taskbarWidgetHost.CommandRequested -= TaskbarWidgetHost_CommandRequested;
         _taskbarWidgetHost.Dispose();

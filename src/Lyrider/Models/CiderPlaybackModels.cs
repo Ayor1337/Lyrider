@@ -44,11 +44,23 @@ public sealed class QueueItemInfo(
 public sealed record LyricLineInfo(
     double StartTime,
     double? EndTime,
-    string Text);
+    string Text,
+    string? Translation = null);
+
+public enum LyricsSource
+{
+    Auto,
+    Cider,
+    Netease,
+    QqMusic,
+    Musixmatch,
+    Lrclib
+}
 
 public sealed record LyricsSnapshot(
     IReadOnlyList<LyricLineInfo> Lines,
-    bool IsTimeSynced)
+    bool IsTimeSynced,
+    LyricsSource Source)
 {
-    public static LyricsSnapshot Empty { get; } = new([], false);
+    public static LyricsSnapshot Empty { get; } = new([], false, LyricsSource.Auto);
 }

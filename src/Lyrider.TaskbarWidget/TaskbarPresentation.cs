@@ -14,7 +14,7 @@ public static class TaskbarPresentation
         {
             return new TaskbarDisplayText(
                 state.CurrentLyric.Trim(),
-                state.NextLyric?.Trim() ?? string.Empty);
+                state.SecondaryLyric?.Trim() ?? string.Empty);
         }
 
         return new TaskbarDisplayText(state.Title, state.Artist);

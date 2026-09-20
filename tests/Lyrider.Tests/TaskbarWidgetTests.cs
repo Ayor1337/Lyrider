@@ -17,11 +17,15 @@ public sealed class TaskbarWidgetTests
         Assert.IsTrue(settings.ShowLyricsInTaskbar);
         Assert.IsFalse(settings.MinimizeToTrayOnClose);
         Assert.IsFalse(settings.ConvertTraditionalLyricsToSimplified);
+        Assert.AreEqual("Auto", settings.LyricsSource);
+        Assert.IsFalse(settings.ShowLyricsTranslation);
         Assert.IsFalse(settings.HasCompletedOnboarding);
         settings.TaskbarWidgetEnabled = true;
         settings.ShowLyricsInTaskbar = false;
         settings.MinimizeToTrayOnClose = true;
         settings.ConvertTraditionalLyricsToSimplified = true;
+        settings.LyricsSource = "Netease";
+        settings.ShowLyricsTranslation = true;
         settings.HasCompletedOnboarding = true;
 
         var restored = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(settings));
@@ -31,11 +35,15 @@ public sealed class TaskbarWidgetTests
         Assert.IsFalse(restored.ShowLyricsInTaskbar);
         Assert.IsTrue(restored.MinimizeToTrayOnClose);
         Assert.IsTrue(restored.ConvertTraditionalLyricsToSimplified);
+        Assert.AreEqual("Netease", restored.LyricsSource);
+        Assert.IsTrue(restored.ShowLyricsTranslation);
         Assert.IsTrue(restored.HasCompletedOnboarding);
 
         var upgraded = JsonSerializer.Deserialize<AppSettings>("{}");
         Assert.IsNotNull(upgraded);
         Assert.IsTrue(upgraded.ShowLyricsInTaskbar);
+        Assert.AreEqual("Auto", upgraded.LyricsSource);
+        Assert.IsFalse(upgraded.ShowLyricsTranslation);
         Assert.IsFalse(upgraded.HasCompletedOnboarding);
     }
 
@@ -164,6 +172,24 @@ public sealed class TaskbarWidgetTests
 
         Assert.AreEqual("Current line", result.Primary);
         Assert.AreEqual("Next line", result.Secondary);
+    }
+
+    [TestMethod]
+    public void GetDisplayText_WithTranslation_ShowsOriginalAndTranslation()
+    {
+        var state = new TaskbarPlaybackState(
+            "Song",
+            "Artist",
+            null,
+            true,
+            true,
+            "Hello",
+            "你好");
+
+        var result = TaskbarPresentation.GetDisplayText(state);
+
+        Assert.AreEqual("Hello", result.Primary);
+        Assert.AreEqual("你好", result.Secondary);
     }
 
     [TestMethod]

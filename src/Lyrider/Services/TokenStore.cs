@@ -5,37 +5,59 @@ namespace Lyrider.Services;
 
 public sealed class TokenStore
 {
-    private static readonly byte[] OptionalEntropy = Encoding.UTF8.GetBytes("Lyrider.CiderToken.v1");
-    private readonly string _tokenPath = Path.Combine(
+    private readonly ProtectedSecretStore _store = new(
+        "cider-token.dat",
+        "Lyrider.CiderToken.v1");
+
+    public bool TryLoad(out string? token) => _store.TryLoad(out token);
+
+    public bool TrySave(string? token) => _store.TrySave(token);
+}
+
+public sealed class MusixmatchKeyStore
+{
+    private readonly ProtectedSecretStore _store = new(
+        "musixmatch-api-key.dat",
+        "Lyrider.MusixmatchApiKey.v1");
+
+    public bool TryLoad(out string? key) => _store.TryLoad(out key);
+
+    public bool TrySave(string? key) => _store.TrySave(key);
+}
+
+internal sealed class ProtectedSecretStore(string fileName, string entropyPurpose)
+{
+    private readonly byte[] _optionalEntropy = Encoding.UTF8.GetBytes(entropyPurpose);
+    private readonly string _secretPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Lyrider",
-        "cider-token.dat");
+        fileName);
 
-    public bool TryLoad(out string? token)
+    public bool TryLoad(out string? secret)
     {
-        token = null;
+        secret = null;
 
         try
         {
-            if (!File.Exists(_tokenPath))
+            if (!File.Exists(_secretPath))
             {
                 return true;
             }
 
-            var encryptedBytes = File.ReadAllBytes(_tokenPath);
-            var tokenBytes = ProtectedData.Unprotect(
+            var encryptedBytes = File.ReadAllBytes(_secretPath);
+            var secretBytes = ProtectedData.Unprotect(
                 encryptedBytes,
-                OptionalEntropy,
+                _optionalEntropy,
                 DataProtectionScope.CurrentUser);
 
             try
             {
-                token = Encoding.UTF8.GetString(tokenBytes);
+                secret = Encoding.UTF8.GetString(secretBytes);
                 return true;
             }
             finally
             {
-                CryptographicOperations.ZeroMemory(tokenBytes);
+                CryptographicOperations.ZeroMemory(secretBytes);
             }
         }
         catch (Exception)
@@ -44,37 +66,37 @@ public sealed class TokenStore
         }
     }
 
-    public bool TrySave(string? token)
+    public bool TrySave(string? secret)
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(token))
+            if (string.IsNullOrWhiteSpace(secret))
             {
-                if (File.Exists(_tokenPath))
+                if (File.Exists(_secretPath))
                 {
-                    File.Delete(_tokenPath);
+                    File.Delete(_secretPath);
                 }
 
                 return true;
             }
 
-            var tokenBytes = Encoding.UTF8.GetBytes(token);
+            var secretBytes = Encoding.UTF8.GetBytes(secret);
 
             try
             {
                 var encryptedBytes = ProtectedData.Protect(
-                    tokenBytes,
-                    OptionalEntropy,
+                    secretBytes,
+                    _optionalEntropy,
                     DataProtectionScope.CurrentUser);
 
-                var directory = Path.GetDirectoryName(_tokenPath)!;
+                var directory = Path.GetDirectoryName(_secretPath)!;
                 Directory.CreateDirectory(directory);
-                File.WriteAllBytes(_tokenPath, encryptedBytes);
+                File.WriteAllBytes(_secretPath, encryptedBytes);
                 return true;
             }
             finally
             {
-                CryptographicOperations.ZeroMemory(tokenBytes);
+                CryptographicOperations.ZeroMemory(secretBytes);
             }
         }
         catch (Exception)

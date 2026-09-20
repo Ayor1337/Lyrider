@@ -26,6 +26,7 @@
     <Compile Include="..\..\src\Lyrider\Services\ChineseTextConverter.cs" Link="Production\ChineseTextConverter.cs" />
     <Compile Include="..\..\src\Lyrider\Services\LyricPresentation.cs" Link="Production\LyricPresentation.cs" />
     <Compile Include="..\..\src\Lyrider\Services\LyricsService.cs" Link="Production\LyricsService.cs" />
+    <Compile Include="..\..\src\Lyrider\Services\LyricsProviders.cs" Link="Production\LyricsProviders.cs" />
     <Compile Include="..\..\src\Lyrider\Services\QueueCollectionSynchronizer.cs" Link="Production\QueueCollectionSynchronizer.cs" />
     <Compile Include="..\..\src\Lyrider\Services\RepeatPresentation.cs" Link="Production\RepeatPresentation.cs" />
     <Compile Include="..\..\src\Lyrider.TaskbarWidget\TaskbarContracts.cs" Link="Production\TaskbarContracts.cs" />

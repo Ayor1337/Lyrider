@@ -9,7 +9,8 @@
 - `App.xaml` and `App.xaml.cs`: application startup.
 - `MainWindow.xaml` and `MainWindow.xaml.cs`: the current now-playing UI and one-second refresh loop.
 - `Services/CiderService.cs`: HTTP access, authentication headers, JSON parsing, and connection errors.
-- `Services/TokenStore.cs`: DPAPI-protected token persistence for the current Windows user.
+- `Services/LyricsService.cs` and `Services/LyricsProviders.cs`: lyrics-source selection and the Cider/NetEase/QQ Music/Musixmatch/LRCLIB provider adapters, including Apple storefront alias resolution, matching, fallback, parsing, and translation alignment.
+- `Services/TokenStore.cs`: DPAPI-protected Cider Token and Musixmatch API Key persistence for the current Windows user.
 - `Services/ArtworkBackdrop.cs`: composition-layer backdrop that blurs the artwork with a Win2D effect.
 - `Models/`: minimal DTOs matching the Cider Local API response.
 

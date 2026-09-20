@@ -16,6 +16,10 @@ public sealed class AppSettings
 
     public bool ConvertTraditionalLyricsToSimplified { get; set; }
 
+    public string LyricsSource { get; set; } = nameof(global::Lyrider.Models.LyricsSource.Auto);
+
+    public bool ShowLyricsTranslation { get; set; }
+
     public bool AlwaysOnTop { get; set; }
 
     public bool TaskbarWidgetEnabled { get; set; }
