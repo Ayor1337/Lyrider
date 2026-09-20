@@ -193,6 +193,28 @@ public sealed class TaskbarWidgetTests
     }
 
     [TestMethod]
+    public void SelectSecondaryLyric_TranslationEnabledWithoutTranslation_ShowsNextLyric()
+    {
+        var result = TaskbarPresentation.SelectSecondaryLyric(
+            showTranslation: true,
+            translation: null,
+            nextLyric: "Next line");
+
+        Assert.AreEqual("Next line", result);
+    }
+
+    [TestMethod]
+    public void SelectSecondaryLyric_TranslationEnabledWithTranslation_ShowsTranslation()
+    {
+        var result = TaskbarPresentation.SelectSecondaryLyric(
+            showTranslation: true,
+            translation: "你好",
+            nextLyric: "Next line");
+
+        Assert.AreEqual("你好", result);
+    }
+
+    [TestMethod]
     public void GetDisplayText_WithoutCurrentLyric_FallsBackToTrackMetadata()
     {
         var state = new TaskbarPlaybackState(

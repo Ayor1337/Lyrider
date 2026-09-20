@@ -573,27 +573,32 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        var hasCurrentLyric =
+            _settings.ShowLyricsInTaskbar &&
+            _lyricsAreTimeSynced &&
+            _currentLyricIndex >= 0;
+        var translation = hasCurrentLyric &&
+            !string.IsNullOrWhiteSpace(_lyrics[_currentLyricIndex].Translation)
+                ? DisplayLyricText(DisplayTranslationText(_lyrics[_currentLyricIndex].Translation!))
+                : null;
+        var nextLyric = hasCurrentLyric && _currentLyricIndex + 1 < _lyrics.Count
+            ? DisplayLyricText(_lyrics[_currentLyricIndex + 1].Text)
+            : null;
+
         _taskbarWidgetHost.Update(new TaskbarPlaybackState(
             ValueOrFallback(track.Name),
             ValueOrFallback(track.ArtistName),
             NormalizeArtworkUrl(track.Artwork?.Url, 160),
             status?.IsPlaying ?? false,
             true,
-            _settings.ShowLyricsInTaskbar && _lyricsAreTimeSynced && _currentLyricIndex >= 0
+            hasCurrentLyric
                 ? DisplayLyricText(_lyrics[_currentLyricIndex].Text)
                 : null,
-            _settings.ShowLyricsInTaskbar &&
-                _lyricsAreTimeSynced &&
-                _currentLyricIndex >= 0 &&
-                (_settings.ShowLyricsTranslation
-                    ? !string.IsNullOrWhiteSpace(_lyrics[_currentLyricIndex].Translation)
-                    : _currentLyricIndex + 1 < _lyrics.Count)
-                ? DisplayLyricText(
-                    _settings.ShowLyricsTranslation
-                        ? DisplayTranslationText(_lyrics[_currentLyricIndex].Translation!)
-                        : _lyrics[_currentLyricIndex + 1].Text)
-                : null,
-            _settings.ShowLyricsInTaskbar && _lyricsAreTimeSynced && _currentLyricIndex >= 0
+            TaskbarPresentation.SelectSecondaryLyric(
+                _settings.ShowLyricsTranslation,
+                translation,
+                nextLyric),
+            hasCurrentLyric
                 ? _currentLyricIndex
                 : null));
     }
