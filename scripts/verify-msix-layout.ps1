@@ -45,6 +45,7 @@ if (-not (Test-Path $manifestPath -PathType Leaf)) {
 
 [xml]$manifest = Get-Content -LiteralPath $manifestPath
 $namespace = New-Object System.Xml.XmlNamespaceManager($manifest.NameTable)
+$namespace.AddNamespace('foundation', 'http://schemas.microsoft.com/appx/manifest/foundation/windows10')
 $namespace.AddNamespace('uap', 'http://schemas.microsoft.com/appx/manifest/uap/windows10')
 $visualElements = $manifest.SelectSingleNode('//uap:VisualElements', $namespace)
 if (-not $visualElements) {
@@ -100,6 +101,17 @@ try {
             throw "resources.pri 缺少 WinUI XAML 资源：$xbfResource"
         }
     }
+
+    $declaredLanguages = $manifest.SelectNodes(
+        '/foundation:Package/foundation:Resources/foundation:Resource[@Language]',
+        $namespace) | ForEach-Object { $_.GetAttribute('Language') }
+    foreach ($language in $declaredLanguages) {
+        $languagePattern = 'qualifiers="Language-{0}"' -f
+            [regex]::Escape($language.ToUpperInvariant())
+        if ($priDump -notmatch $languagePattern) {
+            throw "resources.pri 缺少主包语言资源：$language。应用内语言切换可能回退到默认语言。"
+        }
+    }
 }
 finally {
     Remove-Item -LiteralPath $dumpPath -Force -ErrorAction SilentlyContinue
@@ -107,3 +119,4 @@ finally {
 
 Write-Host "MSIX 图标资源验证通过：$($targetSizes.Count * $alternateForms.Count) 个无底板目标尺寸资源。"
 Write-Host 'MSIX WinUI 资源验证通过：App.xbf、MainWindow.xbf 已合并到 resources.pri。'
+Write-Host "MSIX 语言资源验证通过：$($declaredLanguages -join '、') 已合并到主 resources.pri。"
