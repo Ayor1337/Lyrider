@@ -46,6 +46,26 @@ public sealed class LyricPresentationTests
     }
 
     [TestMethod]
+    public void DelayUntilNextLine_WhenNextLineIsAhead_ReturnsExactRemainingTime()
+    {
+        var lines = CreateLines(0, 10, 20);
+
+        var delay = LyricPresentation.DelayUntilNextLine(lines, playbackTime: 9.75);
+
+        Assert.AreEqual(TimeSpan.FromMilliseconds(250), delay);
+    }
+
+    [TestMethod]
+    public void DelayUntilNextLine_WhenLastLineIsActive_ReturnsNull()
+    {
+        var lines = CreateLines(0, 10, 20);
+
+        var delay = LyricPresentation.DelayUntilNextLine(lines, playbackTime: 20);
+
+        Assert.IsNull(delay);
+    }
+
+    [TestMethod]
     public void StateForDistance_ReturnsActiveStateForZero()
     {
         var state = LyricPresentation.StateForDistance(0);

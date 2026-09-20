@@ -69,6 +69,7 @@ public sealed class LyricsServiceTests
             new LyricsResolveOptions(LyricsSource.Netease, true));
 
         Assert.AreEqual(LyricsSource.Netease, result.Source);
+        Assert.IsTrue(result.IsTimeSynced);
         Assert.AreEqual("你好", result.Lines[0].Translation);
         Assert.AreEqual("世界", result.Lines[1].Translation);
         Assert.AreEqual(2, handler.Requests.Count);
@@ -93,6 +94,7 @@ public sealed class LyricsServiceTests
             new LyricsResolveOptions(LyricsSource.QqMusic, true));
 
         Assert.AreEqual(LyricsSource.QqMusic, result.Source);
+        Assert.IsTrue(result.IsTimeSynced);
         Assert.AreEqual("你好", result.Lines.Single().Translation);
     }
 
@@ -308,6 +310,76 @@ public sealed class LyricsServiceTests
     }
 
     [TestMethod]
+    public async Task ResolveAsync_TranslationRequestedForChineseLyrics_KeepsCiderLyrics()
+    {
+        var netease = new FakeLyricsProvider(
+            LyricsSource.Netease,
+            new LyricsSnapshot(
+                [new(1, null, "远程中文原文", "远程中文字段")],
+                true,
+                LyricsSource.Netease));
+        using var service = new LyricsService([netease]);
+
+        var result = await service.ResolveAsync(
+            CreateTrack(),
+            [new(1, null, "Cider 中文原文"), new(3, null, "Cider 下一句")],
+            new LyricsResolveOptions(LyricsSource.Auto, true));
+
+        Assert.AreEqual(LyricsSource.Cider, result.Source);
+        Assert.AreEqual("Cider 中文原文", result.Lines[0].Text);
+        Assert.AreEqual(0, netease.RequestCount);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_ChineseOriginal_RemovesRedundantChineseTranslation()
+    {
+        var netease = new FakeLyricsProvider(
+            LyricsSource.Netease,
+            new LyricsSnapshot(
+                [new(1, null, "中文原文", "中文翻译字段")],
+                true,
+                LyricsSource.Netease));
+        using var service = new LyricsService([netease]);
+
+        var result = await service.ResolveAsync(
+            CreateTrack(),
+            [],
+            new LyricsResolveOptions(LyricsSource.Netease, true));
+
+        Assert.IsNull(result.Lines.Single().Translation);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_ExternalSyncedLyrics_AlignsTimestampsToCiderLyrics()
+    {
+        IReadOnlyList<LyricLineInfo> ciderLyrics =
+        [
+            new(10, 15, "First line"),
+            new(20, 25, "Second line"),
+            new(30, 35, "Third line")
+        ];
+        var netease = new FakeLyricsProvider(
+            LyricsSource.Netease,
+            new LyricsSnapshot(
+                [
+                    new(10.7, 15.7, "First line", "第一句"),
+                    new(20.7, 25.7, "Second line", "第二句"),
+                    new(30.7, 35.7, "Third line", "第三句")
+                ],
+                true,
+                LyricsSource.Netease));
+        using var service = new LyricsService([netease]);
+
+        var result = await service.ResolveAsync(
+            CreateTrack(),
+            ciderLyrics,
+            new LyricsResolveOptions(LyricsSource.Netease, true));
+
+        Assert.AreEqual(10, result.Lines[0].StartTime, 0.001);
+        Assert.AreEqual(15, result.Lines[0].EndTime!.Value, 0.001);
+    }
+
+    [TestMethod]
     public async Task ResolveAsync_TranslationRequested_SkipsOriginalOnlyRemoteForTranslatedRemote()
     {
         var netease = new FakeLyricsProvider(
@@ -494,6 +566,23 @@ public sealed class LyricsServiceTests
     {
         Assert.AreEqual(LyricsSource.Auto, LyricsService.ParseSource("removed-provider"));
         Assert.AreEqual(LyricsSource.QqMusic, LyricsService.ParseSource("qqmusic"));
+    }
+
+    [TestMethod]
+    public void SupportsTranslation_Cider_ReturnsFalse()
+    {
+        Assert.IsFalse(LyricsService.SupportsTranslation(LyricsSource.Cider));
+    }
+
+    [DataTestMethod]
+    [DataRow(LyricsSource.Auto)]
+    [DataRow(LyricsSource.Netease)]
+    [DataRow(LyricsSource.QqMusic)]
+    [DataRow(LyricsSource.Musixmatch)]
+    [DataRow(LyricsSource.Lrclib)]
+    public void SupportsTranslation_TranslationCapableSource_ReturnsTrue(LyricsSource source)
+    {
+        Assert.IsTrue(LyricsService.SupportsTranslation(source));
     }
 
     private static NowPlayingInfo CreateTrack() => new()

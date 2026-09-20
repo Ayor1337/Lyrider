@@ -84,6 +84,9 @@ public sealed class SettingsLayoutTests
             new[] { "Auto", "Cider", "Netease", "QqMusic", "Musixmatch", "Lrclib" },
             selector.Elements().Select(element => element.Attribute("Tag")?.Value).ToArray());
         Assert.AreEqual(
+            "LyricsSourceComboBox_SelectionChanged",
+            selector.Attribute("SelectionChanged")?.Value);
+        Assert.AreEqual(
             "ToggleSwitch",
             FindNamedElement(document, "LyricsTranslationToggle")?.Name.LocalName);
         Assert.AreEqual(
