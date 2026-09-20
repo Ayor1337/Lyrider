@@ -168,7 +168,13 @@ internal abstract class HttpLyricsProvider(HttpClient httpClient) : ILyricsProvi
 
         var translations = LyricsParsing.ParsePlain(translation);
         var merged = plainLines.Select((line, index) =>
-            line with { Translation = index < translations.Count ? translations[index].Text : null }).ToArray();
+            line with
+            {
+                Translation = index < translations.Count &&
+                    LyricsParsing.IsChineseTranslation(translations[index].Text)
+                        ? translations[index].Text
+                        : null
+            }).ToArray();
         return new LyricsSnapshot(merged, false, source);
     }
 }
@@ -542,7 +548,9 @@ internal sealed class MusixmatchLyricsProvider(HttpClient httpClient) : HttpLyri
 
             var matchedLine = LyricsMatching.Normalize(LyricsParsing.GetString(translation, "matched_line"));
             var description = LyricsParsing.GetString(translation, "description", "translation");
-            if (matchedLine.Length == 0 || string.IsNullOrWhiteSpace(description))
+            if (matchedLine.Length == 0 ||
+                description is null ||
+                !LyricsParsing.IsChineseTranslation(description))
             {
                 continue;
             }
@@ -726,7 +734,10 @@ internal static class LyricsParsing
 
             var translation = unused[matchIndex].Text;
             unused.RemoveAt(matchIndex);
-            return line with { Translation = translation };
+            return line with
+            {
+                Translation = IsChineseTranslation(translation) ? translation : null
+            };
         }).ToArray();
     }
 
@@ -739,12 +750,38 @@ internal static class LyricsParsing
 
         try
         {
-            return Encoding.UTF8.GetString(Convert.FromBase64String(value));
+            var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(value));
+            return decoded.Contains('[') || decoded.Contains('\r') || decoded.Contains('\n')
+                ? decoded
+                : value;
         }
         catch (FormatException)
         {
             return value;
         }
+    }
+
+    public static bool IsChineseTranslation(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var hasHanCharacter = false;
+        foreach (var character in value)
+        {
+            if (character is >= '\u3040' and <= '\u30ff' or >= '\u31f0' and <= '\u31ff')
+            {
+                return false;
+            }
+
+            hasHanCharacter |= character is >= '\u3400' and <= '\u4dbf' or
+                >= '\u4e00' and <= '\u9fff' or
+                >= '\uf900' and <= '\ufaff';
+        }
+
+        return hasHanCharacter;
     }
 
     public static string? GetString(JsonElement element, params string[] names)

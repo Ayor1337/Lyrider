@@ -97,6 +97,46 @@ public sealed class LyricsServiceTests
     }
 
     [TestMethod]
+    public async Task ResolveAsync_QqMusicPlainLyrics_DoesNotMistakeTextForBase64()
+    {
+        var handler = new RouteHttpMessageHandler(request =>
+            request.Uri.AbsolutePath.Contains("client_search", StringComparison.Ordinal)
+                ? Json("""
+                    {"data":{"song":{"list":[{"songmid":"mid-1","songname":"Test Song","interval":120,"singer":[{"name":"Test Artist"}]}]}}}
+                    """)
+                : Json("""{"lyric":"Test"}"""));
+        using var service = new LyricsService(handler);
+
+        var result = await service.ResolveAsync(
+            CreateTrack(),
+            [],
+            new LyricsResolveOptions(LyricsSource.QqMusic, false));
+
+        Assert.AreEqual("Test", result.Lines.Single().Text);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_NonChineseProviderTranslation_DoesNotDisplayTranslation()
+    {
+        var handler = new RouteHttpMessageHandler(request =>
+            request.Uri.AbsolutePath.Contains("search", StringComparison.Ordinal)
+                ? Json("""
+                    {"result":{"songs":[{"id":42,"name":"Test Song","duration":120000,"artists":[{"name":"Test Artist"}]}]}}
+                    """)
+                : Json("""
+                    {"lrc":{"lyric":"[00:01.00]Hello"},"tlyric":{"lyric":"[00:01.00]English translation"}}
+                    """));
+        using var service = new LyricsService(handler);
+
+        var result = await service.ResolveAsync(
+            CreateTrack(),
+            [],
+            new LyricsResolveOptions(LyricsSource.Netease, true));
+
+        Assert.IsNull(result.Lines.Single().Translation);
+    }
+
+    [TestMethod]
     public async Task ResolveAsync_MusixmatchSource_MatchesOriginalLinesToTranslations()
     {
         var handler = new RouteHttpMessageHandler(request => request.Uri.AbsolutePath switch

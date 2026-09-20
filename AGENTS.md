@@ -61,7 +61,7 @@ Do not pack the `dotnet publish` output: publish omits `App.xbf`, `MainWindow.xb
 
 Use four-space indentation in C# and XAML, file-scoped namespaces, nullable reference types, and implicit usings. Public types and members use `PascalCase`; private fields use `_camelCase`; locals and parameters use `camelCase`. Keep API DTO property mappings explicit with `JsonPropertyName`.
 
-Prefer small, concrete services over framework-heavy abstractions. Keep network access in `CiderService`; `MainWindow` should coordinate UI state only. Use `System.Text.Json` and reuse `HttpClient`.
+Prefer small, concrete services over framework-heavy abstractions. Keep Cider Local API access in `CiderService` and external lyrics-provider access in `LyricsProviders`; `MainWindow` should coordinate UI state only. Use `System.Text.Json` and reuse `HttpClient`.
 
 ## Testing Guidelines
 
