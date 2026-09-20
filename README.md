@@ -8,6 +8,7 @@ Lyrider is a lyrics display companion for [Cider](https://cider.sh). **Windows 1
 
 - A simple playback queue
 - Lyrics and track information on the Windows taskbar
+- Low-latency lyric transitions driven by a locally synchronized playback clock
 - Selectable Cider, NetEase Cloud Music, QQ Music, Musixmatch, and LRCLIB lyrics sources
 - Optional Simplified Chinese translations supplied by the selected lyrics source
 - Simplified Chinese and English interfaces, following the Windows display language by default with a manual language option in Settings
@@ -33,9 +34,9 @@ Install and start [Cider](https://cider.sh), then enable the Local API in Cider'
 
 ### Lyrics sources and translations
 
-The default **Automatic** mode tries Cider, NetEase Cloud Music, QQ Music, Musixmatch, and LRCLIB in that order. With translation disabled, it stops at the first confident match. With translation enabled, a source that supplies only original lyrics becomes a fallback while Lyrider continues looking for a source with translations; if none has a translation, the first original result is retained. You can instead lock Lyrider to one source in Settings; fixed sources do not fall back. Musixmatch requires your own API Key; it is encrypted locally with Windows DPAPI and is never written to the regular settings file.
+The default **Automatic** mode tries Cider, NetEase Cloud Music, QQ Music, Musixmatch, and LRCLIB in that order. With translation disabled, it stops at the first confident match. With translation enabled, a source that supplies only original lyrics becomes a fallback while Lyrider continues looking for a source with translations; if none has a translation, the first original result is retained. You can instead lock Lyrider to one source in Settings; fixed sources do not fall back. Because Cider does not supply translations, selecting it as the fixed source turns off and disables the translation option. Musixmatch requires your own API Key; it is encrypted locally with Windows DPAPI and is never written to the regular settings file.
 
-Translation displays only Simplified Chinese text supplied by the matched source; Lyrider does not machine-translate missing lines. When enabled, the main lyrics view shows the translation below each original line, and the taskbar shows the current original line above its translation. If the current line has no translation, the taskbar falls back to showing the next original line below it. When Apple Music uses different titles or artist names across storefronts, Lyrider uses the Apple track ID to query Japanese-store metadata as an additional search alias. Without a track ID, a different title is accepted only when artist and duration identify one unique result, reducing false matches with other versions. NetEase Cloud Music and QQ Music rely on unofficial web endpoints and may stop working when those providers change them.
+Translation displays only Simplified Chinese text supplied by the matched source; Lyrider does not machine-translate missing lines. When enabled, the main lyrics view shows the translation below each original line, and the taskbar shows the current original line above its translation. If the original lyrics are primarily Chinese or the current line has no translation, Lyrider keeps the current/next-line layout. Time-synced external lyrics are aligned to Cider timing when at least three unique lyric lines match. When Apple Music uses different titles or artist names across storefronts, Lyrider uses the Apple track ID to query Japanese-store metadata as an additional search alias. Without a track ID, a different title is accepted only when artist and duration identify one unique result, reducing false matches with other versions. NetEase Cloud Music and QQ Music rely on unofficial web endpoints and may stop working when those providers change them.
 
 ### Install Lyrider
 

@@ -833,7 +833,10 @@
                                         Width="260"
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Center">
-                                        <ComboBox x:Name="LyricsSourceComboBox" HorizontalAlignment="Stretch">
+                                        <ComboBox
+                                            x:Name="LyricsSourceComboBox"
+                                            HorizontalAlignment="Stretch"
+                                            SelectionChanged="LyricsSourceComboBox_SelectionChanged">
                                             <ComboBoxItem x:Uid="Main_084" Content="自动" Tag="Auto" />
                                             <ComboBoxItem Content="Cider" Tag="Cider" />
                                             <ComboBoxItem x:Uid="Main_085" Content="网易云音乐" Tag="Netease" />

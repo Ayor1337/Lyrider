@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using Lyrider.Models;
 using Lyrider.Services;
 using Lyrider.TaskbarWidget;
@@ -27,6 +28,9 @@ public sealed partial class MainWindow : Window
     {
         Interval = TimeSpan.FromSeconds(1)
     };
+    private readonly DispatcherTimer _lyricTimer = new();
+    private readonly Stopwatch _playbackClock = Stopwatch.StartNew();
+    private readonly PlaybackTimeline _playbackTimeline = new();
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly ObservableCollection<QueueItemInfo> _queueItems = [];
     private readonly List<LyricLineVisual> _lyricLines = [];
@@ -48,6 +52,8 @@ public sealed partial class MainWindow : Window
     private string? _validatedOnboardingToken;
     private string? _artworkUrl;
     private string? _currentTrackKey;
+    private NowPlayingInfo? _latestTrack;
+    private PlaybackStatus? _latestPlaybackStatus;
     private bool _isRefreshing;
     private bool _isUpdatingPlaybackProgress;
     private bool _isDraggingPlaybackProgress;
@@ -125,6 +131,7 @@ public sealed partial class MainWindow : Window
         ShowPanel(_settings.DefaultPanel);
 
         _refreshTimer.Tick += RefreshTimer_Tick;
+        _lyricTimer.Tick += LyricTimer_Tick;
         Closed += MainWindow_Closed;
         Activated += MainWindow_Activated;
         _isInitialized = true;
@@ -356,6 +363,7 @@ public sealed partial class MainWindow : Window
             var track = result.Track;
             var trackKey = GetTrackKey(track);
             var trackChanged = !string.Equals(trackKey, _currentTrackKey, StringComparison.Ordinal);
+            SynchronizePlaybackTimeline(track);
             UpdateNowPlaying(track);
 
             if (trackChanged || forceDetails)
@@ -374,7 +382,7 @@ public sealed partial class MainWindow : Window
             }
             else
             {
-                UpdateCurrentLyric(track.CurrentPlaybackTime);
+                RefreshLyricPlayback();
                 UpdateTaskbarWidget(track, playbackStatus);
                 _refreshCount++;
                 if (_refreshCount % 5 == 0)
@@ -435,7 +443,7 @@ public sealed partial class MainWindow : Window
             _lyrics = lyrics.Lines;
             _lyricsAreTimeSynced = lyrics.IsTimeSynced;
             var rebuilt = RenderLyrics();
-            UpdateCurrentLyric(track.CurrentPlaybackTime, forceScroll: rebuilt);
+            RefreshLyricPlayback(forceScroll: rebuilt);
         }
         catch (OperationCanceledException) when (refreshCancellation.IsCancellationRequested)
         {
@@ -476,13 +484,27 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        _latestPlaybackStatus = status;
         PlayPauseIcon.Glyph = status.IsPlaying ? "\uE769" : "\uE768";
+    }
+
+    private void SynchronizePlaybackTimeline(NowPlayingInfo track)
+    {
+        _latestTrack = track;
+        _playbackTimeline.Synchronize(
+            track.CurrentPlaybackTime,
+            track.DurationInMillis / 1000,
+            _latestPlaybackStatus?.IsPlaying ?? false,
+            _playbackClock.Elapsed);
     }
 
     private void UpdateNowPlaying(NowPlayingInfo? track)
     {
         if (track is null)
         {
+            _lyricTimer.Stop();
+            _playbackTimeline.Reset();
+            _latestTrack = null;
             _currentTrackKey = null;
             SongNameText.Text = AppText.Get("未在播放", "Not Playing");
             ArtistAlbumText.Text = "—";
@@ -750,25 +772,70 @@ public sealed partial class MainWindow : Window
         return true;
     }
 
-    private void UpdateCurrentLyric(double playbackTime, bool forceScroll = false)
+    private bool UpdateCurrentLyric(double playbackTime, bool forceScroll = false)
     {
         if (!_lyricsAreTimeSynced || _lyrics.Count == 0 || _lyricLines.Count == 0)
         {
-            return;
+            return false;
         }
 
         if (!ShouldApplyServerPosition(playbackTime))
         {
-            return;
+            return false;
         }
 
         var nextIndex = LyricPresentation.FindActiveLineIndex(_lyrics, playbackTime);
         if (nextIndex < 0 || (nextIndex == _currentLyricIndex && !forceScroll))
         {
-            return;
+            return false;
         }
 
         SetCurrentLyricIndex(nextIndex, forceScroll);
+        return true;
+    }
+
+    private void LyricTimer_Tick(object? sender, object e)
+    {
+        _lyricTimer.Stop();
+        RefreshLyricPlayback();
+    }
+
+    private void RefreshLyricPlayback(bool forceScroll = false)
+    {
+        if (_latestTrack is null)
+        {
+            _lyricTimer.Stop();
+            return;
+        }
+
+        var playbackTime = _playbackTimeline.PositionAt(_playbackClock.Elapsed);
+        _lastPlaybackTime = playbackTime;
+        if (UpdateCurrentLyric(playbackTime, forceScroll))
+        {
+            UpdateTaskbarWidget(_latestTrack, _latestPlaybackStatus);
+        }
+
+        ScheduleNextLyricUpdate(playbackTime);
+    }
+
+    private void ScheduleNextLyricUpdate(double playbackTime)
+    {
+        _lyricTimer.Stop();
+        if (_latestPlaybackStatus?.IsPlaying != true || !_lyricsAreTimeSynced)
+        {
+            return;
+        }
+
+        var delay = LyricPresentation.DelayUntilNextLine(_lyrics, playbackTime);
+        if (delay is null)
+        {
+            return;
+        }
+
+        _lyricTimer.Interval = delay.Value < TimeSpan.FromMilliseconds(1)
+            ? TimeSpan.FromMilliseconds(1)
+            : delay.Value;
+        _lyricTimer.Start();
     }
 
     /// <summary>
@@ -1800,7 +1867,8 @@ public sealed partial class MainWindow : Window
         _settings.AutoScrollLyrics = AutoScrollToggle.IsOn;
         _settings.ConvertTraditionalLyricsToSimplified = ChineseLyricsToggle.IsOn;
         _settings.LyricsSource = lyricsSource.ToString();
-        _settings.ShowLyricsTranslation = LyricsTranslationToggle.IsOn;
+        _settings.ShowLyricsTranslation =
+            LyricsService.SupportsTranslation(lyricsSource) && LyricsTranslationToggle.IsOn;
         _settings.AlwaysOnTop = AlwaysOnTopToggle.IsOn;
         _settings.TaskbarWidgetEnabled = TaskbarWidgetToggle.IsOn;
         _settings.ShowLyricsInTaskbar = TaskbarLyricsToggle.IsOn;
@@ -1906,6 +1974,22 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void LyricsSourceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateLyricsTranslationAvailability();
+    }
+
+    private void UpdateLyricsTranslationAvailability()
+    {
+        var source = LyricsService.ParseSource(SelectedTag(LyricsSourceComboBox, "Auto"));
+        var supportsTranslation = LyricsService.SupportsTranslation(source);
+        LyricsTranslationToggle.IsEnabled = supportsTranslation;
+        if (!supportsTranslation)
+        {
+            LyricsTranslationToggle.IsOn = false;
+        }
+    }
+
     private void LoadSettingsControls()
     {
         ApiBaseUrlTextBox.Text = _settings.ApiBaseUrl;
@@ -1913,11 +1997,15 @@ public sealed partial class MainWindow : Window
         SelectByTag(ThemeComboBox, _settings.Theme);
         SelectByTag(LanguageComboBox, _settings.Language);
         SelectByTag(DefaultPanelComboBox, _settings.DefaultPanel);
-        SelectByTag(LyricsSourceComboBox, LyricsService.ParseSource(_settings.LyricsSource).ToString());
+        var lyricsSource = LyricsService.ParseSource(_settings.LyricsSource);
+        SelectByTag(LyricsSourceComboBox, lyricsSource.ToString());
         LyricFontSizeSlider.Value = _settings.LyricFontSize;
         AutoScrollToggle.IsOn = _settings.AutoScrollLyrics;
         ChineseLyricsToggle.IsOn = _settings.ConvertTraditionalLyricsToSimplified;
+        _settings.ShowLyricsTranslation =
+            LyricsService.SupportsTranslation(lyricsSource) && _settings.ShowLyricsTranslation;
         LyricsTranslationToggle.IsOn = _settings.ShowLyricsTranslation;
+        UpdateLyricsTranslationAvailability();
         MusixmatchApiKeyPasswordBox.Password = _musixmatchApiKey ?? string.Empty;
         AlwaysOnTopToggle.IsOn = _settings.AlwaysOnTop;
         TaskbarWidgetToggle.IsOn = _settings.TaskbarWidgetEnabled;
@@ -1973,7 +2061,7 @@ public sealed partial class MainWindow : Window
 
         if (RenderLyrics())
         {
-            UpdateCurrentLyric(_lastPlaybackTime, forceScroll: true);
+            RefreshLyricPlayback(forceScroll: true);
         }
     }
 
@@ -2041,6 +2129,7 @@ public sealed partial class MainWindow : Window
         RootGrid.ActualThemeChanged -= RootGrid_ActualThemeChanged;
         RootGrid.XamlRoot.Changed -= XamlRoot_Changed;
         _refreshTimer.Stop();
+        _lyricTimer.Stop();
         CancelPlaybackSeekDebounce();
         _lyricsRefreshCancellation?.Cancel();
         _lifetimeCancellation.Cancel();

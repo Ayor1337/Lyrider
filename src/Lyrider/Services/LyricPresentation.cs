@@ -35,6 +35,21 @@ internal static class LyricPresentation
         return activeIndex;
     }
 
+    public static TimeSpan? DelayUntilNextLine(
+        IReadOnlyList<LyricLineInfo> lines,
+        double playbackTime)
+    {
+        foreach (var line in lines)
+        {
+            if (line.StartTime > playbackTime)
+            {
+                return TimeSpan.FromSeconds(line.StartTime - playbackTime);
+            }
+        }
+
+        return null;
+    }
+
     public static LyricLineState StateForIndex(int index, int activeIndex, bool isTimeSynced)
     {
         if (!isTimeSynced)

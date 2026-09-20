@@ -60,6 +60,11 @@ public sealed class LyricsService : IDisposable
         var lookForTranslation = requestedSource == LyricsSource.Auto && options.IncludeTranslation;
         LyricsSnapshot? fallback = null;
         IReadOnlyList<LyricsSearchTrack>? searchTracks = null;
+        var ciderSnapshot = ciderLyrics.Count > 0
+            ? PrepareSnapshot(
+                new LyricsSnapshot(ciderLyrics, track.HasTimeSyncedLyrics, LyricsSource.Cider),
+                null)
+            : null;
 
         using var totalTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         totalTimeout.CancelAfter(TimeSpan.FromSeconds(12));
@@ -74,18 +79,14 @@ public sealed class LyricsService : IDisposable
 
             if (source == LyricsSource.Cider)
             {
-                if (ciderLyrics.Count > 0)
+                if (ciderSnapshot is not null)
                 {
-                    var cider = new LyricsSnapshot(
-                        ciderLyrics,
-                        track.HasTimeSyncedLyrics,
-                        LyricsSource.Cider);
-                    if (!lookForTranslation || HasTranslation(cider))
+                    if (!lookForTranslation || !NeedsTranslation(ciderSnapshot))
                     {
-                        return cider;
+                        return ciderSnapshot;
                     }
 
-                    fallback = cider;
+                    fallback = ciderSnapshot;
                 }
 
                 continue;
@@ -106,14 +107,16 @@ public sealed class LyricsService : IDisposable
                 searchTracks ??= await ResolveSearchTracksAsync(track, totalTimeout.Token);
                 using var providerTimeout = CancellationTokenSource.CreateLinkedTokenSource(totalTimeout.Token);
                 providerTimeout.CancelAfter(TimeSpan.FromSeconds(4));
-                var result = await provider.FetchAsync(
-                    searchTracks,
-                    options.IncludeTranslation,
-                    options.MusixmatchApiKey,
-                    providerTimeout.Token);
+                var result = PrepareSnapshot(
+                    await provider.FetchAsync(
+                        searchTracks,
+                        options.IncludeTranslation,
+                        options.MusixmatchApiKey,
+                        providerTimeout.Token),
+                    ciderSnapshot);
                 if (result.Lines.Count > 0)
                 {
-                    if (!lookForTranslation || HasTranslation(result))
+                    if (!lookForTranslation || !NeedsTranslation(result))
                     {
                         return result;
                     }
@@ -170,13 +173,76 @@ public sealed class LyricsService : IDisposable
         }
     }
 
-    private static bool HasTranslation(LyricsSnapshot snapshot) =>
-        snapshot.Lines.Any(line => !string.IsNullOrWhiteSpace(line.Translation));
+    private static bool NeedsTranslation(LyricsSnapshot snapshot) =>
+        !IsPrimarilyChinese(snapshot) &&
+        !snapshot.Lines.Any(line => !string.IsNullOrWhiteSpace(line.Translation));
+
+    private static bool IsPrimarilyChinese(LyricsSnapshot snapshot)
+    {
+        var textLines = snapshot.Lines.Where(line => !string.IsNullOrWhiteSpace(line.Text)).ToArray();
+        return textLines.Length > 0 &&
+            textLines.Count(line => LyricsParsing.IsChineseTranslation(line.Text)) * 2 >= textLines.Length;
+    }
+
+    private static LyricsSnapshot PrepareSnapshot(
+        LyricsSnapshot snapshot,
+        LyricsSnapshot? ciderSnapshot)
+    {
+        IReadOnlyList<LyricLineInfo> lines = IsPrimarilyChinese(snapshot)
+            ? snapshot.Lines.Select(line => line with { Translation = null }).ToArray()
+            : snapshot.Lines;
+        var prepared = snapshot with { Lines = lines };
+        return AlignToCiderTiming(prepared, ciderSnapshot);
+    }
+
+    private static LyricsSnapshot AlignToCiderTiming(
+        LyricsSnapshot snapshot,
+        LyricsSnapshot? ciderSnapshot)
+    {
+        if (snapshot.Source == LyricsSource.Cider ||
+            !snapshot.IsTimeSynced ||
+            ciderSnapshot?.IsTimeSynced != true)
+        {
+            return snapshot;
+        }
+
+        var ciderTimes = ciderSnapshot.Lines
+            .GroupBy(line => LyricsMatching.Normalize(line.Text))
+            .Where(group => group.Key.Length > 0 && group.Count() == 1)
+            .ToDictionary(group => group.Key, group => group.Single().StartTime);
+        var offsets = snapshot.Lines
+            .GroupBy(line => LyricsMatching.Normalize(line.Text))
+            .Where(group => group.Key.Length > 0 && group.Count() == 1 && ciderTimes.ContainsKey(group.Key))
+            .Select(group => group.Single().StartTime - ciderTimes[group.Key])
+            .OrderBy(offset => offset)
+            .ToArray();
+        if (offsets.Length < 3)
+        {
+            return snapshot;
+        }
+
+        var middle = offsets.Length / 2;
+        var offset = offsets.Length % 2 == 0
+            ? (offsets[middle - 1] + offsets[middle]) / 2
+            : offsets[middle];
+        var alignedLines = snapshot.Lines.Select(line =>
+        {
+            var startTime = Math.Max(0, line.StartTime - offset);
+            double? endTime = line.EndTime is { } end
+                ? Math.Max(startTime, end - offset)
+                : null;
+            return line with { StartTime = startTime, EndTime = endTime };
+        }).ToArray();
+        return snapshot with { Lines = alignedLines };
+    }
 
     public static LyricsSource ParseSource(string? value) =>
         Enum.TryParse<LyricsSource>(value, true, out var source) && Enum.IsDefined(source)
             ? source
             : LyricsSource.Auto;
+
+    public static bool SupportsTranslation(LyricsSource source) =>
+        source != LyricsSource.Cider;
 
     public void Dispose() => _httpClient?.Dispose();
 }
