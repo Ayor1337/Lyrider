@@ -20,6 +20,14 @@ public static class TaskbarPresentation
         return new TaskbarDisplayText(state.Title, state.Artist);
     }
 
+    public static string? SelectSecondaryLyric(
+        bool showTranslation,
+        string? translation,
+        string? nextLyric) =>
+        showTranslation && !string.IsNullOrWhiteSpace(translation)
+            ? translation
+            : nextLyric;
+
     public static double CalculateMarqueeDistance(double contentWidth, double viewportWidth) =>
         Math.Max(0, contentWidth - viewportWidth);
 
