@@ -247,6 +247,17 @@ try {
         throw "makepri 配置生成失败，退出代码：$LASTEXITCODE"
     }
 
+    # The app exposes an in-app language selector, so every declared UI language must remain in
+    # the main package. If MakePri splits by Language, Windows may deploy only the system language
+    # and an explicit in-app override cannot load the omitted resources.
+    [xml]$priConfig = Get-Content -LiteralPath $priConfigPath
+    $languageResourcePackages = @($priConfig.resources.packaging.autoResourcePackage |
+        Where-Object { $_.qualifier -eq 'Language' })
+    foreach ($resourcePackage in $languageResourcePackages) {
+        $resourcePackage.ParentNode.RemoveChild($resourcePackage) | Out-Null
+    }
+    $priConfig.Save($priConfigPath)
+
     & $makePri new `
         /pr $priInputDirectory `
         /cf $priConfigPath `

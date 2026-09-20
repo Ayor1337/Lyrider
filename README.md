@@ -52,7 +52,7 @@ Add-AppxPackage $package.FullName
 
 Alternatively, double-click `Lyrider.cer`, install it for the current user in the **Trusted People** certificate store, and then double-click the MSIX package. Only trust a certificate downloaded from this repository's Releases page.
 
-The package includes the .NET and Windows App SDK runtimes. When future versions are signed with the same certificate, you can install the new MSIX directly without importing the certificate again.
+The package includes the .NET and Windows App SDK runtimes, plus both interface languages in the main package so the Settings language selector works independently of the Windows display language. When future versions are signed with the same certificate, you can install the new MSIX directly without importing the certificate again.
 
 ## Running from source
 
