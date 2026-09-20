@@ -88,4 +88,14 @@
   <data name="Main_079.Content" xml:space="preserve"><value>跟随系统</value></data>
   <data name="Main_080.Content" xml:space="preserve"><value>简体中文</value></data>
   <data name="Main_081.Content" xml:space="preserve"><value>英语</value></data>
+  <data name="Main_082.Text" xml:space="preserve"><value>歌词源</value></data>
+  <data name="Main_083.Text" xml:space="preserve"><value>自动按 Cider、网易云、QQ 音乐、Musixmatch、LRCLIB 的顺序查找</value></data>
+  <data name="Main_084.Content" xml:space="preserve"><value>自动</value></data>
+  <data name="Main_085.Content" xml:space="preserve"><value>网易云音乐</value></data>
+  <data name="Main_086.Content" xml:space="preserve"><value>QQ 音乐</value></data>
+  <data name="Main_087.Text" xml:space="preserve"><value>显示歌词翻译</value></data>
+  <data name="Main_088.Text" xml:space="preserve"><value>有简体中文译文时，在原文下方显示</value></data>
+  <data name="Main_089.Text" xml:space="preserve"><value>Musixmatch 接口密钥</value></data>
+  <data name="Main_090.Text" xml:space="preserve"><value>仅在使用 Musixmatch 时需要，并通过当前 Windows 用户加密保存</value></data>
+  <data name="Main_091.PlaceholderText" xml:space="preserve"><value>输入 API Key</value></data>
 </root>

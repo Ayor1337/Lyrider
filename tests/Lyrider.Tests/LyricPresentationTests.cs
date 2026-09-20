@@ -249,6 +249,20 @@ public sealed class LyricPresentationTests
     }
 
     [TestMethod]
+    public void ComputeLyricsSignature_ChangesWhenTranslationVisibilityOrTextChanges()
+    {
+        IReadOnlyList<LyricLineInfo> original = [new(0, null, "Hello", "你好")];
+        IReadOnlyList<LyricLineInfo> edited = [new(0, null, "Hello", "您好")];
+
+        Assert.AreNotEqual(
+            LyricPresentation.ComputeLyricsSignature(original, 42, true, false, false),
+            LyricPresentation.ComputeLyricsSignature(original, 42, true, false, true));
+        Assert.AreNotEqual(
+            LyricPresentation.ComputeLyricsSignature(original, 42, true, false, true),
+            LyricPresentation.ComputeLyricsSignature(edited, 42, true, false, true));
+    }
+
+    [TestMethod]
     public void ToSimplified_WithTraditionalChinese_ConvertsLyrics()
     {
         Assert.AreEqual("听见风里的声音", ChineseTextConverter.ToSimplified("聽見風裡的聲音"));

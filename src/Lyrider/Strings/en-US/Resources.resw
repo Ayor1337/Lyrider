@@ -88,4 +88,14 @@
   <data name="Main_079.Content" xml:space="preserve"><value>Use system setting</value></data>
   <data name="Main_080.Content" xml:space="preserve"><value>Simplified Chinese</value></data>
   <data name="Main_081.Content" xml:space="preserve"><value>English</value></data>
+  <data name="Main_082.Text" xml:space="preserve"><value>Lyrics source</value></data>
+  <data name="Main_083.Text" xml:space="preserve"><value>Automatically try Cider, NetEase Cloud Music, QQ Music, Musixmatch, then LRCLIB</value></data>
+  <data name="Main_084.Content" xml:space="preserve"><value>Automatic</value></data>
+  <data name="Main_085.Content" xml:space="preserve"><value>NetEase Cloud Music</value></data>
+  <data name="Main_086.Content" xml:space="preserve"><value>QQ Music</value></data>
+  <data name="Main_087.Text" xml:space="preserve"><value>Show lyrics translation</value></data>
+  <data name="Main_088.Text" xml:space="preserve"><value>Show Simplified Chinese translations below the original lyrics when available</value></data>
+  <data name="Main_089.Text" xml:space="preserve"><value>Musixmatch API Key</value></data>
+  <data name="Main_090.Text" xml:space="preserve"><value>Only required for Musixmatch and encrypted for the current Windows user</value></data>
+  <data name="Main_091.PlaceholderText" xml:space="preserve"><value>Enter API Key</value></data>
 </root>

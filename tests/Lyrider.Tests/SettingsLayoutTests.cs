@@ -71,6 +71,27 @@ public sealed class SettingsLayoutTests
     }
 
     [TestMethod]
+    public void SettingsPage_LyricsSourceSelector_OffersAllProvidersAndProtectedKeyField()
+    {
+        var document = XDocument.Load(Path.Combine(
+            AppContext.BaseDirectory,
+            "Fixtures",
+            "MainWindow.xaml"));
+
+        var selector = FindNamedElement(document, "LyricsSourceComboBox");
+        Assert.IsNotNull(selector);
+        CollectionAssert.AreEqual(
+            new[] { "Auto", "Cider", "Netease", "QqMusic", "Musixmatch", "Lrclib" },
+            selector.Elements().Select(element => element.Attribute("Tag")?.Value).ToArray());
+        Assert.AreEqual(
+            "ToggleSwitch",
+            FindNamedElement(document, "LyricsTranslationToggle")?.Name.LocalName);
+        Assert.AreEqual(
+            "PasswordBox",
+            FindNamedElement(document, "MusixmatchApiKeyPasswordBox")?.Name.LocalName);
+    }
+
+    [TestMethod]
     public void OnboardingPage_GuidesTokenSetupAndProvidesExplicitActions()
     {
         var document = XDocument.Load(Path.Combine(
