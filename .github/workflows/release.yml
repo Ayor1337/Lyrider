@@ -3,7 +3,12 @@ name: Release MSIX
 on:
   push:
     tags:
-      - "v*.*.*.*"
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing three-part release tag (for example, v1.1.0)"
+        required: true
 
 permissions:
   contents: read
@@ -20,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
@@ -30,12 +37,20 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $version = $env:GITHUB_REF_NAME.Substring(1)
-          if ($version -notmatch '^\d+\.\d+\.\d+\.\d+$') {
-              throw "Tag must use vMajor.Minor.Build.Revision format: $env:GITHUB_REF_NAME"
+          $tag = if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+              '${{ inputs.tag }}'
+          }
+          else {
+              $env:GITHUB_REF_NAME
+          }
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+              throw "Tag must use vMajor.Minor.Patch format: $tag"
           }
 
-          "value=$version" >> $env:GITHUB_OUTPUT
+          $releaseVersion = $tag.Substring(1)
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "release=$releaseVersion" >> $env:GITHUB_OUTPUT
+          "package=$releaseVersion.0" >> $env:GITHUB_OUTPUT
 
       - name: Test
         shell: pwsh
@@ -79,7 +94,7 @@ jobs:
         shell: pwsh
         run: >-
           .\scripts\package-msix.ps1
-          -Version '${{ steps.version.outputs.value }}'
+          -Version '${{ steps.version.outputs.package }}'
           -Platform x64
           -Configuration Release
           -Publisher '${{ steps.certificate.outputs.publisher }}'
@@ -87,10 +102,10 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7
         with:
-          name: Lyrider_${{ steps.version.outputs.value }}_x64
+          name: Lyrider_${{ steps.version.outputs.release }}_x64
           path: |
-            AppPackages/Lyrider_${{ steps.version.outputs.value }}_x64/*.msix
-            AppPackages/Lyrider_${{ steps.version.outputs.value }}_x64/*.cer
+            AppPackages/Lyrider_${{ steps.version.outputs.package }}_x64/*.msix
+            AppPackages/Lyrider_${{ steps.version.outputs.package }}_x64/*.cer
           if-no-files-found: error
           retention-days: 14
 
@@ -99,15 +114,22 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $outputDirectory = "AppPackages/Lyrider_${{ steps.version.outputs.value }}_x64"
+          $tag = '${{ steps.version.outputs.tag }}'
+          $outputDirectory = "AppPackages/Lyrider_${{ steps.version.outputs.package }}_x64"
           $assets = Get-ChildItem $outputDirectory -File |
               Where-Object Extension -in '.msix', '.cer' |
               ForEach-Object FullName
 
-          gh release create $env:GITHUB_REF_NAME @assets `
-              --verify-tag `
-              --generate-notes `
-              --title $env:GITHUB_REF_NAME
+          if (gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null) {
+              gh release upload $tag @assets --clobber --repo $env:GITHUB_REPOSITORY
+          }
+          else {
+              gh release create $tag @assets `
+                  --verify-tag `
+                  --generate-notes `
+                  --title $tag `
+                  --repo $env:GITHUB_REPOSITORY
+          }
 
       - name: Remove signing certificate
         if: always() && steps.certificate.outputs.thumbprint != ''
