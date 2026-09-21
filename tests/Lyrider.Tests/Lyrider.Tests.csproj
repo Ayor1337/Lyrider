@@ -28,6 +28,7 @@
     <Compile Include="..\..\src\Lyrider\Services\PlaybackTimeline.cs" Link="Production\PlaybackTimeline.cs" />
     <Compile Include="..\..\src\Lyrider\Services\LyricsService.cs" Link="Production\LyricsService.cs" />
     <Compile Include="..\..\src\Lyrider\Services\LyricsProviders.cs" Link="Production\LyricsProviders.cs" />
+    <Compile Include="..\..\src\Lyrider\Services\NextTrackLyricsPreloader.cs" Link="Production\NextTrackLyricsPreloader.cs" />
     <Compile Include="..\..\src\Lyrider\Services\QueueCollectionSynchronizer.cs" Link="Production\QueueCollectionSynchronizer.cs" />
     <Compile Include="..\..\src\Lyrider\Services\RepeatPresentation.cs" Link="Production\RepeatPresentation.cs" />
     <Compile Include="..\..\src\Lyrider.TaskbarWidget\TaskbarContracts.cs" Link="Production\TaskbarContracts.cs" />

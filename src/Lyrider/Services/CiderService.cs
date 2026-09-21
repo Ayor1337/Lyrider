@@ -9,16 +9,36 @@ namespace Lyrider.Services;
 public sealed class CiderService : IDisposable
 {
     private static readonly Uri NowPlayingUri = new("api/v1/playback/now-playing", UriKind.Relative);
-    private readonly HttpClient _httpClient = new()
-    {
-        Timeout = TimeSpan.FromSeconds(3)
-    };
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(3);
+    private readonly HttpClient _httpClient;
+    private readonly HttpClient _lyricsHttpClient;
+    private readonly TimeSpan _defaultLyricsRequestTimeout;
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
     private Uri _baseAddress;
 
     public CiderService(string? baseAddress = null)
+        : this(
+            baseAddress,
+            new HttpClientHandler(),
+            RequestTimeout)
+    {
+    }
+
+    internal CiderService(
+        string? baseAddress,
+        HttpMessageHandler handler,
+        TimeSpan defaultLyricsRequestTimeout)
     {
         _baseAddress = ParseBaseAddress(baseAddress);
+        _defaultLyricsRequestTimeout = defaultLyricsRequestTimeout;
+        _httpClient = new HttpClient(handler, disposeHandler: false)
+        {
+            Timeout = RequestTimeout
+        };
+        _lyricsHttpClient = new HttpClient(handler, disposeHandler: true)
+        {
+            Timeout = Timeout.InfiniteTimeSpan
+        };
     }
 
     public bool TryUpdateBaseAddress(string? baseAddress)
@@ -151,7 +171,9 @@ public sealed class CiderService : IDisposable
                     TryFindString(element, "artistName", "artist") ?? "—",
                     TryFindString(element, "albumName", "album") ?? "—",
                     TryFindDouble(element, "durationInMillis", "duration") ?? 0,
-                    TryFindArtworkUrl(element)));
+                    TryFindArtworkUrl(element),
+                    TryFindNestedBoolean(element, "hasLyrics") ?? false,
+                    TryFindNestedBoolean(element, "hasTimeSyncedLyrics") ?? false));
                 sourceIndex++;
             }
 
@@ -187,7 +209,8 @@ public sealed class CiderService : IDisposable
     public async Task<IReadOnlyList<LyricLineInfo>> GetLyricsAsync(
         string? trackId,
         string? appToken,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        TimeSpan? requestTimeout = null)
     {
         if (string.IsNullOrWhiteSpace(trackId))
         {
@@ -196,7 +219,9 @@ public sealed class CiderService : IDisposable
 
         try
         {
-            using var document = await GetLyricsDocumentAsync(trackId, appToken, cancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(requestTimeout ?? _defaultLyricsRequestTimeout);
+            using var document = await GetLyricsDocumentAsync(trackId, appToken, timeout.Token);
             if (document is null || !TryFindArray(document.RootElement, out var array, "lyrics", "lines", "data"))
             {
                 return [];
@@ -255,6 +280,7 @@ public sealed class CiderService : IDisposable
         foreach (var path in new[] { "api/v2/lyrics/", "api/v1/lyrics/" })
         {
             var document = await GetJsonAsync(
+                _lyricsHttpClient,
                 $"{path}{Uri.EscapeDataString(trackId)}",
                 appToken,
                 cancellationToken);
@@ -302,9 +328,22 @@ public sealed class CiderService : IDisposable
             new { index },
             cancellationToken);
 
-    public void Dispose() => _httpClient.Dispose();
+    public void Dispose()
+    {
+        _httpClient.Dispose();
+        _lyricsHttpClient.Dispose();
+    }
 
     private async Task<HttpResponseMessage> SendAsync(
+        HttpMethod method,
+        Uri relativeUri,
+        string? appToken,
+        object? body,
+        CancellationToken cancellationToken) =>
+        await SendAsync(_httpClient, method, relativeUri, appToken, body, cancellationToken);
+
+    private async Task<HttpResponseMessage> SendAsync(
+        HttpClient httpClient,
         HttpMethod method,
         Uri relativeUri,
         string? appToken,
@@ -322,15 +361,23 @@ public sealed class CiderService : IDisposable
             request.Content = JsonContent.Create(body, options: _jsonOptions);
         }
 
-        return await _httpClient.SendAsync(request, cancellationToken);
+        return await httpClient.SendAsync(request, cancellationToken);
     }
 
     private async Task<JsonDocument?> GetJsonAsync(
         string relativeUri,
         string? appToken,
+        CancellationToken cancellationToken) =>
+        await GetJsonAsync(_httpClient, relativeUri, appToken, cancellationToken);
+
+    private async Task<JsonDocument?> GetJsonAsync(
+        HttpClient httpClient,
+        string relativeUri,
+        string? appToken,
         CancellationToken cancellationToken)
     {
         using var response = await SendAsync(
+            httpClient,
             HttpMethod.Get,
             new Uri(relativeUri, UriKind.Relative),
             appToken,
@@ -522,6 +569,31 @@ public sealed class CiderService : IDisposable
                 value.ValueKind is JsonValueKind.True or JsonValueKind.False)
             {
                 return value.GetBoolean();
+            }
+        }
+
+        return null;
+    }
+
+    private static bool? TryFindNestedBoolean(JsonElement element, params string[] names)
+    {
+        var direct = TryFindBoolean(element, names);
+        if (direct.HasValue || element.ValueKind != JsonValueKind.Object)
+        {
+            return direct;
+        }
+
+        foreach (var property in element.EnumerateObject())
+        {
+            if (property.Value.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var nested = TryFindNestedBoolean(property.Value, names);
+            if (nested.HasValue)
+            {
+                return nested;
             }
         }
 

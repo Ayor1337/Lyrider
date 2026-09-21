@@ -13,7 +13,6 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
-using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Foundation;
 using Windows.Graphics;
 
@@ -38,7 +37,8 @@ public sealed partial class MainWindow : Window
     private readonly TaskbarWidgetHost _taskbarWidgetHost = new();
     private readonly LyricsService _lyricsService = new();
     private readonly CiderService _ciderService;
-    private readonly ArtworkBackdrop _artworkBackdrop;
+    private readonly NextTrackLyricsPreloader _nextTrackLyricsPreloader;
+    private readonly ArtworkPresenter _artworkPresenter;
     private readonly AppWindow _appWindow;
     private readonly TrayIconHost _trayIconHost;
 
@@ -50,8 +50,8 @@ public sealed partial class MainWindow : Window
     private string? _musixmatchApiKey;
     private string? _validatedOnboardingApiBaseUrl;
     private string? _validatedOnboardingToken;
-    private string? _artworkUrl;
     private string? _currentTrackKey;
+    private QueueItemInfo? _nextQueueItem;
     private NowPlayingInfo? _latestTrack;
     private PlaybackStatus? _latestPlaybackStatus;
     private bool _isRefreshing;
@@ -90,6 +90,7 @@ public sealed partial class MainWindow : Window
     {
         _settings = _settingsStore.Load();
         _ciderService = new CiderService(_settings.ApiBaseUrl);
+        _nextTrackLyricsPreloader = new NextTrackLyricsPreloader(_ciderService, _lyricsService);
 
         InitializeComponent();
         PlaybackProgressSlider.AddHandler(
@@ -106,7 +107,10 @@ public sealed partial class MainWindow : Window
             true);
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
-        _artworkBackdrop = new ArtworkBackdrop(BackgroundArtworkHost);
+        _artworkPresenter = new ArtworkPresenter(
+            BackgroundArtworkHost,
+            ArtworkImage,
+            CurrentQueueArtworkImage);
 
         var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(windowHandle);
@@ -361,7 +365,7 @@ public sealed partial class MainWindow : Window
             }
 
             var track = result.Track;
-            var trackKey = GetTrackKey(track);
+            var trackKey = TrackIdentity.For(track);
             var trackChanged = !string.Equals(trackKey, _currentTrackKey, StringComparison.Ordinal);
             SynchronizePlaybackTimeline(track);
             UpdateNowPlaying(track);
@@ -406,7 +410,8 @@ public sealed partial class MainWindow : Window
         _lyricsRefreshCancellation?.Cancel();
         var refreshCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
         _lyricsRefreshCancellation = refreshCancellation;
-        var expectedTrackKey = GetTrackKey(track);
+        var expectedTrackKey = TrackIdentity.For(track);
+        var options = CurrentLyricsOptions();
 
         try
         {
@@ -415,26 +420,19 @@ public sealed partial class MainWindow : Window
                 _appToken,
                 trackId,
                 refreshCancellation.Token);
-            var ciderLyricsTask = _ciderService.GetLyricsAsync(
-                trackId,
-                _appToken,
+            var lyricsTask = ResolveTrackLyricsAsync(
+                track,
+                options,
                 refreshCancellation.Token);
 
-            await Task.WhenAll(queueTask, ciderLyricsTask);
+            var queue = await queueTask;
             if (!string.Equals(expectedTrackKey, _currentTrackKey, StringComparison.Ordinal))
             {
                 return;
             }
 
-            ApplyQueue(await queueTask);
-            var lyrics = await _lyricsService.ResolveAsync(
-                track,
-                await ciderLyricsTask,
-                new LyricsResolveOptions(
-                    LyricsService.ParseSource(_settings.LyricsSource),
-                    _settings.ShowLyricsTranslation,
-                    _musixmatchApiKey),
-                refreshCancellation.Token);
+            ApplyQueue(queue, trackId);
+            var lyrics = await lyricsTask;
             if (!string.Equals(expectedTrackKey, _currentTrackKey, StringComparison.Ordinal))
             {
                 return;
@@ -444,6 +442,7 @@ public sealed partial class MainWindow : Window
             _lyricsAreTimeSynced = lyrics.IsTimeSynced;
             var rebuilt = RenderLyrics();
             RefreshLyricPlayback(forceScroll: rebuilt);
+            PrepareNextLyrics();
         }
         catch (OperationCanceledException) when (refreshCancellation.IsCancellationRequested)
         {
@@ -466,8 +465,39 @@ public sealed partial class MainWindow : Window
             _appToken,
             track.PlayParameters?.Id,
             _lifetimeCancellation.Token);
-        ApplyQueue(queue);
+        ApplyQueue(queue, track.PlayParameters?.Id);
+        PrepareNextLyrics();
     }
+
+    private async Task<LyricsSnapshot> ResolveTrackLyricsAsync(
+        NowPlayingInfo track,
+        LyricsResolveOptions options,
+        CancellationToken cancellationToken)
+    {
+        var prefetched = await _nextTrackLyricsPreloader.TakeAsync(
+            track,
+            options,
+            _appToken,
+            cancellationToken);
+        if (prefetched is not null)
+        {
+            return prefetched;
+        }
+
+        var ciderLyrics = await _ciderService.GetLyricsAsync(
+            track.PlayParameters?.Id,
+            _appToken,
+            cancellationToken);
+        return await _lyricsService.ResolveAsync(track, ciderLyrics, options, cancellationToken);
+    }
+
+    private LyricsResolveOptions CurrentLyricsOptions() => new(
+        LyricsService.ParseSource(_settings.LyricsSource),
+        _settings.ShowLyricsTranslation,
+        _musixmatchApiKey);
+
+    private void PrepareNextLyrics() =>
+        _nextTrackLyricsPreloader.Prepare(_nextQueueItem, CurrentLyricsOptions(), _appToken);
 
     private void UpdateConnectionState(CiderResult result)
     {
@@ -506,6 +536,8 @@ public sealed partial class MainWindow : Window
             _playbackTimeline.Reset();
             _latestTrack = null;
             _currentTrackKey = null;
+            _nextQueueItem = null;
+            _nextTrackLyricsPreloader.Clear();
             SongNameText.Text = AppText.Get("未在播放", "Not Playing");
             ArtistAlbumText.Text = "—";
             CurrentQueueSongText.Text = AppText.Get("未在播放", "Not Playing");
@@ -514,7 +546,8 @@ public sealed partial class MainWindow : Window
             RemainingTimeText.Text = "−0:00";
             SetPlaybackProgress(0, 0);
             ClearOptimisticPlaybackPosition();
-            SetArtwork(null);
+            _artworkPresenter.PrepareNext(null);
+            _artworkPresenter.Show(null);
             ApplyQueue(new QueueSnapshot([], -1));
             _lyrics = [];
             _lastPlaybackTime = 0;
@@ -524,7 +557,7 @@ public sealed partial class MainWindow : Window
 
         var durationSeconds = Math.Max(0, track.DurationInMillis / 1000);
         var currentSeconds = Math.Clamp(track.CurrentPlaybackTime, 0, durationSeconds);
-        if (!string.Equals(GetTrackKey(track), _currentTrackKey, StringComparison.Ordinal))
+        if (!string.Equals(TrackIdentity.For(track), _currentTrackKey, StringComparison.Ordinal))
         {
             ClearOptimisticPlaybackPosition();
         }
@@ -542,7 +575,7 @@ public sealed partial class MainWindow : Window
         SetPlaybackProgress(displayedSeconds, durationSeconds);
         ShuffleButton.Opacity = track.ShuffleMode > 0 ? 1 : 0.55;
         UpdateRepeatButton(track.RepeatMode);
-        SetArtwork(NormalizeArtworkUrl(track.Artwork?.Url));
+        _artworkPresenter.Show(NormalizeArtworkUrl(track.Artwork?.Url));
     }
 
     private void UpdateRepeatButton(int repeatMode)
@@ -625,24 +658,11 @@ public sealed partial class MainWindow : Window
                 : null));
     }
 
-    private void SetArtwork(string? url)
+    private void ApplyQueue(QueueSnapshot snapshot, string? currentTrackId = null)
     {
-        if (string.Equals(_artworkUrl, url, StringComparison.Ordinal))
-        {
-            return;
-        }
+        _nextQueueItem = NextTrackLyricsPreloader.SelectNext(snapshot, currentTrackId);
+        _artworkPresenter.PrepareNext(NormalizeArtworkUrl(_nextQueueItem?.ArtworkUrl));
 
-        _artworkUrl = url;
-        var source = Uri.TryCreate(url, UriKind.Absolute, out var artworkUri)
-            ? new BitmapImage(artworkUri)
-            : null;
-        ArtworkImage.Source = source;
-        CurrentQueueArtworkImage.Source = source;
-        _artworkBackdrop.SetArtwork(url);
-    }
-
-    private void ApplyQueue(QueueSnapshot snapshot)
-    {
         var upcoming = snapshot.CurrentIndex >= 0
             ? snapshot.Items.Where(item => item.Index > snapshot.CurrentIndex)
             : snapshot.Items.Where(item => !string.Equals(item.Id, _currentTrackKey, StringComparison.Ordinal));
@@ -654,7 +674,9 @@ public sealed partial class MainWindow : Window
                 item.ArtistName,
                 item.AlbumName,
                 item.DurationInMillis,
-                NormalizeArtworkUrl(item.ArtworkUrl, 160)))
+                NormalizeArtworkUrl(item.ArtworkUrl, 160),
+                item.HasLyrics,
+                item.HasTimeSyncedLyrics))
             .ToArray();
         QueueCollectionSynchronizer.Synchronize(_queueItems, desiredItems);
 
@@ -1828,6 +1850,10 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        _nextTrackLyricsPreloader.Clear();
+        _nextQueueItem = null;
+        _artworkPresenter.PrepareNext(null);
+
         var lyricsSource = LyricsService.ParseSource(SelectedTag(LyricsSourceComboBox, "Auto"));
         var musixmatchApiKey = NormalizeToken(MusixmatchApiKeyPasswordBox.Password);
         if (lyricsSource == LyricsSource.Musixmatch && musixmatchApiKey is null)
@@ -2043,7 +2069,7 @@ public sealed partial class MainWindow : Window
         };
         ApplyTitleBarTheme();
         _trayIconHost.SetLightTheme(RootGrid.ActualTheme == ElementTheme.Light);
-        _artworkBackdrop.Apply(_settings.BackgroundOpacity, _settings.BackgroundBlur);
+        _artworkPresenter.Apply(_settings.BackgroundOpacity, _settings.BackgroundBlur);
         UpdateResponsiveLayout();
         if (_appWindow.Presenter is OverlappedPresenter presenter)
         {
@@ -2098,9 +2124,6 @@ public sealed partial class MainWindow : Window
     private static string? NormalizeToken(string? token) =>
         string.IsNullOrWhiteSpace(token) ? null : token.Trim();
 
-    private static string GetTrackKey(NowPlayingInfo track) =>
-        track.PlayParameters?.Id ?? $"{track.Name}\u001F{track.ArtistName}\u001F{track.AlbumName}";
-
     private static string? NormalizeArtworkUrl(string? url, int size = 800) =>
         url?
             .Replace("{w}", size.ToString(), StringComparison.Ordinal)
@@ -2135,7 +2158,8 @@ public sealed partial class MainWindow : Window
         _lifetimeCancellation.Cancel();
         _taskbarWidgetHost.CommandRequested -= TaskbarWidgetHost_CommandRequested;
         _taskbarWidgetHost.Dispose();
-        _artworkBackdrop.Dispose();
+        _nextTrackLyricsPreloader.Dispose();
+        _artworkPresenter.Dispose();
         _trayIconHost.Dispose();
         _lifetimeCancellation.Dispose();
         _lyricsService.Dispose();
