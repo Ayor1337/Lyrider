@@ -13,7 +13,9 @@ public sealed class QueueItemInfo(
     string artistName,
     string albumName,
     double durationInMillis,
-    string? artworkUrl)
+    string? artworkUrl,
+    bool hasLyrics = false,
+    bool hasTimeSyncedLyrics = false)
 {
     public int Index { get; set; } = index;
 
@@ -28,6 +30,10 @@ public sealed class QueueItemInfo(
     public double DurationInMillis { get; } = durationInMillis;
 
     public string? ArtworkUrl { get; } = artworkUrl;
+
+    public bool HasLyrics { get; } = hasLyrics;
+
+    public bool HasTimeSyncedLyrics { get; } = hasTimeSyncedLyrics;
 
     public string DurationText
     {
