@@ -1,3 +1,4 @@
+using System.Globalization;
 using Lyrider.Models;
 
 namespace Lyrider.Services;
@@ -8,6 +9,12 @@ namespace Lyrider.Services;
 /// </summary>
 internal static class LyricPresentation
 {
+    private static readonly string[] LeadingCreditLabels =
+    [
+        "歌名", "歌手", "演唱", "主唱", "作词", "作詞", "填词", "填詞", "作曲", "编曲", "編曲", "制作人", "製作人",
+        "title", "artist", "singer", "vocals", "lyrics", "lyricist", "composer", "arranger", "producer"
+    ];
+
     public const double ActiveScale = 1.08;
     public const double InactiveScale = 1.0;
     public const double ActiveOpacity = 1.0;
@@ -33,6 +40,22 @@ internal static class LyricPresentation
         }
 
         return activeIndex;
+    }
+
+    public static int FindFirstTaskbarLyricIndex(
+        IReadOnlyList<LyricLineInfo> lines,
+        string? title,
+        string? artist)
+    {
+        for (var index = 0; index < lines.Count; index++)
+        {
+            if (!IsLeadingNonLyricLine(lines[index].Text, title, artist))
+            {
+                return index;
+            }
+        }
+
+        return lines.Count;
     }
 
     public static TimeSpan? DelayUntilNextLine(
@@ -130,6 +153,69 @@ internal static class LyricPresentation
 
     private static double EffectiveViewport(double viewportHeight) =>
         viewportHeight > 0 ? viewportHeight : DefaultViewportHeight;
+
+    private static bool IsLeadingNonLyricLine(string text, string? title, string? artist)
+    {
+        var trimmed = text.Trim();
+        if (trimmed.Length == 0 ||
+            EqualsTrackMetadata(trimmed, title) ||
+            EqualsTrackMetadata(trimmed, artist) ||
+            IsInstrumentalMarker(trimmed) ||
+            IsDecorationOnly(trimmed))
+        {
+            return true;
+        }
+
+        foreach (var label in LeadingCreditLabels)
+        {
+            if (!trimmed.StartsWith(label, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (trimmed.Length == label.Length || IsCreditSeparator(trimmed[label.Length]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool EqualsTrackMetadata(string text, string? metadata) =>
+        !string.IsNullOrWhiteSpace(metadata) &&
+        string.Equals(text, metadata.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsInstrumentalMarker(string text) =>
+        string.Equals(text, "纯音乐", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(text, "純音樂", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(text, "instrumental", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsCreditSeparator(char character) =>
+        char.IsWhiteSpace(character) || character is ':' or '：' or '-' or '—' or '–' or '·' or '/' or '|';
+
+    private static bool IsDecorationOnly(string text)
+    {
+        foreach (var character in text)
+        {
+            var category = char.GetUnicodeCategory(character);
+            if (!char.IsWhiteSpace(character) && category is not (
+                UnicodeCategory.ConnectorPunctuation or
+                UnicodeCategory.DashPunctuation or
+                UnicodeCategory.OpenPunctuation or
+                UnicodeCategory.ClosePunctuation or
+                UnicodeCategory.InitialQuotePunctuation or
+                UnicodeCategory.FinalQuotePunctuation or
+                UnicodeCategory.OtherPunctuation or
+                UnicodeCategory.MathSymbol or
+                UnicodeCategory.OtherSymbol))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }
 
 public readonly record struct LyricLineState(double Opacity, double Scale);
