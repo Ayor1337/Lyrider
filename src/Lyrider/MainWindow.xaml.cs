@@ -663,7 +663,10 @@ public sealed partial class MainWindow : Window
                 nextLyric),
             hasCurrentLyric
                 ? taskbarLyricIndex
-                : null));
+                : null,
+            hasCurrentLyric &&
+                _settings.ShowLyricsTranslation &&
+                !string.IsNullOrWhiteSpace(translation)));
     }
 
     private void ApplyQueue(QueueSnapshot snapshot, string? currentTrackId = null)

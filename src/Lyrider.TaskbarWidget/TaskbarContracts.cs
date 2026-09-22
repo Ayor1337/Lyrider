@@ -8,7 +8,8 @@ public sealed record TaskbarPlaybackState(
     bool IsAvailable,
     string? CurrentLyric = null,
     string? SecondaryLyric = null,
-    int? CurrentLyricIndex = null)
+    int? CurrentLyricIndex = null,
+    bool SecondaryLyricIsTranslation = false)
 {
     public static TaskbarPlaybackState Unavailable { get; } = new(
         string.Empty,

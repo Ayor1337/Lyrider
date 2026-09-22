@@ -31,6 +31,19 @@ public static class TaskbarPresentation
     public static double CalculateMarqueeDistance(double contentWidth, double viewportWidth) =>
         Math.Max(0, contentWidth - viewportWidth);
 
+    internal static double CalculateMarqueeContentWidth(
+        double primaryWidth,
+        double secondaryWidth,
+        bool synchronizeSecondary) =>
+        Math.Max(0, synchronizeSecondary
+            ? Math.Max(primaryWidth, secondaryWidth)
+            : primaryWidth);
+
+    internal static bool ShouldSynchronizeMarquee(TaskbarPlaybackState state) =>
+        state.SecondaryLyricIsTranslation &&
+        !string.IsNullOrWhiteSpace(state.CurrentLyric) &&
+        !string.IsNullOrWhiteSpace(state.SecondaryLyric);
+
     public static double CalculateMarqueeCycleDistance(double contentWidth, double gap) =>
         Math.Max(0, contentWidth) + Math.Max(0, gap);
 
