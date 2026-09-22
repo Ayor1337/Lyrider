@@ -628,16 +628,24 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        var firstTaskbarLyricIndex = LyricPresentation.FindFirstTaskbarLyricIndex(
+            _lyrics,
+            track.Name,
+            track.ArtistName);
+        var taskbarLyricIndex = _currentLyricIndex >= firstTaskbarLyricIndex &&
+            _currentLyricIndex < _lyrics.Count
+                ? _currentLyricIndex
+                : -1;
         var hasCurrentLyric =
             _settings.ShowLyricsInTaskbar &&
             _lyricsAreTimeSynced &&
-            _currentLyricIndex >= 0;
+            taskbarLyricIndex >= 0;
         var translation = hasCurrentLyric &&
-            !string.IsNullOrWhiteSpace(_lyrics[_currentLyricIndex].Translation)
-                ? DisplayLyricText(DisplayTranslationText(_lyrics[_currentLyricIndex].Translation!))
+            !string.IsNullOrWhiteSpace(_lyrics[taskbarLyricIndex].Translation)
+                ? DisplayLyricText(DisplayTranslationText(_lyrics[taskbarLyricIndex].Translation!))
                 : null;
-        var nextLyric = hasCurrentLyric && _currentLyricIndex + 1 < _lyrics.Count
-            ? DisplayLyricText(_lyrics[_currentLyricIndex + 1].Text)
+        var nextLyric = hasCurrentLyric && taskbarLyricIndex + 1 < _lyrics.Count
+            ? DisplayLyricText(_lyrics[taskbarLyricIndex + 1].Text)
             : null;
 
         _taskbarWidgetHost.Update(new TaskbarPlaybackState(
@@ -647,14 +655,14 @@ public sealed partial class MainWindow : Window
             status?.IsPlaying ?? false,
             true,
             hasCurrentLyric
-                ? DisplayLyricText(_lyrics[_currentLyricIndex].Text)
+                ? DisplayLyricText(_lyrics[taskbarLyricIndex].Text)
                 : null,
             TaskbarPresentation.SelectSecondaryLyric(
                 _settings.ShowLyricsTranslation,
                 translation,
                 nextLyric),
             hasCurrentLyric
-                ? _currentLyricIndex
+                ? taskbarLyricIndex
                 : null));
     }
 
@@ -807,7 +815,7 @@ public sealed partial class MainWindow : Window
         }
 
         var nextIndex = LyricPresentation.FindActiveLineIndex(_lyrics, playbackTime);
-        if (nextIndex < 0 || (nextIndex == _currentLyricIndex && !forceScroll))
+        if (nextIndex == _currentLyricIndex && (!forceScroll || nextIndex < 0))
         {
             return false;
         }

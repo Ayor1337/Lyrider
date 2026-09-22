@@ -46,6 +46,85 @@ public sealed class LyricPresentationTests
     }
 
     [TestMethod]
+    public void FindFirstTaskbarLyricIndex_WithChineseCredits_SkipsLeadingMetadata()
+    {
+        IReadOnlyList<LyricLineInfo> lines =
+        [
+            new(0, 1, "测试歌曲"),
+            new(1, 2, "测试歌手"),
+            new(2, 3, "歌手：测试歌手"),
+            new(3, 4, "作词：某人"),
+            new(4, 5, "作曲 某人"),
+            new(5, null, "第一句歌词")
+        ];
+
+        Assert.AreEqual(5, LyricPresentation.FindFirstTaskbarLyricIndex(lines, "测试歌曲", "测试歌手"));
+    }
+
+    [TestMethod]
+    public void FindFirstTaskbarLyricIndex_WithEnglishCreditsAndDecoration_SkipsLeadingMetadata()
+    {
+        IReadOnlyList<LyricLineInfo> lines =
+        [
+            new(0, 1, "♪ ♫"),
+            new(1, 2, "Title: Test Song"),
+            new(2, 3, "Artist - Test Artist"),
+            new(3, 4, "Producer: Someone"),
+            new(4, null, "First lyric")
+        ];
+
+        Assert.AreEqual(4, LyricPresentation.FindFirstTaskbarLyricIndex(lines, "Test Song", "Test Artist"));
+    }
+
+    [TestMethod]
+    public void FindFirstTaskbarLyricIndex_WithInstrumentalMarker_SkipsMarker()
+    {
+        IReadOnlyList<LyricLineInfo> lines = [new(0, 10, "纯音乐"), new(10, null, "第一句歌词")];
+
+        Assert.AreEqual(1, LyricPresentation.FindFirstTaskbarLyricIndex(lines, "Song", "Artist"));
+    }
+
+    [TestMethod]
+    public void FindFirstTaskbarLyricIndex_WithOrdinaryFirstLine_ReturnsZero()
+    {
+        IReadOnlyList<LyricLineInfo> lines = [new(10, null, "第一句歌词")];
+
+        Assert.AreEqual(0, LyricPresentation.FindFirstTaskbarLyricIndex(lines, "Song", "Artist"));
+    }
+
+    [TestMethod]
+    public void FindFirstTaskbarLyricIndex_WithCreditWordInsideLyric_DoesNotSkipLyric()
+    {
+        IReadOnlyList<LyricLineInfo> lines = [new(0, null, "作曲家写下夜色")];
+
+        Assert.AreEqual(0, LyricPresentation.FindFirstTaskbarLyricIndex(lines, "Song", "Artist"));
+    }
+
+    [TestMethod]
+    public void FindFirstTaskbarLyricIndex_WithCreditAfterFirstLyric_StopsScanning()
+    {
+        IReadOnlyList<LyricLineInfo> lines =
+        [
+            new(0, 10, "第一句歌词"),
+            new(10, null, "作词：某人")
+        ];
+
+        Assert.AreEqual(0, LyricPresentation.FindFirstTaskbarLyricIndex(lines, "Song", "Artist"));
+    }
+
+    [TestMethod]
+    public void FindFirstTaskbarLyricIndex_WithOnlyMetadata_ReturnsLineCount()
+    {
+        IReadOnlyList<LyricLineInfo> lines =
+        [
+            new(0, 1, "Instrumental"),
+            new(1, null, "Composer: Someone")
+        ];
+
+        Assert.AreEqual(lines.Count, LyricPresentation.FindFirstTaskbarLyricIndex(lines, "Song", "Artist"));
+    }
+
+    [TestMethod]
     public void DelayUntilNextLine_WhenNextLineIsAhead_ReturnsExactRemainingTime()
     {
         var lines = CreateLines(0, 10, 20);
