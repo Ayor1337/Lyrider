@@ -125,9 +125,16 @@ jobs:
               gh release upload $tag @assets --clobber --repo $env:GITHUB_REPOSITORY
           }
           else {
+              $notesPath = ".github/release-notes/$tag.md"
+              $notesArgs = if (Test-Path -LiteralPath $notesPath) {
+                  @('--notes-file', $notesPath)
+              }
+              else {
+                  @('--generate-notes')
+              }
               gh release create $tag @assets `
                   --verify-tag `
-                  --generate-notes `
+                  @notesArgs `
                   --title $tag `
                   --repo $env:GITHUB_REPOSITORY
           }
