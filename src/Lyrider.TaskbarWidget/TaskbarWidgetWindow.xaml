@@ -156,38 +156,70 @@
                         <TranslateTransform />
                     </StackPanel.RenderTransform>
                     <Grid
-                        x:Name="PrimaryTextViewport"
-                        Height="19"
+                        x:Name="TextViewport"
+                        Height="35"
                         ClipToBounds="True"
-                        SizeChanged="PrimaryTextViewport_SizeChanged">
-                        <Canvas>
-                            <StackPanel
-                                x:Name="MarqueePanel"
-                                Orientation="Horizontal">
-                                <StackPanel.RenderTransform>
-                                    <TranslateTransform />
-                                </StackPanel.RenderTransform>
-                                <TextBlock
-                                    x:Name="TitleText"
-                                    FontSize="14"
-                                    TextWrapping="NoWrap" />
-                                <TextBlock
-                                    x:Name="MarqueeTitleText"
-                                    Margin="24,0,0,0"
-                                    FontSize="14"
-                                    TextWrapping="NoWrap"
-                                    Visibility="Collapsed" />
-                            </StackPanel>
-                        </Canvas>
+                        SizeChanged="TextViewport_SizeChanged">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="19" />
+                            <RowDefinition Height="16" />
+                        </Grid.RowDefinitions>
+                        <Grid ClipToBounds="True">
+                            <Canvas>
+                                <StackPanel
+                                    x:Name="PrimaryMarqueePanel"
+                                    Orientation="Horizontal">
+                                    <StackPanel.RenderTransform>
+                                        <TranslateTransform />
+                                    </StackPanel.RenderTransform>
+                                    <TextBlock
+                                        x:Name="TitleText"
+                                        FontSize="14"
+                                        TextWrapping="NoWrap" />
+                                    <TextBlock
+                                        x:Name="MarqueeTitleText"
+                                        Margin="24,0,0,0"
+                                        FontSize="14"
+                                        TextWrapping="NoWrap"
+                                        Visibility="Collapsed" />
+                                </StackPanel>
+                            </Canvas>
+                        </Grid>
+                        <Grid
+                            Grid.Row="1"
+                            Height="16"
+                            Margin="0,-2,0,0"
+                            ClipToBounds="True">
+                            <TextBlock
+                                x:Name="ArtistText"
+                                FontSize="12"
+                                Opacity="0.64"
+                                TextTrimming="CharacterEllipsis"
+                                TextWrapping="NoWrap" />
+                            <Canvas
+                                x:Name="SynchronizedSecondaryMarquee"
+                                Visibility="Collapsed">
+                                <StackPanel
+                                    x:Name="SecondaryMarqueePanel"
+                                    Orientation="Horizontal">
+                                    <StackPanel.RenderTransform>
+                                        <TranslateTransform />
+                                    </StackPanel.RenderTransform>
+                                    <TextBlock
+                                        x:Name="ScrollingArtistText"
+                                        FontSize="12"
+                                        Opacity="0.64"
+                                        TextWrapping="NoWrap" />
+                                    <TextBlock
+                                        x:Name="MarqueeArtistText"
+                                        Margin="24,0,0,0"
+                                        FontSize="12"
+                                        Opacity="0.64"
+                                        TextWrapping="NoWrap" />
+                                </StackPanel>
+                            </Canvas>
+                        </Grid>
                     </Grid>
-                    <TextBlock
-                        x:Name="ArtistText"
-                        Height="16"
-                        Margin="0,-2,0,0"
-                        FontSize="12"
-                        Opacity="0.64"
-                        TextTrimming="CharacterEllipsis"
-                        TextWrapping="NoWrap" />
                 </StackPanel>
 
                 <StackPanel

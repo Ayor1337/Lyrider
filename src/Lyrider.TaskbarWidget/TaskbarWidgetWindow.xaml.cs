@@ -37,6 +37,7 @@ public partial class TaskbarWidgetWindow : Window
     private bool _isPointerOver;
     private bool _isRefreshingHost;
     private string _primaryText = string.Empty;
+    private string _secondaryText = string.Empty;
     private int _lyricTransitionGeneration;
     private Color _idleBackgroundColor = Color.FromArgb(0x01, 0xFF, 0xFF, 0xFF);
     private Color _hoverBackgroundColor = Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF);
@@ -69,17 +70,25 @@ public partial class TaskbarWidgetWindow : Window
         }
 
         var displayText = TaskbarPresentation.GetDisplayText(state);
-        var primaryTextChanged = !string.Equals(_primaryText, displayText.Primary, StringComparison.Ordinal);
+        var displayTextChanged =
+            !string.Equals(_primaryText, displayText.Primary, StringComparison.Ordinal) ||
+            !string.Equals(_secondaryText, displayText.Secondary, StringComparison.Ordinal);
+        var marqueeModeChanged =
+            TaskbarPresentation.ShouldSynchronizeMarquee(previousState) !=
+            TaskbarPresentation.ShouldSynchronizeMarquee(state);
         var lyricTransitionDirection = TaskbarPresentation.GetLyricTransitionDirection(previousState, state);
         var previousDisplayText = TaskbarPresentation.GetDisplayText(previousState);
         _primaryText = displayText.Primary;
-        if (primaryTextChanged)
+        _secondaryText = displayText.Secondary;
+        if (displayTextChanged || marqueeModeChanged || lyricTransitionDirection != 0)
         {
             StopMarquee();
         }
         TitleText.Text = displayText.Primary;
         MarqueeTitleText.Text = displayText.Primary;
         ArtistText.Text = displayText.Secondary;
+        ScrollingArtistText.Text = displayText.Secondary;
+        MarqueeArtistText.Text = displayText.Secondary;
         PlayPauseIcon.Text = TaskbarPresentation.GetPlayPauseGlyph(state.IsPlaying);
         SetArtwork(state.ArtworkUrl);
         UpdateVisibility();
@@ -87,7 +96,7 @@ public partial class TaskbarWidgetWindow : Window
         {
             AnimateLyricTransition(previousDisplayText, lyricTransitionDirection);
         }
-        else if (primaryTextChanged && !_isPointerOver)
+        else if ((displayTextChanged || marqueeModeChanged) && !_isPointerOver)
         {
             Dispatcher.BeginInvoke(new Action(StartMarquee));
         }
@@ -508,7 +517,7 @@ public partial class TaskbarWidgetWindow : Window
         Dispatcher.BeginInvoke(new Action(StartMarquee));
     }
 
-    private void PrimaryTextViewport_SizeChanged(object sender, SizeChangedEventArgs e)
+    private void TextViewport_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (!_isPointerOver)
         {
@@ -520,20 +529,49 @@ public partial class TaskbarWidgetWindow : Window
     {
         StopMarquee();
         TitleText.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
-        var overflow = TaskbarPresentation.CalculateMarqueeDistance(
+        ScrollingArtistText.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+        var synchronizeSecondary = TaskbarPresentation.ShouldSynchronizeMarquee(_state);
+        var contentWidth = TaskbarPresentation.CalculateMarqueeContentWidth(
             TitleText.DesiredSize.Width,
-            PrimaryTextViewport.ActualWidth);
+            ScrollingArtistText.DesiredSize.Width,
+            synchronizeSecondary);
+        var overflow = TaskbarPresentation.CalculateMarqueeDistance(contentWidth, TextViewport.ActualWidth);
         if (overflow <= 0 || _isPointerOver)
         {
             return;
         }
 
+        TitleText.Width = contentWidth;
+        MarqueeTitleText.Width = contentWidth;
         MarqueeTitleText.Visibility = Visibility.Visible;
+        if (synchronizeSecondary)
+        {
+            ArtistText.Visibility = Visibility.Collapsed;
+            ScrollingArtistText.Width = contentWidth;
+            MarqueeArtistText.Width = contentWidth;
+            SynchronizedSecondaryMarquee.Visibility = Visibility.Visible;
+        }
+
         var cycleDistance = TaskbarPresentation.CalculateMarqueeCycleDistance(
-            TitleText.DesiredSize.Width,
+            contentWidth,
             MarqueeGap);
         var travelDuration = TimeSpan.FromSeconds(cycleDistance / MarqueeSpeed);
         var cycleDuration = MarqueeStartDelay + travelDuration;
+        ((TranslateTransform)PrimaryMarqueePanel.RenderTransform).BeginAnimation(
+            TranslateTransform.XProperty,
+            CreateMarqueeAnimation(cycleDistance, cycleDuration));
+        if (synchronizeSecondary)
+        {
+            ((TranslateTransform)SecondaryMarqueePanel.RenderTransform).BeginAnimation(
+                TranslateTransform.XProperty,
+                CreateMarqueeAnimation(cycleDistance, cycleDuration));
+        }
+    }
+
+    private static DoubleAnimationUsingKeyFrames CreateMarqueeAnimation(
+        double cycleDistance,
+        TimeSpan cycleDuration)
+    {
         var animation = new DoubleAnimationUsingKeyFrames
         {
             RepeatBehavior = RepeatBehavior.Forever
@@ -543,18 +581,24 @@ public partial class TaskbarWidgetWindow : Window
         animation.KeyFrames.Add(new LinearDoubleKeyFrame(
             -cycleDistance,
             KeyTime.FromTimeSpan(cycleDuration)));
-
-        ((TranslateTransform)MarqueePanel.RenderTransform).BeginAnimation(
-            TranslateTransform.XProperty,
-            animation);
+        return animation;
     }
 
     private void StopMarquee()
     {
-        var transform = (TranslateTransform)MarqueePanel.RenderTransform;
-        transform.BeginAnimation(TranslateTransform.XProperty, null);
-        transform.X = 0;
+        var primaryTransform = (TranslateTransform)PrimaryMarqueePanel.RenderTransform;
+        primaryTransform.BeginAnimation(TranslateTransform.XProperty, null);
+        primaryTransform.X = 0;
+        var secondaryTransform = (TranslateTransform)SecondaryMarqueePanel.RenderTransform;
+        secondaryTransform.BeginAnimation(TranslateTransform.XProperty, null);
+        secondaryTransform.X = 0;
         MarqueeTitleText.Visibility = Visibility.Collapsed;
+        ArtistText.Visibility = Visibility.Visible;
+        SynchronizedSecondaryMarquee.Visibility = Visibility.Collapsed;
+        TitleText.Width = double.NaN;
+        MarqueeTitleText.Width = double.NaN;
+        ScrollingArtistText.Width = double.NaN;
+        MarqueeArtistText.Width = double.NaN;
     }
 
     private void AnimateLyricTransition(TaskbarDisplayText outgoingText, int direction)

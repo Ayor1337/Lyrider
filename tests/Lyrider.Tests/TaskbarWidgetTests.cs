@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Xml.Linq;
 using Lyrider.Models;
 using Lyrider.TaskbarWidget;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -184,7 +185,8 @@ public sealed class TaskbarWidgetTests
             true,
             true,
             "Hello",
-            "你好");
+            "你好",
+            SecondaryLyricIsTranslation: true);
 
         var result = TaskbarPresentation.GetDisplayText(state);
 
@@ -258,11 +260,67 @@ public sealed class TaskbarWidgetTests
     }
 
     [TestMethod]
+    public void CalculateMarqueeContentWidth_UsesTheWiderTextLine()
+    {
+        Assert.AreEqual(220, TaskbarPresentation.CalculateMarqueeContentWidth(220, 160, true));
+        Assert.AreEqual(220, TaskbarPresentation.CalculateMarqueeContentWidth(160, 220, true));
+        Assert.AreEqual(160, TaskbarPresentation.CalculateMarqueeContentWidth(160, 220, false));
+        Assert.AreEqual(0, TaskbarPresentation.CalculateMarqueeContentWidth(-1, -2, true));
+    }
+
+    [TestMethod]
     public void CalculateMarqueeCycleDistance_IncludesGapAndClampsInvalidValues()
     {
         Assert.AreEqual(224, TaskbarPresentation.CalculateMarqueeCycleDistance(200, 24));
         Assert.AreEqual(200, TaskbarPresentation.CalculateMarqueeCycleDistance(200, -1));
         Assert.AreEqual(24, TaskbarPresentation.CalculateMarqueeCycleDistance(-1, 24));
+    }
+
+    [TestMethod]
+    public void ShouldSynchronizeMarquee_OnlyReturnsTrueForTranslationSecondaryText()
+    {
+        var nextLyric = CreateLyricState("Current", "Next", 4);
+        var translation = nextLyric with { SecondaryLyricIsTranslation = true };
+
+        Assert.IsFalse(TaskbarPresentation.ShouldSynchronizeMarquee(nextLyric));
+        Assert.IsTrue(TaskbarPresentation.ShouldSynchronizeMarquee(translation));
+        Assert.IsFalse(TaskbarPresentation.ShouldSynchronizeMarquee(
+            translation with { SecondaryLyric = " " }));
+        Assert.IsFalse(TaskbarPresentation.ShouldSynchronizeMarquee(
+            translation with { CurrentLyric = null }));
+    }
+
+    [TestMethod]
+    public void TaskbarLayout_ProvidesSeparatePrimaryAndSynchronizedTranslationMarquees()
+    {
+        var document = XDocument.Load(Path.Combine(
+            AppContext.BaseDirectory,
+            "Fixtures",
+            "TaskbarWidgetWindow.xaml"));
+        var viewport = FindNamedElement(document, "TextViewport");
+        var primaryMarquee = FindNamedElement(document, "PrimaryMarqueePanel");
+        var secondaryMarquee = FindNamedElement(document, "SecondaryMarqueePanel");
+        var synchronizedSecondary = FindNamedElement(document, "SynchronizedSecondaryMarquee");
+        var secondaryText = FindNamedElement(document, "ArtistText");
+        var scrollingSecondaryText = FindNamedElement(document, "ScrollingArtistText");
+        var repeatedSecondaryText = FindNamedElement(document, "MarqueeArtistText");
+
+        Assert.IsNotNull(viewport);
+        Assert.AreEqual("True", viewport.Attribute("ClipToBounds")?.Value);
+        Assert.IsNotNull(primaryMarquee);
+        Assert.AreEqual("Horizontal", primaryMarquee.Attribute("Orientation")?.Value);
+        Assert.IsNotNull(secondaryMarquee);
+        Assert.AreEqual("Horizontal", secondaryMarquee.Attribute("Orientation")?.Value);
+        Assert.IsNotNull(synchronizedSecondary);
+        Assert.AreEqual("Collapsed", synchronizedSecondary.Attribute("Visibility")?.Value);
+        Assert.IsNotNull(secondaryText);
+        Assert.IsNotNull(scrollingSecondaryText);
+        Assert.IsNotNull(repeatedSecondaryText);
+        Assert.AreEqual("CharacterEllipsis", secondaryText.Attribute("TextTrimming")?.Value);
+        Assert.IsTrue(secondaryMarquee.Elements().Contains(scrollingSecondaryText));
+        Assert.IsTrue(secondaryMarquee.Elements().Contains(repeatedSecondaryText));
+        Assert.IsNull(scrollingSecondaryText.Attribute("TextTrimming"));
+        Assert.IsNull(repeatedSecondaryText.Attribute("TextTrimming"));
     }
 
     [TestMethod]
@@ -305,4 +363,11 @@ public sealed class TaskbarWidgetTests
             currentLyric,
             nextLyric,
             currentLyricIndex);
+
+    private static XElement? FindNamedElement(XDocument document, string name)
+    {
+        var xNamespace = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        return document.Descendants().FirstOrDefault(element =>
+            string.Equals(element.Attribute(xNamespace + "Name")?.Value, name, StringComparison.Ordinal));
+    }
 }

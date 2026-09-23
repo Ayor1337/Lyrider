@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <None Include="..\..\src\Lyrider\MainWindow.xaml" Link="Fixtures\MainWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Lyrider.TaskbarWidget\TaskbarWidgetWindow.xaml" Link="Fixtures\TaskbarWidgetWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\Lyrider\Strings\en-US\Resources.resw" Link="Fixtures\Strings\en-US\Resources.resw" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\Lyrider\Strings\zh-CN\Resources.resw" Link="Fixtures\Strings\zh-CN\Resources.resw" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\..\src\Lyrider\Models\AppSettings.cs" Link="Production\AppSettings.cs" />
