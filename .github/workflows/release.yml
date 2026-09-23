@@ -126,7 +126,7 @@ jobs:
           }
           else {
               $notesPath = ".github/release-notes/$tag.md"
-              $notesArgs = if (Test-Path -LiteralPath $notesPath) {
+              [string[]]$notesArgs = if (Test-Path -LiteralPath $notesPath) {
                   @('--notes-file', $notesPath)
               }
               else {
