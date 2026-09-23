@@ -10,6 +10,7 @@
   <data name="Main_003.Text" xml:space="preserve"><value>Play Queue</value></data>
   <data name="Main_004.Text" xml:space="preserve"><value>Lyrics</value></data>
   <data name="Main_005.Text" xml:space="preserve"><value>Settings</value></data>
+  <data name="Main_092.Text" xml:space="preserve"><value>About Lyrider</value></data>
   <data name="Main_006.Text" xml:space="preserve"><value>Exit Lyrider</value></data>
   <data name="Main_007.Text" xml:space="preserve"><value>Not Playing</value></data>
   <data name="Main_008.ToolTipService.ToolTip" xml:space="preserve"><value>More</value></data>

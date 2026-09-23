@@ -64,6 +64,7 @@ public sealed partial class MainWindow : Window
     private bool _isSettingsTransitioning;
     private bool _isRunningSettingsAction;
     private bool _isRunningOnboardingAction;
+    private bool _showAboutAfterMenuCloses;
     private DateTimeOffset? _startupLoadingStartedAt;
     private int _currentLyricIndex = -1;
     private int _refreshCount;
@@ -1187,6 +1188,60 @@ public sealed partial class MainWindow : Window
         ExitApplication();
     }
 
+    private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        _showAboutAfterMenuCloses = true;
+        AppMenuButton.Flyout.Hide();
+    }
+
+    private async void AppMenuFlyout_Closed(object sender, object e)
+    {
+        if (!_showAboutAfterMenuCloses)
+        {
+            return;
+        }
+
+        _showAboutAfterMenuCloses = false;
+        var content = new StackPanel { Spacing = 8 };
+        content.Children.Add(new TextBlock
+        {
+            Text = AppText.Format(
+                "Lyrider 是适用于 Cider 的歌词显示工具。\n\n版本：{0}\n许可证：MIT",
+                "Lyrider is a lyrics display app for Cider.\n\nVersion: {0}\nLicense: MIT",
+                GetAppVersion()),
+            TextWrapping = TextWrapping.Wrap
+        });
+        content.Children.Add(new HyperlinkButton
+        {
+            Content = AppText.Get("GitHub 项目主页", "GitHub project page"),
+            NavigateUri = new Uri("https://github.com/Ayor1337/Lyrider"),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Padding = new Thickness(0)
+        });
+        await ShowSettingsDialogAsync(
+            AppText.Get("关于 Lyrider", "About Lyrider"),
+            content);
+    }
+
+    private static string GetAppVersion()
+    {
+        try
+        {
+            var package = Windows.ApplicationModel.Package.Current;
+            if (!string.Equals(package.Id.Name, "Lyrider", StringComparison.Ordinal))
+            {
+                return AppText.Get("开发版", "Development build");
+            }
+
+            var version = package.Id.Version;
+            return $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}";
+        }
+        catch (Exception)
+        {
+            return AppText.Get("开发版", "Development build");
+        }
+    }
+
     private void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
     {
         if (_isExitRequested || !_settings.MinimizeToTrayOnClose)
@@ -2057,12 +2112,12 @@ public sealed partial class MainWindow : Window
         BackgroundBlurValueText.Text = FormatPercent(BackgroundBlurSlider.Value);
     }
 
-    private async Task ShowSettingsDialogAsync(string title, string message)
+    private async Task ShowSettingsDialogAsync(string title, object content)
     {
         var dialog = new ContentDialog
         {
             Title = title,
-            Content = message,
+            Content = content,
             CloseButtonText = AppText.Get("确定", "OK"),
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = RootGrid.XamlRoot

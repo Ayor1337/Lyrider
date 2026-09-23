@@ -117,7 +117,7 @@
                 ToolTipService.ToolTip="应用菜单">
                 <FontIcon FontSize="16" Glyph="&#xE712;" />
                 <Button.Flyout>
-                    <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                    <MenuFlyout Closed="AppMenuFlyout_Closed" Placement="BottomEdgeAlignedLeft">
                         <MenuFlyoutItem x:Uid="Main_002"
                             x:Name="ConnectionStatusMenuItem"
                             IsEnabled="False"
@@ -144,6 +144,11 @@
                         <MenuFlyoutItem x:Uid="Main_005" Click="MenuSettingsItem_Click" Text="设置">
                             <MenuFlyoutItem.Icon>
                                 <FontIcon Glyph="&#xE713;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem x:Uid="Main_092" Click="AboutMenuItem_Click" Text="关于 Lyrider">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE946;" />
                             </MenuFlyoutItem.Icon>
                         </MenuFlyoutItem>
                         <MenuFlyoutSeparator />
