@@ -27,6 +27,13 @@ public sealed class SettingsLayoutTests
             .Elements()
             .ToArray();
         Assert.AreEqual("50", headerColumns[^1].Attribute("Width")?.Value);
+
+        var connectionDialog = FindNamedElement(document, "ConnectionDialog");
+        Assert.IsNotNull(connectionDialog);
+        Assert.AreEqual("ContentDialog", connectionDialog.Name.LocalName);
+        Assert.IsTrue(FindNamedElement(document, "ApiBaseUrlTextBox")!.Ancestors().Contains(connectionDialog));
+        Assert.IsTrue(FindNamedElement(document, "TokenPasswordBox")!.Ancestors().Contains(connectionDialog));
+        Assert.IsFalse(connectionDialog.Ancestors().Contains(FindNamedElement(document, "SettingsPageGrid")));
     }
 
     [TestMethod]
@@ -71,7 +78,7 @@ public sealed class SettingsLayoutTests
     }
 
     [TestMethod]
-    public void SettingsPage_LyricsSourceSelector_OffersAllProvidersAndProtectedKeyField()
+    public void SettingsPage_LyricsSourceSelector_HidesMusixmatchAndProtectedKeyField()
     {
         var document = XDocument.Load(Path.Combine(
             AppContext.BaseDirectory,
@@ -81,7 +88,7 @@ public sealed class SettingsLayoutTests
         var selector = FindNamedElement(document, "LyricsSourceComboBox");
         Assert.IsNotNull(selector);
         CollectionAssert.AreEqual(
-            new[] { "Auto", "Cider", "Netease", "QqMusic", "Musixmatch", "Lrclib" },
+            new[] { "Auto", "Cider", "Netease", "QqMusic", "Lrclib" },
             selector.Elements().Select(element => element.Attribute("Tag")?.Value).ToArray());
         Assert.AreEqual(
             "LyricsSourceComboBox_SelectionChanged",
@@ -92,6 +99,9 @@ public sealed class SettingsLayoutTests
         Assert.AreEqual(
             "PasswordBox",
             FindNamedElement(document, "MusixmatchApiKeyPasswordBox")?.Name.LocalName);
+        Assert.AreEqual(
+            "Collapsed",
+            FindNamedElement(document, "MusixmatchSettingsRow")?.Parent?.Attribute("Visibility")?.Value);
     }
 
     [TestMethod]

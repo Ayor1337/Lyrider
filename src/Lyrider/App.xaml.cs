@@ -41,9 +41,10 @@ public partial class App : Application
         CultureInfo.DefaultThreadCurrentUICulture = culture;
     }
 
-    protected override void OnLaunched(LaunchActivatedEventArgs args)
+    protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
-        _window = new MainWindow();
-        _window.Activate();
+        var window = new MainWindow();
+        _window = window;
+        await window.StartAsync();
     }
 }

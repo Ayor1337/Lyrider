@@ -50,14 +50,6 @@
   <data name="Main_041.Text" xml:space="preserve"><value>Adjust the timeline lyric text size</value></data>
   <data name="Main_042.Text" xml:space="preserve"><value>Convert Traditional Chinese lyrics</value></data>
   <data name="Main_043.Text" xml:space="preserve"><value>Convert Traditional Chinese lyrics to Simplified Chinese in the lyrics view and taskbar</value></data>
-  <data name="Main_044.Text" xml:space="preserve"><value>Auto-scroll lyrics</value></data>
-  <data name="Main_045.Text" xml:space="preserve"><value>Keep the current lyric one third from the top while playing</value></data>
-  <data name="Main_046.Text" xml:space="preserve"><value>Default view</value></data>
-  <data name="Main_047.Text" xml:space="preserve"><value>Choose what appears on the right when the app starts</value></data>
-  <data name="Main_048.Content" xml:space="preserve"><value>Play Queue</value></data>
-  <data name="Main_049.Content" xml:space="preserve"><value>Lyrics</value></data>
-  <data name="Main_050.Text" xml:space="preserve"><value>Always on top</value></data>
-  <data name="Main_051.Text" xml:space="preserve"><value>Keep Lyrider above other windows</value></data>
   <data name="Main_052.Text" xml:space="preserve"><value>Taskbar playback status</value></data>
   <data name="Main_053.Text" xml:space="preserve"><value>Show playback information beside Widgets on the Windows 11 taskbar</value></data>
   <data name="Main_054.Text" xml:space="preserve"><value>Show lyrics in taskbar</value></data>
@@ -69,8 +61,11 @@
   <data name="Main_060.Text" xml:space="preserve"><value>Read Cider's playback status and send playback commands</value></data>
   <data name="Main_061.Header" xml:space="preserve"><value>API address</value></data>
   <data name="Main_062.Header" xml:space="preserve"><value>App Token (optional)</value></data>
-  <data name="Main_062.PlaceholderText" xml:space="preserve"><value>Encrypted for the current Windows user</value></data>
-  <data name="Main_063.Content" xml:space="preserve"><value>Test Connection</value></data>
+  <data name="Main_062.PlaceholderText" xml:space="preserve"><value>Paste the token copied from Cider</value></data>
+  <data name="Main_063.Title" xml:space="preserve"><value>Cider connection</value></data>
+  <data name="Main_063.PrimaryButtonText" xml:space="preserve"><value>Save</value></data>
+  <data name="Main_063.SecondaryButtonText" xml:space="preserve"><value>Test Connection</value></data>
+  <data name="Main_063.CloseButtonText" xml:space="preserve"><value>Cancel</value></data>
   <data name="Main_064.Text" xml:space="preserve"><value>Connect Cider to get started with Lyrider</value></data>
   <data name="Main_065.Text" xml:space="preserve"><value>Follow these steps to configure an App Token. It is encrypted locally using your current Windows credentials.</value></data>
   <data name="Main_066.Text" xml:space="preserve"><value>Open Cider's connection settings</value></data>
@@ -90,7 +85,7 @@
   <data name="Main_080.Content" xml:space="preserve"><value>Simplified Chinese</value></data>
   <data name="Main_081.Content" xml:space="preserve"><value>English</value></data>
   <data name="Main_082.Text" xml:space="preserve"><value>Lyrics source</value></data>
-  <data name="Main_083.Text" xml:space="preserve"><value>Automatically try Cider, NetEase Cloud Music, QQ Music, Musixmatch, then LRCLIB</value></data>
+  <data name="Main_083.Text" xml:space="preserve"><value>Use Cider lyrics first, then automatically match other sources when unavailable</value></data>
   <data name="Main_084.Content" xml:space="preserve"><value>Automatic</value></data>
   <data name="Main_085.Content" xml:space="preserve"><value>NetEase Cloud Music</value></data>
   <data name="Main_086.Content" xml:space="preserve"><value>QQ Music</value></data>
@@ -99,4 +94,9 @@
   <data name="Main_089.Text" xml:space="preserve"><value>Musixmatch API Key</value></data>
   <data name="Main_090.Text" xml:space="preserve"><value>Only required for Musixmatch and encrypted for the current Windows user</value></data>
   <data name="Main_091.PlaceholderText" xml:space="preserve"><value>Enter API Key</value></data>
+  <data name="Main_093.Text" xml:space="preserve"><value>Checking connection status…</value></data>
+  <data name="Main_094.Text" xml:space="preserve"><value>Create a token in Cider Settings → Connectivity → External applications. Tokens are encrypted and stored only on this device.</value></data>
+  <data name="Main_095.Content" xml:space="preserve"><value>Configure connection</value></data>
+  <data name="Main_096.Text" xml:space="preserve"><value>Silent startup</value></data>
+  <data name="Main_097.Text" xml:space="preserve"><value>Start in the system tray with the main window hidden. Applies on the next launch.</value></data>
 </root>

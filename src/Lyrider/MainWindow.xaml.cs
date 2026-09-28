@@ -63,6 +63,7 @@ public sealed partial class MainWindow : Window
     private bool _isExitRequested;
     private bool _isSettingsTransitioning;
     private bool _isRunningSettingsAction;
+    private bool _isRunningConnectionAction;
     private bool _isRunningOnboardingAction;
     private bool _showAboutAfterMenuCloses;
     private DateTimeOffset? _startupLoadingStartedAt;
@@ -90,6 +91,11 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         _settings = _settingsStore.Load();
+        // The Musixmatch settings are temporarily hidden; keep its saved key for later use.
+        if (LyricsService.ParseSource(_settings.LyricsSource) == LyricsSource.Musixmatch)
+        {
+            _settings.LyricsSource = nameof(LyricsSource.Auto);
+        }
         _ciderService = new CiderService(_settings.ApiBaseUrl);
         _nextTrackLyricsPreloader = new NextTrackLyricsPreloader(_ciderService, _lyricsService);
 
@@ -133,13 +139,31 @@ public sealed partial class MainWindow : Window
         LoadSettingsControls();
         InitializeOnboarding();
         ApplySettings();
-        ShowPanel(_settings.DefaultPanel);
+        ShowPanel("Queue");
 
         _refreshTimer.Tick += RefreshTimer_Tick;
         _lyricTimer.Tick += LyricTimer_Tick;
         Closed += MainWindow_Closed;
         Activated += MainWindow_Activated;
         _isInitialized = true;
+    }
+
+    public async Task StartAsync()
+    {
+        if (!_settings.StartSilently)
+        {
+            Activate();
+            return;
+        }
+
+        Activated -= MainWindow_Activated;
+        StartupProgressRing.IsActive = false;
+        StartupLoadingOverlay.Visibility = Visibility.Collapsed;
+        if (OnboardingPageGrid.Visibility != Visibility.Visible)
+        {
+            await RefreshAsync(forceDetails: true);
+            _refreshTimer.Start();
+        }
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -219,9 +243,8 @@ public sealed partial class MainWindow : Window
 
         foreach (var row in new[] { ThemeSettingsRow, LanguageSettingsRow, BackgroundSettingsRow, BackgroundBlurSettingsRow,
             LyricFontSettingsRow, LyricsSourceSettingsRow, LyricsTranslationSettingsRow, MusixmatchSettingsRow,
-            ChineseLyricsSettingsRow, AutoScrollSettingsRow, DefaultPanelSettingsRow,
-            AlwaysOnTopSettingsRow, TaskbarWidgetSettingsRow, TaskbarLyricsSettingsRow,
-            MinimizeToTraySettingsRow })
+            ChineseLyricsSettingsRow, TaskbarWidgetSettingsRow, TaskbarLyricsSettingsRow,
+            SilentStartupSettingsRow, MinimizeToTraySettingsRow })
         {
             var stacked = RootGrid.ActualWidth < 720;
             row.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
@@ -230,11 +253,13 @@ public sealed partial class MainWindow : Window
             Grid.SetRow((FrameworkElement)row.Children[1], stacked ? 1 : 0);
         }
 
-        var stackConnectionFields = RootGrid.ActualWidth < 820;
-        ConnectionFieldsGrid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
-        ConnectionFieldsGrid.ColumnDefinitions[1].Width = new GridLength(stackConnectionFields ? 0 : 1, GridUnitType.Star);
-        Grid.SetColumn(TokenPasswordBox, stackConnectionFields ? 0 : 1);
-        Grid.SetRow(TokenPasswordBox, stackConnectionFields ? 1 : 0);
+        var stackConnectionHeader = RootGrid.ActualWidth < 720;
+        ConnectionHeaderGrid.ColumnDefinitions[1].Width = stackConnectionHeader
+            ? new GridLength(0) : GridLength.Auto;
+        Grid.SetColumn(ConfigureConnectionButton, stackConnectionHeader ? 0 : 1);
+        Grid.SetRow(ConfigureConnectionButton, stackConnectionHeader ? 1 : 0);
+        ConfigureConnectionButton.HorizontalAlignment = stackConnectionHeader
+            ? HorizontalAlignment.Left : HorizontalAlignment.Right;
     }
 
     private async void MainWindow_Activated(object sender, WindowActivatedEventArgs args)
@@ -506,6 +531,8 @@ public sealed partial class MainWindow : Window
         ConnectionStatusIcon.Foreground = result.State == CiderConnectionState.Connected
             ? (Brush)RootGrid.Resources["ConnectedBrush"]
             : (Brush)RootGrid.Resources["DisconnectedBrush"];
+        SettingsConnectionStatusText.Text = result.Message;
+        SettingsConnectionStatusIcon.Foreground = ConnectionStatusIcon.Foreground;
     }
 
     private void UpdatePlaybackStatus(PlaybackStatus? status)
@@ -907,8 +934,7 @@ public sealed partial class MainWindow : Window
             }
         }
 
-        if (_settings.AutoScrollLyrics &&
-            (forceScroll || DateTimeOffset.Now - _lastManualLyricsScroll > TimeSpan.FromSeconds(4)))
+        if (forceScroll || DateTimeOffset.Now - _lastManualLyricsScroll > TimeSpan.FromSeconds(4))
         {
             ScrollToCurrentLyric(animate: true);
         }
@@ -1264,6 +1290,7 @@ public sealed partial class MainWindow : Window
             }
 
             _appWindow.Show(true);
+            Activate();
         });
     }
 
@@ -1480,7 +1507,7 @@ public sealed partial class MainWindow : Window
         await ShowPlayerPanelAsync(null);
     }
 
-    private async void TestConnectionButton_Click(object sender, RoutedEventArgs e)
+    private async void ConfigureConnectionButton_Click(object sender, RoutedEventArgs e)
     {
         if (!BeginSettingsAction())
         {
@@ -1489,12 +1516,68 @@ public sealed partial class MainWindow : Window
 
         try
         {
+            ApiBaseUrlTextBox.Text = _settings.ApiBaseUrl;
+            TokenPasswordBox.Password = _appToken ?? string.Empty;
+            ConnectionTestInfoBar.IsOpen = false;
+            ConnectionDialog.XamlRoot = RootGrid.XamlRoot;
+            ConnectionDialog.RequestedTheme = RootGrid.ActualTheme;
+            await ConnectionDialog.ShowAsync();
+        }
+        finally
+        {
+            TokenPasswordBox.Password = string.Empty;
+            EndSettingsAction();
+        }
+    }
+
+    private async void ConnectionDialog_SecondaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
+    {
+        args.Cancel = true;
+        var deferral = args.GetDeferral();
+        SetConnectionDialogBusy(true);
+        try
+        {
             await TestConnectionAsync();
         }
         finally
         {
-            EndSettingsAction();
+            SetConnectionDialogBusy(false);
+            deferral.Complete();
         }
+    }
+
+    private async void ConnectionDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
+    {
+        args.Cancel = true;
+        var deferral = args.GetDeferral();
+        SetConnectionDialogBusy(true);
+        try
+        {
+            if (SaveConnectionSettings())
+            {
+                await RefreshAsync(forceDetails: true);
+                args.Cancel = false;
+            }
+        }
+        finally
+        {
+            SetConnectionDialogBusy(false);
+            deferral.Complete();
+        }
+    }
+
+    private void ConnectionDialog_Closing(ContentDialog sender, ContentDialogClosingEventArgs args)
+    {
+        args.Cancel = _isRunningConnectionAction;
+    }
+
+    private void SetConnectionDialogBusy(bool isBusy)
+    {
+        _isRunningConnectionAction = isBusy;
+        ConnectionDialog.IsPrimaryButtonEnabled = !isBusy;
+        ConnectionDialog.IsSecondaryButtonEnabled = !isBusy;
+        ApiBaseUrlTextBox.IsEnabled = !isBusy;
+        TokenPasswordBox.IsEnabled = !isBusy;
     }
 
     private void OnboardingTokenPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
@@ -1862,31 +1945,86 @@ public sealed partial class MainWindow : Window
         if (!Uri.TryCreate(ApiBaseUrlTextBox.Text, UriKind.Absolute, out var uri) ||
             uri.Scheme is not ("http" or "https"))
         {
-            await ShowSettingsDialogAsync(
+            ShowConnectionTestResult(
+                InfoBarSeverity.Error,
                 AppText.Get("连接测试", "Connection test"),
                 AppText.Get("API 地址必须是有效的 HTTP 或 HTTPS 地址", "The API address must be a valid HTTP or HTTPS address"));
             return;
         }
 
-        TestConnectionButton.Content = AppText.Get("正在测试…", "Testing…");
+        ConnectionTestInfoBar.IsOpen = false;
+        ConnectionDialog.SecondaryButtonText = AppText.Get("正在测试…", "Testing…");
         try
         {
             using var service = new CiderService(ApiBaseUrlTextBox.Text);
             var result = await service.GetNowPlayingAsync(
                 NormalizeToken(TokenPasswordBox.Password),
                 _lifetimeCancellation.Token);
-            await ShowSettingsDialogAsync(
+            ShowConnectionTestResult(
+                result.State == CiderConnectionState.Connected ? InfoBarSeverity.Success : InfoBarSeverity.Error,
                 result.State == CiderConnectionState.Connected
                     ? AppText.Get("连接成功", "Connection successful")
                     : AppText.Get("连接失败", "Connection failed"),
                 result.State == CiderConnectionState.Connected
-                    ? AppText.Get("已成功连接到 Cider 本地 API。", "Connected to the local Cider API.")
+                    ? AppText.Get("已成功连接到 Cider 本地 API。保存设置后生效。", "Connected to the local Cider API. Save settings to apply.")
                     : result.Message);
         }
         finally
         {
-            TestConnectionButton.Content = AppText.Get("测试连接", "Test Connection");
+            ConnectionDialog.SecondaryButtonText = AppText.Get("测试连接", "Test Connection");
         }
+    }
+
+    private void ShowConnectionTestResult(InfoBarSeverity severity, string title, string message)
+    {
+        ConnectionTestInfoBar.Severity = severity;
+        ConnectionTestInfoBar.Title = title;
+        ConnectionTestInfoBar.Message = message;
+        ConnectionTestInfoBar.IsOpen = true;
+    }
+
+    private bool SaveConnectionSettings()
+    {
+        var apiBaseUrl = ApiBaseUrlTextBox.Text.Trim();
+        if (!Uri.TryCreate(apiBaseUrl, UriKind.Absolute, out var uri) ||
+            uri.Scheme is not ("http" or "https"))
+        {
+            ShowConnectionTestResult(
+                InfoBarSeverity.Error,
+                AppText.Get("无法保存连接", "Could not save connection"),
+                AppText.Get("API 地址必须是有效的 HTTP 或 HTTPS 地址", "The API address must be a valid HTTP or HTTPS address"));
+            return false;
+        }
+
+        var token = NormalizeToken(TokenPasswordBox.Password);
+        if (!_tokenStore.TrySave(token))
+        {
+            ShowConnectionTestResult(
+                InfoBarSeverity.Error,
+                AppText.Get("无法保存连接", "Could not save connection"),
+                AppText.Get("无法保存 Token", "Could not save the token"));
+            return false;
+        }
+
+        var previousApiBaseUrl = _settings.ApiBaseUrl;
+        _settings.ApiBaseUrl = apiBaseUrl;
+        if (!_settingsStore.TrySave(_settings))
+        {
+            _tokenStore.TrySave(_appToken);
+            _settings.ApiBaseUrl = previousApiBaseUrl;
+            ShowConnectionTestResult(
+                InfoBarSeverity.Error,
+                AppText.Get("无法保存连接", "Could not save connection"),
+                AppText.Get("无法保存应用设置", "Could not save the app settings"));
+            return false;
+        }
+
+        _ciderService.TryUpdateBaseAddress(apiBaseUrl);
+        _appToken = token;
+        _nextTrackLyricsPreloader.Clear();
+        _nextQueueItem = null;
+        _artworkPresenter.PrepareNext(null);
+        return true;
     }
 
     private async void SaveSettingsButton_Click(object sender, RoutedEventArgs e)
@@ -1908,64 +2046,23 @@ public sealed partial class MainWindow : Window
 
     private async Task SaveSettingsAsync()
     {
-        if (!_ciderService.TryUpdateBaseAddress(ApiBaseUrlTextBox.Text))
-        {
-            await ShowSettingsDialogAsync(
-                AppText.Get("无法保存设置", "Could not save settings"),
-                AppText.Get("API 地址必须是有效的 HTTP 或 HTTPS 地址", "The API address must be a valid HTTP or HTTPS address"));
-            return;
-        }
-
         _nextTrackLyricsPreloader.Clear();
         _nextQueueItem = null;
         _artworkPresenter.PrepareNext(null);
 
         var lyricsSource = LyricsService.ParseSource(SelectedTag(LyricsSourceComboBox, "Auto"));
-        var musixmatchApiKey = NormalizeToken(MusixmatchApiKeyPasswordBox.Password);
-        if (lyricsSource == LyricsSource.Musixmatch && musixmatchApiKey is null)
-        {
-            await ShowSettingsDialogAsync(
-                AppText.Get("无法保存设置", "Could not save settings"),
-                AppText.Get(
-                    "选择 Musixmatch 歌词源时必须填写 API Key",
-                    "An API Key is required when Musixmatch is selected as the lyrics source"));
-            return;
-        }
-
-        var token = NormalizeToken(TokenPasswordBox.Password);
-        if (!_tokenStore.TrySave(token))
-        {
-            await ShowSettingsDialogAsync(
-                AppText.Get("无法保存设置", "Could not save settings"),
-                AppText.Get("无法保存 Token", "Could not save the token"));
-            return;
-        }
-
-        if (!_musixmatchKeyStore.TrySave(musixmatchApiKey))
-        {
-            await ShowSettingsDialogAsync(
-                AppText.Get("无法保存设置", "Could not save settings"),
-                AppText.Get(
-                    "无法保存 Musixmatch API Key",
-                    "Could not save the Musixmatch API Key"));
-            return;
-        }
-
-        _settings.ApiBaseUrl = ApiBaseUrlTextBox.Text.Trim();
         _settings.Theme = SelectedTag(ThemeComboBox, "System");
         var previousLanguage = _settings.Language;
         _settings.Language = SelectedTag(LanguageComboBox, "System");
         _settings.LyricFontSize = LyricFontSizeSlider.Value;
-        _settings.AutoScrollLyrics = AutoScrollToggle.IsOn;
         _settings.ConvertTraditionalLyricsToSimplified = ChineseLyricsToggle.IsOn;
         _settings.LyricsSource = lyricsSource.ToString();
         _settings.ShowLyricsTranslation =
             LyricsService.SupportsTranslation(lyricsSource) && LyricsTranslationToggle.IsOn;
-        _settings.AlwaysOnTop = AlwaysOnTopToggle.IsOn;
         _settings.TaskbarWidgetEnabled = TaskbarWidgetToggle.IsOn;
         _settings.ShowLyricsInTaskbar = TaskbarLyricsToggle.IsOn;
+        _settings.StartSilently = SilentStartupToggle.IsOn;
         _settings.MinimizeToTrayOnClose = MinimizeToTrayToggle.IsOn;
-        _settings.DefaultPanel = SelectedTag(DefaultPanelComboBox, "Queue");
         _settings.BackgroundOpacity = BackgroundOpacitySlider.Value / 100;
         _settings.BackgroundBlur = BackgroundBlurSlider.Value;
 
@@ -1977,8 +2074,6 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        _appToken = token;
-        _musixmatchApiKey = musixmatchApiKey;
         ApplySettings();
         var taskbarWidgetUnsupported = _settings.TaskbarWidgetEnabled && !_taskbarWidgetHost.IsSupported;
         await RefreshAsync(forceDetails: true);
@@ -2004,7 +2099,7 @@ public sealed partial class MainWindow : Window
 
         _isRunningSettingsAction = true;
         SaveSettingsButton.IsEnabled = false;
-        TestConnectionButton.IsEnabled = false;
+        ConfigureConnectionButton.IsEnabled = false;
         return true;
     }
 
@@ -2012,7 +2107,7 @@ public sealed partial class MainWindow : Window
     {
         _isRunningSettingsAction = false;
         SaveSettingsButton.IsEnabled = true;
-        TestConnectionButton.IsEnabled = true;
+        ConfigureConnectionButton.IsEnabled = true;
     }
 
     private void LoadSavedSecrets()
@@ -2020,7 +2115,6 @@ public sealed partial class MainWindow : Window
         if (_tokenStore.TryLoad(out var savedToken))
         {
             _appToken = savedToken;
-            TokenPasswordBox.Password = savedToken ?? string.Empty;
         }
         else
         {
@@ -2084,24 +2178,20 @@ public sealed partial class MainWindow : Window
 
     private void LoadSettingsControls()
     {
-        ApiBaseUrlTextBox.Text = _settings.ApiBaseUrl;
-        TokenPasswordBox.Password = _appToken ?? string.Empty;
         SelectByTag(ThemeComboBox, _settings.Theme);
         SelectByTag(LanguageComboBox, _settings.Language);
-        SelectByTag(DefaultPanelComboBox, _settings.DefaultPanel);
         var lyricsSource = LyricsService.ParseSource(_settings.LyricsSource);
         SelectByTag(LyricsSourceComboBox, lyricsSource.ToString());
         LyricFontSizeSlider.Value = _settings.LyricFontSize;
-        AutoScrollToggle.IsOn = _settings.AutoScrollLyrics;
         ChineseLyricsToggle.IsOn = _settings.ConvertTraditionalLyricsToSimplified;
         _settings.ShowLyricsTranslation =
             LyricsService.SupportsTranslation(lyricsSource) && _settings.ShowLyricsTranslation;
         LyricsTranslationToggle.IsOn = _settings.ShowLyricsTranslation;
         UpdateLyricsTranslationAvailability();
         MusixmatchApiKeyPasswordBox.Password = _musixmatchApiKey ?? string.Empty;
-        AlwaysOnTopToggle.IsOn = _settings.AlwaysOnTop;
         TaskbarWidgetToggle.IsOn = _settings.TaskbarWidgetEnabled;
         TaskbarLyricsToggle.IsOn = _settings.ShowLyricsInTaskbar;
+        SilentStartupToggle.IsOn = _settings.StartSilently;
         MinimizeToTrayToggle.IsOn = _settings.MinimizeToTrayOnClose;
         // The sliders work in whole percentages while the model keeps the 0–1 fraction, so
         // settings files written by earlier versions keep their original look.
@@ -2110,6 +2200,7 @@ public sealed partial class MainWindow : Window
         LyricFontSizeValueText.Text = FormatFontSize(LyricFontSizeSlider.Value);
         BackgroundOpacityValueText.Text = FormatPercent(BackgroundOpacitySlider.Value);
         BackgroundBlurValueText.Text = FormatPercent(BackgroundBlurSlider.Value);
+        ConnectionTestInfoBar.IsOpen = false;
     }
 
     private async Task ShowSettingsDialogAsync(string title, object content)
@@ -2137,11 +2228,6 @@ public sealed partial class MainWindow : Window
         _trayIconHost.SetLightTheme(RootGrid.ActualTheme == ElementTheme.Light);
         _artworkPresenter.Apply(_settings.BackgroundOpacity, _settings.BackgroundBlur);
         UpdateResponsiveLayout();
-        if (_appWindow.Presenter is OverlappedPresenter presenter)
-        {
-            presenter.IsAlwaysOnTop = _settings.AlwaysOnTop;
-        }
-
         if (_settings.TaskbarWidgetEnabled && _taskbarWidgetHost.IsSupported)
         {
             _taskbarWidgetHost.Start();
@@ -2216,7 +2302,10 @@ public sealed partial class MainWindow : Window
     {
         _appWindow.Closing -= AppWindow_Closing;
         RootGrid.ActualThemeChanged -= RootGrid_ActualThemeChanged;
-        RootGrid.XamlRoot.Changed -= XamlRoot_Changed;
+        if (RootGrid.XamlRoot is { } xamlRoot)
+        {
+            xamlRoot.Changed -= XamlRoot_Changed;
+        }
         _refreshTimer.Stop();
         _lyricTimer.Stop();
         CancelPlaybackSeekDebounce();
