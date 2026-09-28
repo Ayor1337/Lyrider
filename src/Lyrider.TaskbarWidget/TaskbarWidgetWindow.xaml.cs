@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -14,6 +15,7 @@ public partial class TaskbarWidgetWindow : Window
 {
     private const double LogicalWidth = 216;
     private const double LogicalHeight = 40;
+    private const double RightAnchorGap = 24;
     private const double MarqueeSpeed = 30;
     private const double MarqueeGap = 24;
     private static readonly TimeSpan MarqueeStartDelay = TimeSpan.FromSeconds(1);
@@ -30,9 +32,17 @@ public partial class TaskbarWidgetWindow : Window
     private const int WmImeNotify = 0x0282;
 
     private TaskbarPlaybackState _state = TaskbarPlaybackState.Unavailable;
-    private Task<(PixelRect? Frame, PixelRect? Widgets, PixelRect? SystemTray)>? _automationQuery;
+    private Task<AutomationBounds>? _automationQuery;
+    private readonly TaskbarPlacementAnimation _placementAnimation = new();
+    private readonly TranslateTransform _placementTransform = new();
+    private readonly Stopwatch _placementClock = Stopwatch.StartNew();
+    private HostContext? _hostContext;
+    private PixelRect? _automationFrame;
+    private (int Width, int Height)? _widgetSize;
+    private AppliedLayout? _appliedLayout;
+    private AnimationLayout? _animationLayout;
+    private bool _isAnimatingPlacement;
     private string? _artworkUrl;
-    private nint _taskbarHandle;
     private bool _isAttached;
     private bool _isPointerOver;
     private bool _isRefreshingHost;
@@ -43,6 +53,18 @@ public partial class TaskbarWidgetWindow : Window
     private Color _hoverBackgroundColor = Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF);
     private readonly SolidColorBrush _rootBackgroundBrush = new();
 
+    private readonly record struct AutomationBounds(
+        bool Succeeded, PixelRect? Frame, PixelRect? Widgets, PixelRect? SystemTray);
+
+    private readonly record struct HostContext(
+        nint Handle, PixelRect Rect, uint Dpi, TaskbarAlignment Alignment);
+
+    private readonly record struct AppliedLayout(
+        PixelPoint Position, int Width, int Height, double Scale, PixelRect HitRegion);
+
+    private readonly record struct AnimationLayout(
+        HostContext Host, PixelRect? Widgets, int WidgetWidth, int WidgetHeight);
+
     public TaskbarWidgetWindow()
     {
         InitializeComponent();
@@ -51,8 +73,10 @@ public partial class TaskbarWidgetWindow : Window
         NextButton.ToolTip = WidgetText.Get("下一首", "Next");
         Opacity = 0;
         RootBorder.Background = _rootBackgroundBrush;
+        RootBorder.RenderTransform = _placementTransform;
         ApplySystemTheme();
         SourceInitialized += TaskbarWidgetWindow_SourceInitialized;
+        Closed += (_, _) => StopPlacementAnimation();
     }
 
     public event Action<TaskbarPlaybackCommand>? CommandRequested;
@@ -113,63 +137,87 @@ public partial class TaskbarWidgetWindow : Window
         try
         {
             ApplySystemTheme();
-            var taskbarHandle = NativeMethods.FindWindow(TaskbarClassName, null);
-            if (taskbarHandle == nint.Zero ||
-                !NativeMethods.GetWindowRect(taskbarHandle, out var nativeTaskbarRect))
-            {
-                DetachAndHide();
-                return;
-            }
-
-            var taskbarRect = nativeTaskbarRect.ToPixelRect();
-            if (taskbarRect.IsEmpty || taskbarRect.Height >= taskbarRect.Width)
-            {
-                DetachAndHide();
-                return;
-            }
-
-            if (_taskbarHandle != taskbarHandle)
-            {
-                _taskbarHandle = taskbarHandle;
-                _automationQuery = null;
-            }
-
-            var automationBounds = await GetAutomationBoundsAsync(taskbarHandle);
             cancellationToken.ThrowIfCancellationRequested();
-            var frame = IsUsableFrame(automationBounds.Frame, taskbarRect)
-                ? automationBounds.Frame!.Value
+            var context = GetHostContext();
+            if (context is not HostContext host)
+            {
+                DetachAndHide();
+                return;
+            }
+
+            if (_hostContext != host)
+            {
+                ResetPlacement();
+                _hostContext = host;
+            }
+
+            var taskbarHandle = host.Handle;
+            var taskbarRect = host.Rect;
+            var automationBounds = await GetAutomationBoundsAsync(taskbarHandle, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (GetHostContext() != host)
+            {
+                // Explorer, DPI or taskbar settings changed while UI Automation was running.
+                DetachAndHide();
+                return;
+            }
+
+            if (automationBounds.Succeeded)
+            {
+                _automationFrame = IsInsideFrame(automationBounds.Frame, taskbarRect)
+                    ? automationBounds.Frame
+                    : null;
+            }
+            // Keep dimensions stable when a right-side anchor query temporarily fails.
+            var frame = automationBounds.Succeeded || host.Alignment == TaskbarAlignment.Left
+                ? _automationFrame ?? taskbarRect
                 : taskbarRect;
             var widgets = IsInsideFrame(automationBounds.Widgets, frame)
                 ? automationBounds.Widgets
                 : null;
-            var systemTrayBounds = GetSystemTrayBounds(taskbarHandle) ?? automationBounds.SystemTray;
-            var systemTray = IsInsideFrame(systemTrayBounds, taskbarRect)
-                ? systemTrayBounds
-                : null;
-            var dpi = Math.Max(96u, NativeMethods.GetDpiForWindow(taskbarHandle));
-            var scale = dpi / 96d;
+            var nativeTray = GetSystemTrayBounds(taskbarHandle);
+            var systemTray = IsInsideFrame(nativeTray, taskbarRect)
+                ? nativeTray
+                : IsInsideFrame(automationBounds.SystemTray, taskbarRect)
+                    ? automationBounds.SystemTray
+                    : null;
+            var scale = host.Dpi / 96d;
             var physicalWidth = Math.Max(1, (int)Math.Round(LogicalWidth * scale));
             var desiredHeight = (int)Math.Round(LogicalHeight * scale);
             var physicalHeight = Math.Max(1, Math.Min(desiredHeight, frame.Height - (int)Math.Round(4 * scale)));
+            if (_widgetSize != (physicalWidth, physicalHeight))
+            {
+                StopPlacementAnimation();
+                _placementAnimation.Reset();
+                _appliedLayout = null;
+                _widgetSize = (physicalWidth, physicalHeight);
+            }
+            var gap = Math.Max(1, (int)Math.Round(
+                (host.Alignment == TaskbarAlignment.Left ? RightAnchorGap : 2) * scale));
             var placement = TaskbarPlacement.Calculate(
                 frame,
                 widgets,
                 systemTray,
-                GetTaskbarAlignment(),
+                host.Alignment,
                 physicalWidth,
                 physicalHeight,
-                Math.Max(1, (int)Math.Round(2 * scale)),
+                gap,
                 Math.Max(1, (int)Math.Round(12 * scale)));
             if (placement is not PixelPoint safePlacement)
             {
-                DetachAndHide();
+                _isAttached = false;
+                _appliedLayout = null;
+                HideWidget();
                 return;
             }
             var handle = Handle;
-            var taskbarWidth = taskbarRect.Width;
-            var taskbarHeight = taskbarRect.Height;
-            ApplyChildWindowStyles(handle);
-            if (NativeMethods.GetParent(handle) != taskbarHandle)
+            var parentChanged = NativeMethods.GetParent(handle) != taskbarHandle;
+            if (!_isAttached || parentChanged)
+            {
+                _appliedLayout = null;
+                ApplyChildWindowStyles(handle);
+            }
+            if (parentChanged)
             {
                 NativeMethods.SetParent(handle, taskbarHandle);
                 if (NativeMethods.GetParent(handle) != taskbarHandle)
@@ -178,61 +226,32 @@ public partial class TaskbarWidgetWindow : Window
                     return;
                 }
             }
-            var clientPoint = new NativePoint { X = safePlacement.X, Y = safePlacement.Y };
-            if (!NativeMethods.ScreenToClient(taskbarHandle, ref clientPoint))
+            var now = _placementClock.Elapsed;
+            var animate = host.Alignment == TaskbarAlignment.Left &&
+                _isAttached && !parentChanged && _appliedLayout is not null &&
+                TaskbarPresentation.ShouldShow(_state);
+            int? maximumX = host.Alignment == TaskbarAlignment.Left ? safePlacement.X + gap : null;
+            if (host.Alignment == TaskbarAlignment.Left && !automationBounds.Succeeded &&
+                _placementAnimation.GetPosition(now) is PixelPoint current)
+            {
+                // A missing Widgets sample must not send us right toward an unknown boundary.
+                safePlacement = safePlacement with { X = Math.Min(current.X, safePlacement.X) };
+            }
+            _animationLayout = new AnimationLayout(host, widgets, physicalWidth, physicalHeight);
+            _placementAnimation.MoveTo(safePlacement, now, animate, maximumX);
+            if (!ApplyPlacement(_placementAnimation.GetPosition(now)!.Value, _animationLayout.Value))
             {
                 DetachAndHide();
                 return;
             }
-
-            Canvas.SetLeft(RootBorder, clientPoint.X / scale);
-            Canvas.SetTop(RootBorder, clientPoint.Y / scale);
-            HostCanvas.Width = taskbarWidth / scale;
-            HostCanvas.Height = taskbarHeight / scale;
-            HostCanvas.UpdateLayout();
-            if (!NativeMethods.SetWindowPos(
-                    handle,
-                    nint.Zero,
-                    0,
-                    0,
-                    taskbarWidth,
-                    taskbarHeight,
-                    NativeMethods.SwpNoZOrder |
-                    NativeMethods.SwpNoActivate |
-                    NativeMethods.SwpAsyncWindowPos |
-                    NativeMethods.SwpShowWindow))
+            if (_placementAnimation.IsAnimating)
             {
-                DetachAndHide();
-                return;
+                StartPlacementAnimation();
             }
-
-            var hitRegion = TaskbarPlacement.CalculateHitRegion(
-                taskbarRect,
-                widgets,
-                safePlacement,
-                physicalWidth,
-                physicalHeight,
-                0,
-                0);
-            var region = NativeMethods.CreateRectRgn(
-                hitRegion.Left - taskbarRect.Left,
-                hitRegion.Top - taskbarRect.Top,
-                hitRegion.Right - taskbarRect.Left,
-                hitRegion.Bottom - taskbarRect.Top);
-            if (region == nint.Zero)
+            else
             {
-                DetachAndHide();
-                return;
+                StopPlacementAnimation();
             }
-
-            if (NativeMethods.SetWindowRgn(handle, region, true) == 0)
-            {
-                NativeMethods.DeleteObject(region);
-                DetachAndHide();
-                return;
-            }
-
-            // The system owns the region after SetWindowRgn succeeds.
             _isAttached = true;
             UpdateVisibility();
         }
@@ -247,6 +266,116 @@ public partial class TaskbarWidgetWindow : Window
         finally
         {
             _isRefreshingHost = false;
+        }
+    }
+
+    private bool ApplyPlacement(PixelPoint placement, AnimationLayout layout)
+    {
+        var host = layout.Host;
+        var scale = host.Dpi / 96d;
+        var clientPoint = new NativePoint { X = placement.X, Y = placement.Y };
+        if (!NativeMethods.ScreenToClient(host.Handle, ref clientPoint))
+        {
+            return false;
+        }
+
+        var position = new PixelPoint(clientPoint.X, clientPoint.Y);
+        var sizeChanged = _appliedLayout is not AppliedLayout previousSize ||
+            previousSize.Width != host.Rect.Width || previousSize.Height != host.Rect.Height ||
+            previousSize.Scale != scale;
+        if (sizeChanged)
+        {
+            HostCanvas.Width = host.Rect.Width / scale;
+            HostCanvas.Height = host.Rect.Height / scale;
+            HostCanvas.UpdateLayout();
+            if (!NativeMethods.SetWindowPos(
+                Handle, nint.Zero, 0, 0, host.Rect.Width, host.Rect.Height,
+                NativeMethods.SwpNoZOrder | NativeMethods.SwpNoActivate |
+                NativeMethods.SwpAsyncWindowPos | NativeMethods.SwpShowWindow))
+            {
+                return false;
+            }
+        }
+
+        var hitRegion = TaskbarPlacement.CalculateHitRegion(
+            host.Rect, layout.Widgets, placement, layout.WidgetWidth, layout.WidgetHeight, 0, 0);
+        var clientRegion = new PixelRect(
+            hitRegion.Left - host.Rect.Left, hitRegion.Top - host.Rect.Top,
+            hitRegion.Right - host.Rect.Left, hitRegion.Bottom - host.Rect.Top);
+        if (_appliedLayout is not AppliedLayout previousRegion || previousRegion.HitRegion != clientRegion)
+        {
+            var region = NativeMethods.CreateRectRgn(
+                clientRegion.Left, clientRegion.Top, clientRegion.Right, clientRegion.Bottom);
+            if (region == nint.Zero)
+            {
+                return false;
+            }
+            if (NativeMethods.SetWindowRgn(Handle, region, true) == 0)
+            {
+                NativeMethods.DeleteObject(region);
+                return false;
+            }
+            // The system owns the region after SetWindowRgn succeeds.
+        }
+
+        if (_appliedLayout is not AppliedLayout previousPosition ||
+            previousPosition.Position != position || previousPosition.Scale != scale)
+        {
+            // RenderTransform avoids a full WPF layout pass on each animation frame.
+            _placementTransform.X = clientPoint.X / scale;
+            _placementTransform.Y = clientPoint.Y / scale;
+        }
+        _appliedLayout = new AppliedLayout(position, host.Rect.Width, host.Rect.Height, scale, clientRegion);
+        return true;
+    }
+
+    private void StartPlacementAnimation()
+    {
+        if (_isAnimatingPlacement)
+        {
+            return;
+        }
+        _isAnimatingPlacement = true;
+        CompositionTarget.Rendering += PlacementAnimation_Rendering;
+    }
+
+    private void StopPlacementAnimation()
+    {
+        if (!_isAnimatingPlacement)
+        {
+            return;
+        }
+        CompositionTarget.Rendering -= PlacementAnimation_Rendering;
+        _isAnimatingPlacement = false;
+    }
+
+    private void PlacementAnimation_Rendering(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (_animationLayout is not AnimationLayout layout ||
+                _placementAnimation.GetPosition(_placementClock.Elapsed) is not PixelPoint position)
+            {
+                StopPlacementAnimation();
+                return;
+            }
+            if (!NativeMethods.IsWindow(layout.Host.Handle) ||
+                !NativeMethods.GetWindowRect(layout.Host.Handle, out var rect) ||
+                rect.ToPixelRect() != layout.Host.Rect ||
+                NativeMethods.GetDpiForWindow(layout.Host.Handle) != layout.Host.Dpi ||
+                !ApplyPlacement(position, layout))
+            {
+                DetachAndHide();
+                return;
+            }
+            if (!_placementAnimation.IsAnimating)
+            {
+                StopPlacementAnimation();
+            }
+        }
+        catch (Exception)
+        {
+            DetachAndHide();
         }
     }
 
@@ -276,34 +405,40 @@ public partial class TaskbarWidgetWindow : Window
         return nint.Zero;
     }
 
-    private async Task<(PixelRect? Frame, PixelRect? Widgets, PixelRect? SystemTray)> GetAutomationBoundsAsync(
-        nint taskbarHandle)
+    private async Task<AutomationBounds> GetAutomationBoundsAsync(
+        nint taskbarHandle, CancellationToken cancellationToken)
     {
-        if (_automationQuery is null || _automationQuery.IsCompleted)
+        if (_automationQuery is { IsCompleted: false })
         {
-            _automationQuery = Task.Run(() => QueryAutomationBounds(taskbarHandle));
+            // A timed-out query may still be running. Never apply its stale result or pile up queries.
+            return default;
         }
 
+        _automationQuery = Task.Run(() => QueryAutomationBounds(taskbarHandle));
         try
         {
-            return await _automationQuery.WaitAsync(TimeSpan.FromMilliseconds(700));
+            return await _automationQuery.WaitAsync(TimeSpan.FromMilliseconds(700), cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (TimeoutException)
         {
-            return (null, null, null);
+            return default;
         }
         catch (Exception)
         {
             _automationQuery = null;
-            return (null, null, null);
+            return default;
         }
     }
 
-    private static (PixelRect? Frame, PixelRect? Widgets, PixelRect? SystemTray) QueryAutomationBounds(
-        nint taskbarHandle)
+    private static AutomationBounds QueryAutomationBounds(nint taskbarHandle)
     {
         var root = AutomationElement.FromHandle(taskbarHandle);
-        return (
+        return new AutomationBounds(
+            true,
             FindAutomationRect(root, "TaskbarFrame"),
             FindAutomationRect(root, "WidgetsButton"),
             FindAutomationRect(root, "SystemTrayFrame"));
@@ -327,13 +462,6 @@ public partial class TaskbarWidgetWindow : Window
             (int)Math.Round(bounds.Bottom));
     }
 
-    private static bool IsUsableFrame(PixelRect? candidate, PixelRect taskbar) =>
-        candidate is { IsEmpty: false } frame &&
-        frame.Left >= taskbar.Left &&
-        frame.Top >= taskbar.Top &&
-        frame.Right <= taskbar.Right &&
-        frame.Bottom <= taskbar.Bottom;
-
     private static bool IsInsideFrame(PixelRect? candidate, PixelRect frame) =>
         candidate is { IsEmpty: false } rectangle &&
         rectangle.Left >= frame.Left &&
@@ -352,6 +480,20 @@ public partial class TaskbarWidgetWindow : Window
             NativeMethods.GetWindowRect(systemTrayHandle, out var systemTrayRect)
             ? systemTrayRect.ToPixelRect()
             : null;
+    }
+
+    private static HostContext? GetHostContext()
+    {
+        var handle = NativeMethods.FindWindow(TaskbarClassName, null);
+        if (handle == nint.Zero || !NativeMethods.GetWindowRect(handle, out var nativeRect))
+        {
+            return null;
+        }
+
+        var rect = nativeRect.ToPixelRect();
+        return rect.IsEmpty || rect.Height >= rect.Width
+            ? null
+            : new HostContext(handle, rect, Math.Max(96u, NativeMethods.GetDpiForWindow(handle)), GetTaskbarAlignment());
     }
 
     private static TaskbarAlignment GetTaskbarAlignment()
@@ -478,12 +620,28 @@ public partial class TaskbarWidgetWindow : Window
 
     private void DetachAndHide()
     {
+        ResetPlacement();
         _isAttached = false;
         HideWidget();
     }
 
+    private void ResetPlacement()
+    {
+        StopPlacementAnimation();
+        _placementAnimation.Reset();
+        _animationLayout = null;
+        _hostContext = null;
+        _automationQuery = null;
+        _automationFrame = null;
+        _widgetSize = null;
+        _appliedLayout = null;
+    }
+
     private void HideWidget()
     {
+        StopPlacementAnimation();
+        _placementAnimation.Reset();
+        _animationLayout = null;
         Opacity = 0;
         if (Handle != nint.Zero)
         {

@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Numerics;
 using Microsoft.Graphics.Canvas.Effects;
 using Microsoft.UI.Composition;
@@ -20,6 +21,7 @@ public sealed class ArtworkPresenter : IDisposable
     private const string BlurEffectName = "Blur";
     private const string BlurAmountProperty = BlurEffectName + ".BlurAmount";
     private const float MaximumBlurAmount = 16;
+    private static readonly HttpClient ArtworkClient = new() { Timeout = TimeSpan.FromSeconds(15) };
 
     private readonly FrameworkElement _host;
     private readonly Image _artworkImage;
@@ -29,9 +31,11 @@ public sealed class ArtworkPresenter : IDisposable
     private readonly SpriteVisual _visual;
 
     private LoadedImageSurface? _surface;
+    private CancellationTokenSource? _bitmapLoadCancellation;
     private string? _artworkUrl;
     private BitmapImage? _nextBitmap;
     private LoadedImageSurface? _nextSurface;
+    private CancellationTokenSource? _nextBitmapLoadCancellation;
     private string? _nextArtworkUrl;
     private bool _nextBitmapFailed;
     private bool _nextSurfaceFailed;
@@ -93,7 +97,7 @@ public sealed class ArtworkPresenter : IDisposable
         }
 
         _nextArtworkUrl = url;
-        var bitmap = new BitmapImage(artworkUri);
+        var bitmap = new BitmapImage();
         bitmap.ImageFailed += (_, _) =>
         {
             if (ReferenceEquals(_nextBitmap, bitmap))
@@ -102,6 +106,8 @@ public sealed class ArtworkPresenter : IDisposable
             }
         };
         _nextBitmap = bitmap;
+        _nextBitmapLoadCancellation = new CancellationTokenSource();
+        _ = LoadNextBitmapAsync(bitmap, artworkUri, _nextBitmapLoadCancellation.Token);
 
         var surface = LoadedImageSurface.StartLoadFromUri(artworkUri);
         surface.LoadCompleted += (_, args) =>
@@ -115,6 +121,36 @@ public sealed class ArtworkPresenter : IDisposable
         _nextSurface = surface;
     }
 
+    private async Task LoadNextBitmapAsync(BitmapImage bitmap, Uri uri, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // A URI-backed BitmapImage defers loading until it is displayed. Loading a stream
+            // explicitly ensures the next cover is downloaded and decoded before Show promotes it.
+            var bytes = await ArtworkClient.GetByteArrayAsync(uri, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            using var stream = new MemoryStream(bytes).AsRandomAccessStream();
+            await bitmap.SetSourceAsync(stream).AsTask(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The queue changed, the displayed cover changed, or the presenter was disposed.
+        }
+        catch (Exception)
+        {
+            if (ReferenceEquals(_nextBitmap, bitmap))
+            {
+                _nextBitmapFailed = true;
+            }
+            else if (!_disposed && !cancellationToken.IsCancellationRequested &&
+                ReferenceEquals(_artworkImage.Source, bitmap))
+            {
+                // The track may have started while the preload was still in flight.
+                bitmap.UriSource = uri;
+            }
+        }
+    }
+
     public void Show(string? url)
     {
         if (_disposed || string.Equals(_artworkUrl, url, StringComparison.Ordinal))
@@ -123,6 +159,7 @@ public sealed class ArtworkPresenter : IDisposable
         }
 
         _artworkUrl = url;
+        CancelBitmapLoad(ref _bitmapLoadCancellation);
         BitmapImage? bitmap = null;
         LoadedImageSurface? surface = null;
         var promoted = string.Equals(url, _nextArtworkUrl, StringComparison.Ordinal);
@@ -135,6 +172,11 @@ public sealed class ArtworkPresenter : IDisposable
             surface = promoted && !_nextSurfaceFailed
                 ? _nextSurface
                 : LoadedImageSurface.StartLoadFromUri(artworkUri);
+            if (promoted && !_nextBitmapFailed)
+            {
+                _bitmapLoadCancellation = _nextBitmapLoadCancellation;
+                _nextBitmapLoadCancellation = null;
+            }
         }
 
         _artworkImage.Source = bitmap;
@@ -150,6 +192,7 @@ public sealed class ArtworkPresenter : IDisposable
 
         if (promoted)
         {
+            CancelBitmapLoad(ref _nextBitmapLoadCancellation);
             if (!ReferenceEquals(_nextSurface, surface))
             {
                 _nextSurface?.Dispose();
@@ -191,12 +234,20 @@ public sealed class ArtworkPresenter : IDisposable
 
     private void ClearNext()
     {
+        CancelBitmapLoad(ref _nextBitmapLoadCancellation);
         _nextSurface?.Dispose();
         _nextSurface = null;
         _nextBitmap = null;
         _nextArtworkUrl = null;
         _nextBitmapFailed = false;
         _nextSurfaceFailed = false;
+    }
+
+    private static void CancelBitmapLoad(ref CancellationTokenSource? cancellation)
+    {
+        cancellation?.Cancel();
+        cancellation?.Dispose();
+        cancellation = null;
     }
 
     public void Dispose()
@@ -207,6 +258,7 @@ public sealed class ArtworkPresenter : IDisposable
         }
 
         _disposed = true;
+        CancelBitmapLoad(ref _bitmapLoadCancellation);
         _host.SizeChanged -= Host_SizeChanged;
         ElementCompositionPreview.SetElementChildVisual(_host, null);
         _artworkImage.Source = null;
