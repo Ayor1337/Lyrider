@@ -829,7 +829,7 @@
                                         </Border>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                             <TextBlock x:Uid="Main_082" FontWeight="SemiBold" Text="歌词源" />
-                                            <TextBlock x:Uid="Main_083" Style="{StaticResource SettingsDescriptionStyle}" Text="自动按 Cider、网易云、QQ 音乐、Musixmatch、LRCLIB 的顺序查找" />
+                                            <TextBlock x:Uid="Main_083" Style="{StaticResource SettingsDescriptionStyle}" Text="优先使用 Cider 歌词，无可用歌词时自动匹配其他来源" />
                                         </StackPanel>
                                     </Grid>
                                     <Grid
@@ -846,7 +846,6 @@
                                             <ComboBoxItem Content="Cider" Tag="Cider" />
                                             <ComboBoxItem x:Uid="Main_085" Content="网易云音乐" Tag="Netease" />
                                             <ComboBoxItem x:Uid="Main_086" Content="QQ 音乐" Tag="QqMusic" />
-                                            <ComboBoxItem Content="Musixmatch" Tag="Musixmatch" />
                                             <ComboBoxItem Content="LRCLIB" Tag="Lrclib" />
                                         </ComboBox>
                                     </Grid>
@@ -889,7 +888,8 @@
                                     </Grid>
                                 </Grid>
                             </Border>
-                            <Border Style="{StaticResource SettingsCardStyle}">
+                            <!-- Temporarily hidden; retain the protected key and provider support. -->
+                            <Border Style="{StaticResource SettingsCardStyle}" Visibility="Collapsed">
                                 <Grid x:Name="MusixmatchSettingsRow" RowSpacing="10" ColumnSpacing="24">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -956,119 +956,6 @@
                                         VerticalAlignment="Center">
                                         <ToggleSwitch
                                             x:Name="ChineseLyricsToggle"
-                                            Style="{StaticResource SettingsToggleStyle}"
-                                            HorizontalAlignment="Right"
-                                            VerticalAlignment="Center" />
-                                    </Grid>
-                                </Grid>
-                            </Border>
-                            <Border Style="{StaticResource SettingsCardStyle}">
-                                <Grid x:Name="AutoScrollSettingsRow" RowSpacing="10" ColumnSpacing="24">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="260" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Style="{StaticResource SettingsIconStyle}">
-                                            <FontIcon FontSize="16" Glyph="&#xE8AB;" />
-                                        </Border>
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                            <TextBlock x:Uid="Main_044" FontWeight="SemiBold" Text="歌词自动滚动" />
-                                            <TextBlock x:Uid="Main_045" Style="{StaticResource SettingsDescriptionStyle}" Text="播放时将当前歌词定位到视图上方三分之一处" />
-                                        </StackPanel>
-                                    </Grid>
-                                    <Grid
-                                        Grid.Column="1"
-                                        Style="{StaticResource SettingsControlHostStyle}"
-                                        Width="260"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Center">
-                                        <ToggleSwitch
-                                            x:Name="AutoScrollToggle"
-                                            Style="{StaticResource SettingsToggleStyle}"
-                                            HorizontalAlignment="Right"
-                                            VerticalAlignment="Center" />
-                                    </Grid>
-                                </Grid>
-                            </Border>
-                            <Border Style="{StaticResource SettingsCardStyle}">
-                                <Grid x:Name="DefaultPanelSettingsRow" RowSpacing="10" ColumnSpacing="24">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="260" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Style="{StaticResource SettingsIconStyle}">
-                                            <FontIcon FontSize="16" Glyph="&#xE8A9;" />
-                                        </Border>
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                            <TextBlock x:Uid="Main_046" FontWeight="SemiBold" Text="默认视图" />
-                                            <TextBlock x:Uid="Main_047" Style="{StaticResource SettingsDescriptionStyle}" Text="应用启动时右侧显示的内容" />
-                                        </StackPanel>
-                                    </Grid>
-                                    <Grid
-                                        Grid.Column="1"
-                                        Style="{StaticResource SettingsControlHostStyle}"
-                                        Width="260"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Center">
-                                        <ComboBox
-                                            x:Name="DefaultPanelComboBox"
-                                            HorizontalAlignment="Stretch"
-                                            VerticalAlignment="Center">
-                                            <ComboBoxItem x:Uid="Main_048" Content="播放队列" Tag="Queue" />
-                                            <ComboBoxItem x:Uid="Main_049" Content="歌词" Tag="Lyrics" />
-                                        </ComboBox>
-                                    </Grid>
-                                </Grid>
-                            </Border>
-                            <Border Style="{StaticResource SettingsCardStyle}">
-                                <Grid x:Name="AlwaysOnTopSettingsRow" RowSpacing="10" ColumnSpacing="24">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="260" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border Style="{StaticResource SettingsIconStyle}">
-                                            <FontIcon FontSize="16" Glyph="&#xE840;" />
-                                        </Border>
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                            <TextBlock x:Uid="Main_050" FontWeight="SemiBold" Text="窗口置顶" />
-                                            <TextBlock x:Uid="Main_051" Style="{StaticResource SettingsDescriptionStyle}" Text="让 Lyrider 保持在其他窗口上方" />
-                                        </StackPanel>
-                                    </Grid>
-                                    <Grid
-                                        Grid.Column="1"
-                                        Style="{StaticResource SettingsControlHostStyle}"
-                                        Width="260"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Center">
-                                        <ToggleSwitch
-                                            x:Name="AlwaysOnTopToggle"
                                             Style="{StaticResource SettingsToggleStyle}"
                                             HorizontalAlignment="Right"
                                             VerticalAlignment="Center" />
@@ -1150,6 +1037,43 @@
                                 </Grid>
                             </Border>
                             <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="SilentStartupSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE708;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Uid="Main_096" FontWeight="SemiBold" Text="静默启动" />
+                                            <TextBlock x:Uid="Main_097" Style="{StaticResource SettingsDescriptionStyle}" Text="启动时隐藏主窗口，在系统托盘中运行，下次启动生效" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid
+                                        Grid.Column="1"
+                                        Style="{StaticResource SettingsControlHostStyle}"
+                                        Width="260"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                        <ToggleSwitch
+                                            x:Name="SilentStartupToggle"
+                                            Style="{StaticResource SettingsToggleStyle}"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
                                 <Grid x:Name="MinimizeToTraySettingsRow" RowSpacing="10" ColumnSpacing="24">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -1192,8 +1116,16 @@
                     <StackPanel Spacing="8">
                         <TextBlock x:Uid="Main_058" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Cider 连接" />
                         <Border Style="{StaticResource SettingsCardStyle}">
-                            <StackPanel Spacing="18">
-                                <Grid>
+                            <Grid x:Name="ConnectionHeaderGrid" RowSpacing="12" ColumnSpacing="24">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid Style="{StaticResource SettingsLabelHostStyle}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
@@ -1201,44 +1133,75 @@
                                     <Border Style="{StaticResource SettingsIconStyle}">
                                         <FontIcon FontSize="16" Glyph="&#xE968;" />
                                     </Border>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
                                         <TextBlock x:Uid="Main_059" FontWeight="SemiBold" Text="本地 API" />
                                         <TextBlock x:Uid="Main_060"
                                             Style="{StaticResource SettingsDescriptionStyle}"
                                             Text="用于读取 Cider 的播放状态并发送播放控制命令" />
+                                        <Grid ColumnSpacing="8" Margin="0,3,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <FontIcon
+                                                x:Name="SettingsConnectionStatusIcon"
+                                                FontSize="8"
+                                                Glyph="&#xEA3B;"
+                                                Foreground="{StaticResource MutedTextBrush}" />
+                                            <TextBlock
+                                                x:Uid="Main_093"
+                                                x:Name="SettingsConnectionStatusText"
+                                                Grid.Column="1"
+                                                FontSize="13"
+                                                Foreground="{StaticResource MutedTextBrush}"
+                                                TextWrapping="Wrap"
+                                                Text="正在读取连接状态…" />
+                                        </Grid>
                                     </StackPanel>
                                 </Grid>
-                                <Grid x:Name="ConnectionFieldsGrid" RowSpacing="12" ColumnSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <TextBox x:Uid="Main_061"
-                                        x:Name="ApiBaseUrlTextBox"
-                                        Header="API 地址"
-                                        PlaceholderText="http://localhost:10767/" />
-                                    <PasswordBox x:Uid="Main_062"
-                                        x:Name="TokenPasswordBox"
-                                        Grid.Column="1"
-                                        Header="App Token（可选）"
-                                        PlaceholderText="使用当前 Windows 用户加密保存" />
-                                </Grid>
-                                <Button x:Uid="Main_063"
-                                    x:Name="TestConnectionButton"
+                                <Button x:Uid="Main_095"
+                                    x:Name="ConfigureConnectionButton"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
                                     HorizontalAlignment="Right"
-                                    Click="TestConnectionButton_Click"
-                                    Content="测试连接" />
-                            </StackPanel>
+                                    Click="ConfigureConnectionButton_Click"
+                                    Content="配置连接" />
+                            </Grid>
                         </Border>
                     </StackPanel>
                     </StackPanel>
                 </Grid>
             </ScrollViewer>
         </Grid>
+
+        <ContentDialog x:Uid="Main_063"
+            x:Name="ConnectionDialog"
+            Title="Cider 连接"
+            PrimaryButtonText="保存"
+            SecondaryButtonText="测试连接"
+            CloseButtonText="取消"
+            DefaultButton="Primary"
+            PrimaryButtonClick="ConnectionDialog_PrimaryButtonClick"
+            SecondaryButtonClick="ConnectionDialog_SecondaryButtonClick"
+            Closing="ConnectionDialog_Closing">
+            <StackPanel Spacing="16">
+                <TextBox x:Uid="Main_061"
+                    x:Name="ApiBaseUrlTextBox"
+                    Header="API 地址"
+                    PlaceholderText="http://localhost:10767/" />
+                <PasswordBox x:Uid="Main_062"
+                    x:Name="TokenPasswordBox"
+                    Header="App Token（可选）"
+                    PlaceholderText="粘贴从 Cider 复制的 Token" />
+                <TextBlock x:Uid="Main_094"
+                    Style="{StaticResource SettingsDescriptionStyle}"
+                    Text="在 Cider 设置 → 连接 → 外部应用中创建 Token。Token 仅在本机加密保存。" />
+                <InfoBar
+                    x:Name="ConnectionTestInfoBar"
+                    IsOpen="False"
+                    IsClosable="True" />
+            </StackPanel>
+        </ContentDialog>
 
         <Grid
             x:Name="OnboardingPageGrid"

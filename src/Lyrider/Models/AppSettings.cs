@@ -12,25 +12,21 @@ public sealed class AppSettings
 
     public double LyricFontSize { get; set; } = 42;
 
-    public bool AutoScrollLyrics { get; set; } = true;
-
     public bool ConvertTraditionalLyricsToSimplified { get; set; }
 
     public string LyricsSource { get; set; } = nameof(global::Lyrider.Models.LyricsSource.Auto);
 
     public bool ShowLyricsTranslation { get; set; }
 
-    public bool AlwaysOnTop { get; set; }
-
     public bool TaskbarWidgetEnabled { get; set; }
 
     public bool ShowLyricsInTaskbar { get; set; } = true;
 
+    public bool StartSilently { get; set; }
+
     public bool MinimizeToTrayOnClose { get; set; }
 
     public bool HasCompletedOnboarding { get; set; }
-
-    public string DefaultPanel { get; set; } = "Queue";
 
     /// <summary>Backdrop artwork opacity, as a 0–1 fraction.</summary>
     public double BackgroundOpacity { get; set; } = 0.14;
