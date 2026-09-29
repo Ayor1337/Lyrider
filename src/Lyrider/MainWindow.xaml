@@ -1114,6 +1114,49 @@
                     </StackPanel>
 
                     <StackPanel Spacing="8">
+                        <TextBlock x:Uid="Main_100" Style="{StaticResource BodyStrongTextBlockStyle}" Text="实验" />
+                        <StackPanel Spacing="2">
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="TaskbarLyricsAlignmentSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8E2;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Uid="Main_098" FontWeight="SemiBold" Text="任务栏歌词右对齐" />
+                                            <TextBlock x:Uid="Main_099" Style="{StaticResource SettingsDescriptionStyle}" Text="任务栏图标靠左时生效：歌词在封面左侧右对齐，封面移到最右侧" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid
+                                        Grid.Column="1"
+                                        Style="{StaticResource SettingsControlHostStyle}"
+                                        Width="260"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                        <ToggleSwitch
+                                            x:Name="TaskbarLyricsAlignmentToggle"
+                                            Style="{StaticResource SettingsToggleStyle}"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Spacing="8">
                         <TextBlock x:Uid="Main_058" Style="{StaticResource BodyStrongTextBlockStyle}" Text="Cider 连接" />
                         <Border Style="{StaticResource SettingsCardStyle}">
                             <Grid x:Name="ConnectionHeaderGrid" RowSpacing="12" ColumnSpacing="24">

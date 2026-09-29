@@ -31,6 +31,17 @@ public static class TaskbarPresentation
     public static double CalculateMarqueeDistance(double contentWidth, double viewportWidth) =>
         Math.Max(0, contentWidth - viewportWidth);
 
+    /// <summary>
+    /// The mirrored layout only applies to an icon-left taskbar, where the widget anchors to the
+    /// notification area instead of the widgets button, so its content should hug the right edge.
+    /// </summary>
+    public static bool UseRightAlignedLayout(bool rightAlignEnabled, TaskbarAlignment alignment) =>
+        rightAlignEnabled && alignment == TaskbarAlignment.Left;
+
+    /// <summary>Horizontal offset that puts text narrower than the viewport against its right edge.</summary>
+    public static double CalculateRightAlignedOffset(double contentWidth, double viewportWidth) =>
+        Math.Max(0, viewportWidth - contentWidth);
+
     internal static double CalculateMarqueeContentWidth(
         double primaryWidth,
         double secondaryWidth,

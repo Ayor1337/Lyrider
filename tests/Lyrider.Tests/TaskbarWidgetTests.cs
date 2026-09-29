@@ -16,6 +16,7 @@ public sealed class TaskbarWidgetTests
 
         Assert.IsFalse(settings.TaskbarWidgetEnabled);
         Assert.IsTrue(settings.ShowLyricsInTaskbar);
+        Assert.IsFalse(settings.RightAlignTaskbarLyrics);
         Assert.IsFalse(settings.MinimizeToTrayOnClose);
         Assert.IsFalse(settings.ConvertTraditionalLyricsToSimplified);
         Assert.AreEqual("Auto", settings.LyricsSource);
@@ -23,6 +24,7 @@ public sealed class TaskbarWidgetTests
         Assert.IsFalse(settings.HasCompletedOnboarding);
         settings.TaskbarWidgetEnabled = true;
         settings.ShowLyricsInTaskbar = false;
+        settings.RightAlignTaskbarLyrics = true;
         settings.MinimizeToTrayOnClose = true;
         settings.ConvertTraditionalLyricsToSimplified = true;
         settings.LyricsSource = "Netease";
@@ -34,6 +36,7 @@ public sealed class TaskbarWidgetTests
         Assert.IsNotNull(restored);
         Assert.IsTrue(restored.TaskbarWidgetEnabled);
         Assert.IsFalse(restored.ShowLyricsInTaskbar);
+        Assert.IsTrue(restored.RightAlignTaskbarLyrics);
         Assert.IsTrue(restored.MinimizeToTrayOnClose);
         Assert.IsTrue(restored.ConvertTraditionalLyricsToSimplified);
         Assert.AreEqual("Netease", restored.LyricsSource);
@@ -43,9 +46,26 @@ public sealed class TaskbarWidgetTests
         var upgraded = JsonSerializer.Deserialize<AppSettings>("{}");
         Assert.IsNotNull(upgraded);
         Assert.IsTrue(upgraded.ShowLyricsInTaskbar);
+        Assert.IsFalse(upgraded.RightAlignTaskbarLyrics);
         Assert.AreEqual("Auto", upgraded.LyricsSource);
         Assert.IsFalse(upgraded.ShowLyricsTranslation);
         Assert.IsFalse(upgraded.HasCompletedOnboarding);
+    }
+
+    [TestMethod]
+    public void UseRightAlignedLayout_OnlyMirrorsAnEnabledIconLeftTaskbar()
+    {
+        Assert.IsTrue(TaskbarPresentation.UseRightAlignedLayout(true, TaskbarAlignment.Left));
+        Assert.IsFalse(TaskbarPresentation.UseRightAlignedLayout(false, TaskbarAlignment.Left));
+        Assert.IsFalse(TaskbarPresentation.UseRightAlignedLayout(true, TaskbarAlignment.Center));
+    }
+
+    [TestMethod]
+    public void CalculateRightAlignedOffset_PinsTextToTheViewportRightEdge()
+    {
+        Assert.AreEqual(40, TaskbarPresentation.CalculateRightAlignedOffset(120, 160));
+        Assert.AreEqual(0, TaskbarPresentation.CalculateRightAlignedOffset(160, 160));
+        Assert.AreEqual(0, TaskbarPresentation.CalculateRightAlignedOffset(200, 160));
     }
 
     [TestMethod]

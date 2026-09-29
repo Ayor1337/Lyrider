@@ -12,6 +12,7 @@ Lyrider is a lyrics display companion for [Cider](https://cider.sh). **Windows 1
 - Selectable Cider, NetEase Cloud Music, QQ Music, Musixmatch, and LRCLIB lyrics sources
 - Optional Simplified Chinese translations supplied by the selected lyrics source
 - Simplified Chinese and English interfaces, following the Windows display language by default with a manual language option in Settings
+- Experimental section in Settings: right-align the taskbar lyrics when the Windows taskbar keeps its icons on the left (lyrics flush right beside the artwork, artwork at the right edge)
 
 ## Preview
 

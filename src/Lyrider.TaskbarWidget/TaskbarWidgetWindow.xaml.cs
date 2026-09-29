@@ -15,6 +15,7 @@ public partial class TaskbarWidgetWindow : Window
 {
     private const double LogicalWidth = 216;
     private const double LogicalHeight = 40;
+    private const double ArtworkColumnWidth = 40;
     private const double RightAnchorGap = 24;
     private const double MarqueeSpeed = 30;
     private const double MarqueeGap = 24;
@@ -46,6 +47,8 @@ public partial class TaskbarWidgetWindow : Window
     private bool _isAttached;
     private bool _isPointerOver;
     private bool _isRefreshingHost;
+    private bool _rightAlignedLyricsEnabled;
+    private bool _isRightAligned;
     private string _primaryText = string.Empty;
     private string _secondaryText = string.Empty;
     private int _lyricTransitionGeneration;
@@ -82,6 +85,21 @@ public partial class TaskbarWidgetWindow : Window
     public event Action<TaskbarPlaybackCommand>? CommandRequested;
 
     public nint Handle => new WindowInteropHelper(this).Handle;
+
+    /// <summary>
+    /// Mirrors the widget into its right-aligned style. It only takes effect while the Windows
+    /// taskbar keeps its icons on the left, where this widget anchors to the notification area.
+    /// </summary>
+    public void SetRightAlignedLyrics(bool value)
+    {
+        if (_rightAlignedLyricsEnabled == value)
+        {
+            return;
+        }
+
+        _rightAlignedLyricsEnabled = value;
+        UpdateLyricAlignment(_hostContext);
+    }
 
     public void SetPlaybackState(TaskbarPlaybackState state)
     {
@@ -150,6 +168,7 @@ public partial class TaskbarWidgetWindow : Window
                 ResetPlacement();
                 _hostContext = host;
             }
+            UpdateLyricAlignment(host);
 
             var taskbarHandle = host.Handle;
             var taskbarRect = host.Rect;
@@ -327,6 +346,44 @@ public partial class TaskbarWidgetWindow : Window
         }
         _appliedLayout = new AppliedLayout(position, host.Rect.Width, host.Rect.Height, scale, clientRegion);
         return true;
+    }
+
+    /// <summary>
+    /// Switches between the default artwork-left layout and the mirrored right-aligned one. The
+    /// scroll direction stays unchanged because overflowing text always fills the whole viewport.
+    /// </summary>
+    private void UpdateLyricAlignment(HostContext? host)
+    {
+        var rightAligned = TaskbarPresentation.UseRightAlignedLayout(
+            _rightAlignedLyricsEnabled,
+            host?.Alignment ?? TaskbarAlignment.Center);
+        if (rightAligned == _isRightAligned)
+        {
+            return;
+        }
+
+        _isRightAligned = rightAligned;
+        ArtworkColumn.Width = rightAligned
+            ? new GridLength(1, GridUnitType.Star)
+            : new GridLength(ArtworkColumnWidth);
+        InfoColumn.Width = rightAligned
+            ? new GridLength(ArtworkColumnWidth)
+            : new GridLength(1, GridUnitType.Star);
+        Grid.SetColumn(ArtworkBorder, rightAligned ? 1 : 0);
+        Grid.SetColumn(InfoHost, rightAligned ? 0 : 1);
+        ArtworkBorder.HorizontalAlignment = rightAligned
+            ? System.Windows.HorizontalAlignment.Right
+            : System.Windows.HorizontalAlignment.Left;
+        InfoHost.Margin = rightAligned
+            ? new Thickness(2, 0, 6, 0)
+            : new Thickness(6, 0, 2, 0);
+        var textAlignment = rightAligned ? TextAlignment.Right : TextAlignment.Left;
+        TitleText.TextAlignment = textAlignment;
+        OutgoingTitleText.TextAlignment = textAlignment;
+        ArtistText.TextAlignment = textAlignment;
+        OutgoingArtistText.TextAlignment = textAlignment;
+        StopMarquee();
+        Dispatcher.BeginInvoke(new Action(StartMarquee));
     }
 
     private void StartPlacementAnimation()
@@ -696,6 +753,16 @@ public partial class TaskbarWidgetWindow : Window
         var overflow = TaskbarPresentation.CalculateMarqueeDistance(contentWidth, TextViewport.ActualWidth);
         if (overflow <= 0 || _isPointerOver)
         {
+            // In the right-aligned style, text narrower than the viewport hugs its right edge.
+            var offset = _isRightAligned
+                ? TaskbarPresentation.CalculateRightAlignedOffset(contentWidth, TextViewport.ActualWidth)
+                : 0;
+            ((TranslateTransform)PrimaryMarqueePanel.RenderTransform).X = offset;
+            if (synchronizeSecondary)
+            {
+                ((TranslateTransform)SecondaryMarqueePanel.RenderTransform).X = offset;
+            }
+
             return;
         }
 
