@@ -99,4 +99,7 @@
   <data name="Main_095.Content" xml:space="preserve"><value>配置连接</value></data>
   <data name="Main_096.Text" xml:space="preserve"><value>静默启动</value></data>
   <data name="Main_097.Text" xml:space="preserve"><value>启动时隐藏主窗口，在系统托盘中运行，下次启动生效</value></data>
+  <data name="Main_098.Text" xml:space="preserve"><value>任务栏歌词右对齐</value></data>
+  <data name="Main_099.Text" xml:space="preserve"><value>任务栏图标靠左时生效：歌词在封面左侧右对齐，封面移到最右侧</value></data>
+  <data name="Main_100.Text" xml:space="preserve"><value>实验</value></data>
 </root>

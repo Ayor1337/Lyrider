@@ -98,8 +98,8 @@
             MouseLeave="RootBorder_MouseLeave">
             <Grid Margin="2,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="40" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition x:Name="ArtworkColumn" Width="40" />
+                <ColumnDefinition x:Name="InfoColumn" Width="*" />
             </Grid.ColumnDefinitions>
 
             <Border
@@ -120,6 +120,7 @@
             </Border>
 
             <Grid
+                x:Name="InfoHost"
                 Grid.Column="1"
                 Margin="6,0,2,0"
                 ClipToBounds="True">

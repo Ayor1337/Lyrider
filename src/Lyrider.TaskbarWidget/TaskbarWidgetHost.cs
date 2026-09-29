@@ -18,6 +18,7 @@ public sealed class TaskbarWidgetHost : IDisposable
     private bool _enabled;
     private bool _disposed;
     private bool _refreshInProgress;
+    private bool _rightAlignedLyrics;
 
     public event Action<TaskbarPlaybackCommand>? CommandRequested;
 
@@ -74,6 +75,16 @@ public sealed class TaskbarWidgetHost : IDisposable
         }
 
         _dispatcher?.BeginInvoke(() => _window?.SetPlaybackState(state));
+    }
+
+    public void SetRightAlignedLyrics(bool value)
+    {
+        lock (_gate)
+        {
+            _rightAlignedLyrics = value;
+        }
+
+        _dispatcher?.BeginInvoke(() => _window?.SetRightAlignedLyrics(value));
     }
 
     public void Dispose()
@@ -181,6 +192,7 @@ public sealed class TaskbarWidgetHost : IDisposable
             {
                 CloseWindow();
                 _window = new TaskbarWidgetWindow();
+                _window.SetRightAlignedLyrics(GetRightAlignedLyrics());
                 _window.CommandRequested += Window_CommandRequested;
                 _window.Closed += Window_Closed;
                 _window.Show();
@@ -242,6 +254,14 @@ public sealed class TaskbarWidgetHost : IDisposable
         lock (_gate)
         {
             return _latestState;
+        }
+    }
+
+    private bool GetRightAlignedLyrics()
+    {
+        lock (_gate)
+        {
+            return _rightAlignedLyrics;
         }
     }
 

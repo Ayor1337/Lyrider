@@ -99,4 +99,7 @@
   <data name="Main_095.Content" xml:space="preserve"><value>Configure connection</value></data>
   <data name="Main_096.Text" xml:space="preserve"><value>Silent startup</value></data>
   <data name="Main_097.Text" xml:space="preserve"><value>Start in the system tray with the main window hidden. Applies on the next launch.</value></data>
+  <data name="Main_098.Text" xml:space="preserve"><value>Right-aligned taskbar lyrics</value></data>
+  <data name="Main_099.Text" xml:space="preserve"><value>Applies when taskbar icons are left-aligned: the lyrics align right beside the artwork, which moves to the right edge</value></data>
+  <data name="Main_100.Text" xml:space="preserve"><value>Experimental</value></data>
 </root>

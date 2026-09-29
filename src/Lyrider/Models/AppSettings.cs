@@ -22,6 +22,12 @@ public sealed class AppSettings
 
     public bool ShowLyricsInTaskbar { get; set; } = true;
 
+    /// <summary>
+    /// Experimental: mirror the taskbar widget when the Windows taskbar aligns its icons to the
+    /// left, so the lyrics sit right-aligned to the left of the artwork, which moves right.
+    /// </summary>
+    public bool RightAlignTaskbarLyrics { get; set; }
+
     public bool StartSilently { get; set; }
 
     public bool MinimizeToTrayOnClose { get; set; }

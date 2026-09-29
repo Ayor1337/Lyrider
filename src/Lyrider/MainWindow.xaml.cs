@@ -2061,6 +2061,7 @@ public sealed partial class MainWindow : Window
             LyricsService.SupportsTranslation(lyricsSource) && LyricsTranslationToggle.IsOn;
         _settings.TaskbarWidgetEnabled = TaskbarWidgetToggle.IsOn;
         _settings.ShowLyricsInTaskbar = TaskbarLyricsToggle.IsOn;
+        _settings.RightAlignTaskbarLyrics = TaskbarLyricsAlignmentToggle.IsOn;
         _settings.StartSilently = SilentStartupToggle.IsOn;
         _settings.MinimizeToTrayOnClose = MinimizeToTrayToggle.IsOn;
         _settings.BackgroundOpacity = BackgroundOpacitySlider.Value / 100;
@@ -2191,6 +2192,7 @@ public sealed partial class MainWindow : Window
         MusixmatchApiKeyPasswordBox.Password = _musixmatchApiKey ?? string.Empty;
         TaskbarWidgetToggle.IsOn = _settings.TaskbarWidgetEnabled;
         TaskbarLyricsToggle.IsOn = _settings.ShowLyricsInTaskbar;
+        TaskbarLyricsAlignmentToggle.IsOn = _settings.RightAlignTaskbarLyrics;
         SilentStartupToggle.IsOn = _settings.StartSilently;
         MinimizeToTrayToggle.IsOn = _settings.MinimizeToTrayOnClose;
         // The sliders work in whole percentages while the model keeps the 0–1 fraction, so
@@ -2228,6 +2230,7 @@ public sealed partial class MainWindow : Window
         _trayIconHost.SetLightTheme(RootGrid.ActualTheme == ElementTheme.Light);
         _artworkPresenter.Apply(_settings.BackgroundOpacity, _settings.BackgroundBlur);
         UpdateResponsiveLayout();
+        _taskbarWidgetHost.SetRightAlignedLyrics(_settings.RightAlignTaskbarLyrics);
         if (_settings.TaskbarWidgetEnabled && _taskbarWidgetHost.IsSupported)
         {
             _taskbarWidgetHost.Start();

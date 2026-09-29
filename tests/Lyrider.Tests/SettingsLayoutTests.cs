@@ -141,6 +141,40 @@ public sealed class SettingsLayoutTests
             FindNamedElement(document, "SkipOnboardingButton")?.Attribute("Content")?.Value);
     }
 
+    [TestMethod]
+    public void SettingsPage_ExperimentalSection_OwnsRightAlignedLyricsCardAboveCiderConnection()
+    {
+        var document = XDocument.Load(Path.Combine(
+            AppContext.BaseDirectory,
+            "Fixtures",
+            "MainWindow.xaml"));
+
+        var toggle = FindNamedElement(document, "TaskbarLyricsAlignmentToggle");
+        Assert.AreEqual("ToggleSwitch", toggle?.Name.LocalName);
+        var card = FindNamedElement(document, "TaskbarLyricsAlignmentSettingsRow")?.Parent;
+        Assert.IsNotNull(card);
+        Assert.AreEqual("Border", card!.Name.LocalName);
+
+        // The card closes a section of its own instead of sharing the "歌词与播放" cards.
+        var cards = card.Parent;
+        Assert.IsNotNull(cards);
+        Assert.AreSame(card, cards!.Elements().Last());
+        var section = cards.Parent;
+        Assert.IsNotNull(section);
+        var heading = section!.Elements().First();
+        Assert.AreEqual("TextBlock", heading.Name.LocalName);
+        Assert.AreEqual("实验", heading.Attribute("Text")?.Value);
+        Assert.AreEqual("Main_100", heading.Attribute(XamlNamespace + "Uid")?.Value);
+
+        // That section sits between "歌词与播放" and the Cider connection.
+        Assert.AreEqual(
+            "歌词与播放",
+            section.ElementsBeforeSelf().Last().Elements().First().Attribute("Text")?.Value);
+        Assert.AreEqual(
+            "Cider 连接",
+            section.ElementsAfterSelf().First().Elements().First().Attribute("Text")?.Value);
+    }
+
     private static XElement? FindNamedElement(XDocument document, string name) =>
         document.Descendants().SingleOrDefault(element =>
             string.Equals(element.Attribute(XamlNamespace + "Name")?.Value, name, StringComparison.Ordinal));
