@@ -172,6 +172,80 @@ public sealed class NextTrackLyricsPreloaderTests
     }
 
     [TestMethod]
+    public async Task TakeAsync_PreparingFollowingTrackWhileLoading_DoesNotCancelCurrentLyrics()
+    {
+        var result = new TaskCompletionSource<LyricsSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken currentToken = default;
+        using var preloader = new NextTrackLyricsPreloader((item, _, _, token) =>
+        {
+            if (item.Id == "next")
+            {
+                currentToken = token;
+                return result.Task.WaitAsync(token);
+            }
+
+            return Task.FromResult(Snapshot("following"));
+        });
+        preloader.Prepare(CreateItem(1, "next", "Next"), DefaultOptions, null);
+
+        var takeTask = preloader.TakeAsync(CreateNowPlaying("next"), DefaultOptions, null, CancellationToken.None);
+        preloader.Prepare(CreateItem(2, "following", "Following"), DefaultOptions, null);
+
+        Assert.IsFalse(currentToken.IsCancellationRequested, "提前预加载下一首取消了当前歌曲仍在加载的歌词。");
+        result.SetResult(Snapshot("current"));
+        Assert.AreEqual("current", (await takeTask)!.Lines[0].Text);
+        Assert.AreEqual("following", (await preloader.TakeAsync(
+            CreateNowPlaying("following"), DefaultOptions, null, CancellationToken.None))!.Lines[0].Text);
+    }
+
+    [TestMethod]
+    public async Task TakeAsync_CallerCancels_CancelsTakenLoadAndPreservesFollowingTrack()
+    {
+        CancellationToken takenToken = default;
+        using var preloader = new NextTrackLyricsPreloader((item, _, _, token) =>
+        {
+            if (item.Id == "next")
+            {
+                takenToken = token;
+                return Task.Delay(Timeout.InfiniteTimeSpan, token).ContinueWith(
+                    _ => LyricsSnapshot.Empty, TaskScheduler.Default);
+            }
+
+            return Task.FromResult(Snapshot("following"));
+        });
+        using var cancellation = new CancellationTokenSource();
+        preloader.Prepare(CreateItem(1, "next", "Next"), DefaultOptions, null);
+        var taken = preloader.TakeAsync(CreateNowPlaying("next"), DefaultOptions, null, cancellation.Token);
+        preloader.Prepare(CreateItem(2, "following", "Following"), DefaultOptions, null);
+
+        cancellation.Cancel();
+
+        await Assert.ThrowsExceptionAsync<TaskCanceledException>(async () => await taken);
+        Assert.IsTrue(takenToken.IsCancellationRequested);
+        Assert.AreEqual("following", (await preloader.TakeAsync(
+            CreateNowPlaying("following"), DefaultOptions, null, CancellationToken.None))!.Lines[0].Text);
+    }
+
+    [TestMethod]
+    public async Task Dispose_TakenLoadInFlight_CancelsLoad()
+    {
+        CancellationToken takenToken = default;
+        using var preloader = new NextTrackLyricsPreloader(async (_, _, _, token) =>
+        {
+            takenToken = token;
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            return LyricsSnapshot.Empty;
+        });
+        preloader.Prepare(CreateItem(1, "next", "Next"), DefaultOptions, null);
+        var taken = preloader.TakeAsync(CreateNowPlaying("next"), DefaultOptions, null, CancellationToken.None);
+
+        preloader.Dispose();
+
+        Assert.IsTrue(takenToken.IsCancellationRequested);
+        Assert.IsNull(await taken.WaitAsync(TimeSpan.FromSeconds(1)));
+    }
+
+    [TestMethod]
     public async Task TakeAsync_DifferentTrack_CancelsCandidateAndReturnsNull()
     {
         var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

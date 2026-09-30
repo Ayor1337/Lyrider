@@ -3,9 +3,12 @@ param([switch]$NoBuild)
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path $PSScriptRoot -Parent
 $project = Join-Path $repoRoot 'tests/Lyrider.Artwork.Tests/Lyrider.Artwork.Tests.csproj'
+$taskbarProject = Join-Path $repoRoot 'tests/Lyrider.TaskbarArtwork.Tests/Lyrider.TaskbarArtwork.Tests.csproj'
 if (-not $NoBuild) {
     dotnet build $project -p:Platform=x64 --nologo
     if ($LASTEXITCODE -ne 0) { throw 'Artwork test build failed.' }
+    dotnet build $taskbarProject -p:Platform=x64 --nologo
+    if ($LASTEXITCODE -ne 0) { throw 'Taskbar artwork test build failed.' }
 }
 
 $output = Join-Path $repoRoot 'tests/Lyrider.Artwork.Tests/bin/x64/Debug/net10.0-windows10.0.19041.0/win-x64'
@@ -18,3 +21,6 @@ if (-not $process.WaitForExit(45000)) {
 }
 if (Test-Path -LiteralPath $logPath) { Get-Content -LiteralPath $logPath }
 if ($process.ExitCode -ne 0) { throw "Artwork integration tests failed (exit $($process.ExitCode))." }
+
+dotnet run --project $taskbarProject -p:Platform=x64 --no-build
+if ($LASTEXITCODE -ne 0) { throw 'Taskbar artwork integration tests failed.' }

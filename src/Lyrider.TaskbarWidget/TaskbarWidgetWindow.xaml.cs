@@ -5,7 +5,6 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using Color = System.Windows.Media.Color;
 
@@ -43,7 +42,7 @@ public partial class TaskbarWidgetWindow : Window
     private AppliedLayout? _appliedLayout;
     private AnimationLayout? _animationLayout;
     private bool _isAnimatingPlacement;
-    private string? _artworkUrl;
+    private readonly TaskbarArtworkPresenter _artworkPresenter;
     private bool _isAttached;
     private bool _isPointerOver;
     private bool _isRefreshingHost;
@@ -71,6 +70,7 @@ public partial class TaskbarWidgetWindow : Window
     public TaskbarWidgetWindow()
     {
         InitializeComponent();
+        _artworkPresenter = new TaskbarArtworkPresenter(ArtworkBorder, ArtworkPlaceholder);
         PreviousButton.ToolTip = WidgetText.Get("上一首", "Previous");
         PlayPauseButton.ToolTip = WidgetText.Get("播放/暂停", "Play/Pause");
         NextButton.ToolTip = WidgetText.Get("下一首", "Next");
@@ -79,7 +79,11 @@ public partial class TaskbarWidgetWindow : Window
         RootBorder.RenderTransform = _placementTransform;
         ApplySystemTheme();
         SourceInitialized += TaskbarWidgetWindow_SourceInitialized;
-        Closed += (_, _) => StopPlacementAnimation();
+        Closed += (_, _) =>
+        {
+            StopPlacementAnimation();
+            _artworkPresenter.Dispose();
+        };
     }
 
     public event Action<TaskbarPlaybackCommand>? CommandRequested;
@@ -580,56 +584,9 @@ public partial class TaskbarWidgetWindow : Window
         NativeMethods.SetWindowLongPtr(handle, NativeMethods.GwlExStyle, new nint(extendedStyle));
     }
 
-    private void SetArtwork(string? url)
-    {
-        if (string.Equals(_artworkUrl, url, StringComparison.Ordinal))
-        {
-            return;
-        }
+    public void PrepareArtwork(string? url) => _artworkPresenter.PrepareNext(url);
 
-        _artworkUrl = url;
-        ArtworkBorder.Background = new SolidColorBrush(Color.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
-        ArtworkPlaceholder.Visibility = Visibility.Visible;
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var artworkUri))
-        {
-            return;
-        }
-
-        BitmapImage bitmap;
-        try
-        {
-            bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.UriSource = artworkUri;
-            bitmap.CacheOption = BitmapCacheOption.OnDemand;
-            bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
-            bitmap.EndInit();
-        }
-        catch (Exception)
-        {
-            return;
-        }
-        bitmap.DownloadCompleted += (_, _) =>
-        {
-            if (ArtworkBorder.Background is ImageBrush brush && ReferenceEquals(brush.ImageSource, bitmap))
-            {
-                ArtworkPlaceholder.Visibility = Visibility.Collapsed;
-            }
-        };
-        bitmap.DownloadFailed += (_, _) =>
-        {
-            if (ArtworkBorder.Background is ImageBrush brush && ReferenceEquals(brush.ImageSource, bitmap))
-            {
-                ArtworkBorder.Background = new SolidColorBrush(Color.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
-                ArtworkPlaceholder.Visibility = Visibility.Visible;
-            }
-        };
-        ArtworkBorder.Background = new ImageBrush(bitmap) { Stretch = Stretch.UniformToFill };
-        if (!bitmap.IsDownloading)
-        {
-            ArtworkPlaceholder.Visibility = Visibility.Collapsed;
-        }
-    }
+    private void SetArtwork(string? url) => _artworkPresenter.Show(url);
 
     private void ApplySystemTheme()
     {

@@ -15,6 +15,7 @@ public sealed class TaskbarWidgetHost : IDisposable
     private TaskbarWidgetWindow? _window;
     private Thread? _thread;
     private TaskbarPlaybackState _latestState = TaskbarPlaybackState.Unavailable;
+    private string? _nextArtworkUrl;
     private bool _enabled;
     private bool _disposed;
     private bool _refreshInProgress;
@@ -58,6 +59,7 @@ public sealed class TaskbarWidgetHost : IDisposable
         {
             _enabled = false;
             _latestState = TaskbarPlaybackState.Unavailable;
+            _nextArtworkUrl = null;
         }
 
         _dispatcher?.BeginInvoke(StopOnDispatcher);
@@ -85,6 +87,20 @@ public sealed class TaskbarWidgetHost : IDisposable
         }
 
         _dispatcher?.BeginInvoke(() => _window?.SetRightAlignedLyrics(value));
+    }
+
+    public void PrepareArtwork(string? url)
+    {
+        lock (_gate)
+        {
+            _nextArtworkUrl = url;
+            if (!_enabled || _disposed)
+            {
+                return;
+            }
+        }
+
+        _dispatcher?.BeginInvoke(() => _window?.PrepareArtwork(url));
     }
 
     public void Dispose()
@@ -200,6 +216,7 @@ public sealed class TaskbarWidgetHost : IDisposable
 
             var window = _window;
             window.SetPlaybackState(GetLatestState());
+            window.PrepareArtwork(GetNextArtworkUrl());
             await window.RefreshHostAsync(cancellationToken);
         }
         catch (Exception)
@@ -262,6 +279,14 @@ public sealed class TaskbarWidgetHost : IDisposable
         lock (_gate)
         {
             return _rightAlignedLyrics;
+        }
+    }
+
+    private string? GetNextArtworkUrl()
+    {
+        lock (_gate)
+        {
+            return _nextArtworkUrl;
         }
     }
 
