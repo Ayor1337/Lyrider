@@ -7,6 +7,7 @@ internal sealed class NextTrackLyricsPreloader : IDisposable
     private static readonly TimeSpan CiderPreloadTimeout = TimeSpan.FromSeconds(12);
 
     private readonly Func<QueueItemInfo, LyricsResolveOptions, string?, CancellationToken, Task<LyricsSnapshot>> _load;
+    private readonly HashSet<CancellationTokenSource> _activeLoads = [];
 
     private CancellationTokenSource? _preloadCancellation;
     private Task<LyricsSnapshot>? _preloadTask;
@@ -79,16 +80,34 @@ internal sealed class NextTrackLyricsPreloader : IDisposable
             return null;
         }
 
-        var result = await task.WaitAsync(cancellationToken);
-        Release(task);
-        if (result.Lines.Count == 0)
+        // 当前歌曲接手请求后，队列可以立即准备下一首，不再取消这次加载。
+        var loadCancellation = _preloadCancellation!;
+        _preloadCancellation = null;
+        _preloadTask = null;
+        _trackKey = null;
+        _options = null;
+        _appToken = null;
+        _activeLoads.Add(loadCancellation);
+        using var registration = cancellationToken.Register(loadCancellation.Cancel);
+        try
         {
-            return null;
-        }
+            var result = await task.WaitAsync(cancellationToken);
+            if (result.Lines.Count == 0)
+            {
+                return null;
+            }
 
-        return result.Source == LyricsSource.Cider
-            ? result with { IsTimeSynced = track.HasTimeSyncedLyrics }
-            : result;
+            return result.Source == LyricsSource.Cider
+                ? result with { IsTimeSynced = track.HasTimeSyncedLyrics }
+                : result;
+        }
+        finally
+        {
+            _activeLoads.Remove(loadCancellation);
+            registration.Dispose();
+            loadCancellation.Cancel();
+            loadCancellation.Dispose();
+        }
     }
 
     public void Clear()
@@ -111,6 +130,10 @@ internal sealed class NextTrackLyricsPreloader : IDisposable
 
         Clear();
         _disposed = true;
+        foreach (var cancellation in _activeLoads.ToArray())
+        {
+            cancellation.Cancel();
+        }
     }
 
     internal static QueueItemInfo? SelectNext(QueueSnapshot snapshot, string? currentTrackId)
@@ -153,21 +176,6 @@ internal sealed class NextTrackLyricsPreloader : IDisposable
         {
             return LyricsSnapshot.Empty;
         }
-    }
-
-    private void Release(Task<LyricsSnapshot> task)
-    {
-        if (!ReferenceEquals(_preloadTask, task))
-        {
-            return;
-        }
-
-        _preloadCancellation?.Dispose();
-        _preloadCancellation = null;
-        _preloadTask = null;
-        _trackKey = null;
-        _options = null;
-        _appToken = null;
     }
 
     private static NowPlayingInfo ToNowPlayingInfo(QueueItemInfo item) => new()

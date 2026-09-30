@@ -468,7 +468,6 @@ public sealed partial class MainWindow : Window
             _lyricsAreTimeSynced = lyrics.IsTimeSynced;
             var rebuilt = RenderLyrics();
             RefreshLyricPlayback(forceScroll: rebuilt);
-            PrepareNextLyrics();
         }
         catch (OperationCanceledException) when (refreshCancellation.IsCancellationRequested)
         {
@@ -492,7 +491,6 @@ public sealed partial class MainWindow : Window
             track.PlayParameters?.Id,
             _lifetimeCancellation.Token);
         ApplyQueue(queue, track.PlayParameters?.Id);
-        PrepareNextLyrics();
     }
 
     private async Task<LyricsSnapshot> ResolveTrackLyricsAsync(
@@ -701,6 +699,8 @@ public sealed partial class MainWindow : Window
     {
         _nextQueueItem = NextTrackLyricsPreloader.SelectNext(snapshot, currentTrackId);
         _artworkPresenter.PrepareNext(NormalizeArtworkUrl(_nextQueueItem?.ArtworkUrl));
+        _taskbarWidgetHost.PrepareArtwork(NormalizeArtworkUrl(_nextQueueItem?.ArtworkUrl, 160));
+        PrepareNextLyrics();
 
         var upcoming = snapshot.CurrentIndex >= 0
             ? snapshot.Items.Where(item => item.Index > snapshot.CurrentIndex)
@@ -2024,6 +2024,7 @@ public sealed partial class MainWindow : Window
         _nextTrackLyricsPreloader.Clear();
         _nextQueueItem = null;
         _artworkPresenter.PrepareNext(null);
+        _taskbarWidgetHost.PrepareArtwork(null);
         return true;
     }
 
@@ -2049,6 +2050,7 @@ public sealed partial class MainWindow : Window
         _nextTrackLyricsPreloader.Clear();
         _nextQueueItem = null;
         _artworkPresenter.PrepareNext(null);
+        _taskbarWidgetHost.PrepareArtwork(null);
 
         var lyricsSource = LyricsService.ParseSource(SelectedTag(LyricsSourceComboBox, "Auto"));
         _settings.Theme = SelectedTag(ThemeComboBox, "System");
