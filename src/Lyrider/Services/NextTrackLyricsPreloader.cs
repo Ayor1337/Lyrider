@@ -6,18 +6,19 @@ internal sealed class NextTrackLyricsPreloader : IDisposable
 {
     private static readonly TimeSpan CiderPreloadTimeout = TimeSpan.FromSeconds(12);
 
-    private readonly Func<QueueItemInfo, LyricsResolveOptions, string?, CancellationToken, Task<LyricsSnapshot>> _load;
+    private readonly Func<QueueItemInfo, LyricsResolveOptions, string?, CancellationToken, Action<LyricsSnapshot>?, Task<LyricsSnapshot>> _load;
     private readonly HashSet<CancellationTokenSource> _activeLoads = [];
 
     private CancellationTokenSource? _preloadCancellation;
     private Task<LyricsSnapshot>? _preloadTask;
+    private PreloadProgress? _preloadProgress;
     private string? _trackKey;
     private LyricsResolveOptions? _options;
     private string? _appToken;
     private bool _disposed;
 
     public NextTrackLyricsPreloader(CiderService ciderService, LyricsService lyricsService)
-        : this(async (item, options, appToken, cancellationToken) =>
+        : this(async (item, options, appToken, cancellationToken, onProgress) =>
         {
             var track = ToNowPlayingInfo(item);
             var ciderLyrics = await ciderService.GetLyricsAsync(
@@ -25,13 +26,13 @@ internal sealed class NextTrackLyricsPreloader : IDisposable
                 appToken,
                 cancellationToken,
                 CiderPreloadTimeout);
-            return await lyricsService.ResolveAsync(track, ciderLyrics, options, cancellationToken);
+            return await lyricsService.ResolveAsync(track, ciderLyrics, options, cancellationToken, onProgress);
         })
     {
     }
 
     internal NextTrackLyricsPreloader(
-        Func<QueueItemInfo, LyricsResolveOptions, string?, CancellationToken, Task<LyricsSnapshot>> load)
+        Func<QueueItemInfo, LyricsResolveOptions, string?, CancellationToken, Action<LyricsSnapshot>?, Task<LyricsSnapshot>> load)
     {
         _load = load;
     }
@@ -59,14 +60,17 @@ internal sealed class NextTrackLyricsPreloader : IDisposable
         _options = options;
         _appToken = appToken;
         _preloadCancellation = new CancellationTokenSource();
-        _preloadTask = LoadSafelyAsync(item, options, appToken, _preloadCancellation.Token);
+        var progress = new PreloadProgress();
+        _preloadProgress = progress;
+        _preloadTask = LoadSafelyAsync(item, options, appToken, _preloadCancellation.Token, progress.Report);
     }
 
     public async Task<LyricsSnapshot?> TakeAsync(
         NowPlayingInfo track,
         LyricsResolveOptions options,
         string? appToken,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<LyricsSnapshot>? onProgress = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -82,8 +86,10 @@ internal sealed class NextTrackLyricsPreloader : IDisposable
 
         // 当前歌曲接手请求后，队列可以立即准备下一首，不再取消这次加载。
         var loadCancellation = _preloadCancellation!;
+        var progress = _preloadProgress!;
         _preloadCancellation = null;
         _preloadTask = null;
+        _preloadProgress = null;
         _trackKey = null;
         _options = null;
         _appToken = null;
@@ -91,18 +97,33 @@ internal sealed class NextTrackLyricsPreloader : IDisposable
         using var registration = cancellationToken.Register(loadCancellation.Cancel);
         try
         {
+            LyricsSnapshot ForCurrentTrack(LyricsSnapshot snapshot) => snapshot.Source == LyricsSource.Cider
+                ? snapshot with { IsTimeSynced = track.HasTimeSyncedLyrics }
+                : snapshot;
+
+            progress.OnProgress = snapshot =>
+            {
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    onProgress?.Invoke(ForCurrentTrack(snapshot));
+                }
+            };
+            if (progress.Latest is { } latest)
+            {
+                progress.OnProgress(latest);
+            }
+
             var result = await task.WaitAsync(cancellationToken);
             if (result.Lines.Count == 0)
             {
                 return null;
             }
 
-            return result.Source == LyricsSource.Cider
-                ? result with { IsTimeSynced = track.HasTimeSyncedLyrics }
-                : result;
+            return ForCurrentTrack(result);
         }
         finally
         {
+            progress.OnProgress = null;
             _activeLoads.Remove(loadCancellation);
             registration.Dispose();
             loadCancellation.Cancel();
@@ -116,6 +137,7 @@ internal sealed class NextTrackLyricsPreloader : IDisposable
         _preloadCancellation?.Dispose();
         _preloadCancellation = null;
         _preloadTask = null;
+        _preloadProgress = null;
         _trackKey = null;
         _options = null;
         _appToken = null;
@@ -158,15 +180,29 @@ internal sealed class NextTrackLyricsPreloader : IDisposable
             !string.IsNullOrWhiteSpace(item.Name));
     }
 
+    private sealed class PreloadProgress
+    {
+        public LyricsSnapshot? Latest { get; private set; }
+
+        public Action<LyricsSnapshot>? OnProgress { get; set; }
+
+        public void Report(LyricsSnapshot snapshot)
+        {
+            Latest = snapshot;
+            OnProgress?.Invoke(snapshot);
+        }
+    }
+
     private async Task<LyricsSnapshot> LoadSafelyAsync(
         QueueItemInfo item,
         LyricsResolveOptions options,
         string? appToken,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<LyricsSnapshot>? onProgress)
     {
         try
         {
-            return await _load(item, options, appToken, cancellationToken);
+            return await _load(item, options, appToken, cancellationToken, onProgress);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

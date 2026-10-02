@@ -14,7 +14,8 @@ internal interface ILyricsProvider
         IReadOnlyList<LyricsSearchTrack> tracks,
         bool includeTranslation,
         string? apiKey,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        Action<LyricsSnapshot>? onCandidate = null);
 }
 
 internal sealed record LyricsSearchTrack(
@@ -111,7 +112,22 @@ internal abstract class HttpLyricsProvider(HttpClient httpClient) : ILyricsProvi
         IReadOnlyList<LyricsSearchTrack> tracks,
         bool includeTranslation,
         string? apiKey,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        Action<LyricsSnapshot>? onCandidate = null);
+
+    protected static void ConsiderCandidate(
+        LyricsSnapshot snapshot,
+        bool includeTranslation,
+        ref LyricsSnapshot best,
+        Action<LyricsSnapshot>? onCandidate)
+    {
+        if (snapshot.Lines.Count > 0 &&
+            (best.Lines.Count == 0 || LyricsSelection.Compare(snapshot, best, includeTranslation) > 0))
+        {
+            best = snapshot;
+            onCandidate?.Invoke(snapshot);
+        }
+    }
 
     protected async Task<JsonDocument?> SendJsonAsync(
         HttpRequestMessage request,
@@ -123,26 +139,37 @@ internal abstract class HttpLyricsProvider(HttpClient httpClient) : ILyricsProvi
             return null;
         }
 
-        using (request)
-        using (var response = await HttpClient.SendAsync(
-            request,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken))
+        try
         {
-            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            using (request)
+            using (var response = await HttpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken))
             {
-                _retryAfter = response.Headers.RetryAfter?.Date ??
-                    DateTimeOffset.UtcNow.Add(response.Headers.RetryAfter?.Delta ?? TimeSpan.FromMinutes(1));
-                return null;
-            }
+                if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                {
+                    _retryAfter = response.Headers.RetryAfter?.Date ??
+                        DateTimeOffset.UtcNow.Add(response.Headers.RetryAfter?.Delta ?? TimeSpan.FromMinutes(1));
+                    return null;
+                }
 
-            if (!response.IsSuccessStatusCode)
-            {
-                return null;
-            }
+                if (!response.IsSuccessStatusCode)
+                {
+                    return null;
+                }
 
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            }
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 
@@ -189,8 +216,10 @@ internal sealed class LrclibLyricsProvider(HttpClient httpClient) : HttpLyricsPr
         IReadOnlyList<LyricsSearchTrack> tracks,
         bool includeTranslation,
         string? apiKey,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<LyricsSnapshot>? onCandidate = null)
     {
+        var best = new LyricsSnapshot([], false, Source);
         foreach (var track in tracks.Where(LyricsMatching.HasSearchMetadata))
         {
             using var document = await SendJsonAsync(
@@ -206,13 +235,14 @@ internal sealed class LrclibLyricsProvider(HttpClient httpClient) : HttpLyricsPr
             var snapshot = Snapshot(Source, string.IsNullOrWhiteSpace(synced)
                 ? LyricsParsing.GetString(root, "plainLyrics")
                 : synced);
-            if (snapshot.Lines.Count > 0)
+            ConsiderCandidate(snapshot, includeTranslation, ref best, onCandidate);
+            if (LyricsSelection.IsSatisfactory(snapshot, includeTranslation))
             {
                 return snapshot;
             }
         }
 
-        return new LyricsSnapshot([], false, Source);
+        return best;
     }
 
     private static Uri BuildRequestUri(LyricsSearchTrack track)
@@ -247,7 +277,8 @@ internal sealed class NeteaseLyricsProvider(HttpClient httpClient) : HttpLyricsP
         IReadOnlyList<LyricsSearchTrack> tracks,
         bool includeTranslation,
         string? apiKey,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<LyricsSnapshot>? onCandidate = null)
     {
         var searchableTracks = tracks.Where(LyricsMatching.HasSearchMetadata).ToArray();
         if (searchableTracks.Length == 0)
@@ -255,7 +286,8 @@ internal sealed class NeteaseLyricsProvider(HttpClient httpClient) : HttpLyricsP
             return new LyricsSnapshot([], false, Source);
         }
 
-        long id = 0;
+        var best = new LyricsSnapshot([], false, Source);
+        var visited = new HashSet<long>();
         foreach (var track in searchableTracks)
         {
             var searchRequest = new HttpRequestMessage(HttpMethod.Post, SearchUri)
@@ -271,70 +303,81 @@ internal sealed class NeteaseLyricsProvider(HttpClient httpClient) : HttpLyricsP
             searchRequest.Headers.Referrer = new Uri("https://music.163.com/");
 
             using var search = await SendJsonAsync(searchRequest, cancellationToken);
-            if (search is not null && TryFindSong(search.RootElement, track, out id))
+            if (search is null)
             {
-                break;
+                continue;
+            }
+
+            foreach (var id in FindSongs(search.RootElement, track))
+            {
+                if (!visited.Add(id))
+                {
+                    continue;
+                }
+
+                var lyricRequest = new HttpRequestMessage(
+                    HttpMethod.Get,
+                    $"https://music.163.com/api/song/lyric?id={id}&lv=-1&kv=-1&tv=-1");
+                lyricRequest.Headers.Referrer = new Uri("https://music.163.com/");
+                using var lyrics = await SendJsonAsync(lyricRequest, cancellationToken);
+                if (lyrics is null)
+                {
+                    continue;
+                }
+
+                var root = lyrics.RootElement;
+                var original = LyricsParsing.GetNestedString(root, "lrc", "lyric");
+                var translation = includeTranslation
+                    ? LyricsParsing.GetNestedString(root, "tlyric", "lyric")
+                    : null;
+                var snapshot = Snapshot(Source, original, translation);
+                ConsiderCandidate(snapshot, includeTranslation, ref best, onCandidate);
+                if (LyricsSelection.IsSatisfactory(snapshot, includeTranslation))
+                {
+                    return snapshot;
+                }
             }
         }
 
-        if (id == 0)
-        {
-            return new LyricsSnapshot([], false, Source);
-        }
-
-        var lyricRequest = new HttpRequestMessage(
-            HttpMethod.Get,
-            $"https://music.163.com/api/song/lyric?id={id}&lv=-1&kv=-1&tv=-1");
-        lyricRequest.Headers.Referrer = new Uri("https://music.163.com/");
-        using var lyrics = await SendJsonAsync(lyricRequest, cancellationToken);
-        if (lyrics is null)
-        {
-            return new LyricsSnapshot([], false, Source);
-        }
-
-        var root = lyrics.RootElement;
-        var original = LyricsParsing.GetNestedString(root, "lrc", "lyric");
-        var translation = includeTranslation
-            ? LyricsParsing.GetNestedString(root, "tlyric", "lyric")
-            : null;
-        return Snapshot(Source, original, translation);
+        return best;
     }
 
-    private static bool TryFindSong(JsonElement root, LyricsSearchTrack track, out long id)
+    private static IReadOnlyList<long> FindSongs(JsonElement root, LyricsSearchTrack track)
     {
-        id = 0;
         if (!LyricsParsing.TryGetPath(root, out var songs, "result", "songs") ||
             songs.ValueKind != JsonValueKind.Array)
         {
-            return false;
+            return [];
         }
 
+        var confident = new List<long>();
         var related = new List<long>();
-        foreach (var song in songs.EnumerateArray())
+        foreach (var song in songs.EnumerateArray().Take(10))
         {
             var name = LyricsParsing.GetString(song, "name");
             var artist = LyricsParsing.JoinNames(song, "artists", "ar");
             var duration = LyricsParsing.GetNumber(song, "duration", "dt") / 1000;
             if (LyricsMatching.IsConfidentMatch(track, name, artist, duration) &&
-                LyricsParsing.TryGetInt64(song, out id, "id"))
+                LyricsParsing.TryGetInt64(song, out var id, "id") && id != 0)
             {
-                return true;
+                confident.Add(id);
+                continue;
             }
 
             if (LyricsMatching.IsLikelySameRecording(track, artist, duration) &&
-                LyricsParsing.TryGetInt64(song, out var relatedId, "id"))
+                LyricsParsing.TryGetInt64(song, out var relatedId, "id") && relatedId != 0)
             {
                 related.Add(relatedId);
             }
         }
 
-        if (related.Count != 1)
+        if (confident.Count > 0)
         {
-            return false;
+            return confident.Distinct().ToArray();
         }
 
-        id = related[0];
-        return true;
+        var relatedIds = related.Distinct().ToArray();
+        return relatedIds.Length == 1 ? relatedIds : [];
     }
 }
 
@@ -346,7 +389,8 @@ internal sealed class QqMusicLyricsProvider(HttpClient httpClient) : HttpLyricsP
         IReadOnlyList<LyricsSearchTrack> tracks,
         bool includeTranslation,
         string? apiKey,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<LyricsSnapshot>? onCandidate = null)
     {
         var searchableTracks = tracks.Where(LyricsMatching.HasSearchMetadata).ToArray();
         if (searchableTracks.Length == 0)
@@ -354,37 +398,48 @@ internal sealed class QqMusicLyricsProvider(HttpClient httpClient) : HttpLyricsP
             return new LyricsSnapshot([], false, Source);
         }
 
-        var songMid = string.Empty;
+        var best = new LyricsSnapshot([], false, Source);
+        var visited = new HashSet<string>(StringComparer.Ordinal);
         foreach (var track in searchableTracks)
         {
             var query = Uri.EscapeDataString($"{track.Name} {track.ArtistName}");
             var searchRequest = CreateRequest(
                 $"https://c.y.qq.com/soso/fcgi-bin/client_search_cp?format=json&p=1&n=10&w={query}");
             using var search = await SendJsonAsync(searchRequest, cancellationToken);
-            if (search is not null && TryFindSong(search.RootElement, track, out songMid))
+            if (search is null)
             {
-                break;
+                continue;
+            }
+
+            foreach (var songMid in FindSongs(search.RootElement, track))
+            {
+                if (!visited.Add(songMid))
+                {
+                    continue;
+                }
+
+                var lyricRequest = CreateRequest(
+                    $"https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid={Uri.EscapeDataString(songMid)}&format=json&nobase64=1");
+                using var lyrics = await SendJsonAsync(lyricRequest, cancellationToken);
+                if (lyrics is null)
+                {
+                    continue;
+                }
+
+                var original = LyricsParsing.DecodePossibleBase64(LyricsParsing.GetString(lyrics.RootElement, "lyric"));
+                var translation = includeTranslation
+                    ? LyricsParsing.DecodePossibleBase64(LyricsParsing.GetString(lyrics.RootElement, "trans"))
+                    : null;
+                var snapshot = Snapshot(Source, original, translation);
+                ConsiderCandidate(snapshot, includeTranslation, ref best, onCandidate);
+                if (LyricsSelection.IsSatisfactory(snapshot, includeTranslation))
+                {
+                    return snapshot;
+                }
             }
         }
 
-        if (songMid.Length == 0)
-        {
-            return new LyricsSnapshot([], false, Source);
-        }
-
-        var lyricRequest = CreateRequest(
-            $"https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg?songmid={Uri.EscapeDataString(songMid)}&format=json&nobase64=1");
-        using var lyrics = await SendJsonAsync(lyricRequest, cancellationToken);
-        if (lyrics is null)
-        {
-            return new LyricsSnapshot([], false, Source);
-        }
-
-        var original = LyricsParsing.DecodePossibleBase64(LyricsParsing.GetString(lyrics.RootElement, "lyric"));
-        var translation = includeTranslation
-            ? LyricsParsing.DecodePossibleBase64(LyricsParsing.GetString(lyrics.RootElement, "trans"))
-            : null;
-        return Snapshot(Source, original, translation);
+        return best;
     }
 
     private static HttpRequestMessage CreateRequest(string uri)
@@ -394,17 +449,17 @@ internal sealed class QqMusicLyricsProvider(HttpClient httpClient) : HttpLyricsP
         return request;
     }
 
-    private static bool TryFindSong(JsonElement root, LyricsSearchTrack track, out string songMid)
+    private static IReadOnlyList<string> FindSongs(JsonElement root, LyricsSearchTrack track)
     {
-        songMid = string.Empty;
         if (!LyricsParsing.TryGetPath(root, out var songs, "data", "song", "list") ||
             songs.ValueKind != JsonValueKind.Array)
         {
-            return false;
+            return [];
         }
 
+        var confident = new List<string>();
         var related = new List<string>();
-        foreach (var song in songs.EnumerateArray())
+        foreach (var song in songs.EnumerateArray().Take(10))
         {
             var name = LyricsParsing.GetString(song, "songname", "title", "name");
             var artist = LyricsParsing.JoinNames(song, "singer");
@@ -412,8 +467,8 @@ internal sealed class QqMusicLyricsProvider(HttpClient httpClient) : HttpLyricsP
             var mid = LyricsParsing.GetString(song, "songmid", "mid");
             if (!string.IsNullOrWhiteSpace(mid) && LyricsMatching.IsConfidentMatch(track, name, artist, duration))
             {
-                songMid = mid;
-                return true;
+                confident.Add(mid);
+                continue;
             }
 
             if (!string.IsNullOrWhiteSpace(mid) &&
@@ -423,13 +478,13 @@ internal sealed class QqMusicLyricsProvider(HttpClient httpClient) : HttpLyricsP
             }
         }
 
-        if (related.Count != 1)
+        if (confident.Count > 0)
         {
-            return false;
+            return confident.Distinct(StringComparer.Ordinal).ToArray();
         }
 
-        songMid = related[0];
-        return true;
+        var relatedIds = related.Distinct(StringComparer.Ordinal).ToArray();
+        return relatedIds.Length == 1 ? relatedIds : [];
     }
 }
 
@@ -443,7 +498,8 @@ internal sealed class MusixmatchLyricsProvider(HttpClient httpClient) : HttpLyri
         IReadOnlyList<LyricsSearchTrack> tracks,
         bool includeTranslation,
         string? apiKey,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<LyricsSnapshot>? onCandidate = null)
     {
         var searchableTracks = tracks.Where(LyricsMatching.HasSearchMetadata).ToArray();
         if (searchableTracks.Length == 0 || string.IsNullOrWhiteSpace(apiKey))
@@ -451,7 +507,8 @@ internal sealed class MusixmatchLyricsProvider(HttpClient httpClient) : HttpLyri
             return new LyricsSnapshot([], false, Source);
         }
 
-        long trackId = 0;
+        var best = new LyricsSnapshot([], false, Source);
+        var visited = new HashSet<long>();
         foreach (var track in searchableTracks)
         {
             using var match = await SendJsonAsync(
@@ -460,26 +517,38 @@ internal sealed class MusixmatchLyricsProvider(HttpClient httpClient) : HttpLyri
                     ("q_artist", track.ArtistName),
                     ("f_has_lyrics", "1")),
                 cancellationToken);
-            if (match is not null &&
-                LyricsParsing.TryGetPath(match.RootElement, out var matchedTrack, "message", "body", "track") &&
-                LyricsParsing.TryGetInt64(matchedTrack, out trackId, "track_id") &&
-                LyricsMatching.IsConfidentMatch(
+            if (match is null ||
+                !LyricsParsing.TryGetPath(match.RootElement, out var matchedTrack, "message", "body", "track") ||
+                !LyricsParsing.TryGetInt64(matchedTrack, out var trackId, "track_id") ||
+                trackId == 0 ||
+                !LyricsMatching.IsConfidentMatch(
                     track,
                     LyricsParsing.GetString(matchedTrack, "track_name"),
                     LyricsParsing.GetString(matchedTrack, "artist_name"),
-                    LyricsParsing.GetNumber(matchedTrack, "track_length")))
+                    LyricsParsing.GetNumber(matchedTrack, "track_length")) ||
+                !visited.Add(trackId))
             {
-                break;
+                continue;
             }
 
-            trackId = 0;
+            var snapshot = await FetchTrackLyricsAsync(trackId, includeTranslation, apiKey, cancellationToken, onCandidate);
+            ConsiderCandidate(snapshot, includeTranslation, ref best, onCandidate);
+            if (LyricsSelection.IsSatisfactory(snapshot, includeTranslation))
+            {
+                return snapshot;
+            }
         }
 
-        if (trackId == 0)
-        {
-            return new LyricsSnapshot([], false, Source);
-        }
+        return best;
+    }
 
+    private async Task<LyricsSnapshot> FetchTrackLyricsAsync(
+        long trackId,
+        bool includeTranslation,
+        string apiKey,
+        CancellationToken cancellationToken,
+        Action<LyricsSnapshot>? onCandidate)
+    {
         using var subtitle = await SendJsonAsync(
             CreateRequest("track.subtitle.get", apiKey,
                 ("track_id", trackId.ToString(CultureInfo.InvariantCulture)),
@@ -501,6 +570,10 @@ internal sealed class MusixmatchLyricsProvider(HttpClient httpClient) : HttpLyri
         }
 
         var snapshot = Snapshot(Source, original);
+        if (snapshot.Lines.Count > 0)
+        {
+            onCandidate?.Invoke(snapshot);
+        }
         if (!includeTranslation || snapshot.Lines.Count == 0)
         {
             return snapshot;

@@ -828,8 +828,8 @@
                                             <FontIcon FontSize="16" Glyph="&#xE71B;" />
                                         </Border>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                            <TextBlock x:Uid="Main_082" FontWeight="SemiBold" Text="歌词源" />
-                                            <TextBlock x:Uid="Main_083" Style="{StaticResource SettingsDescriptionStyle}" Text="优先使用 Cider 歌词，无可用歌词时自动匹配其他来源" />
+                                            <TextBlock x:Uid="Main_082" FontWeight="SemiBold" Text="优先歌词源" />
+                                            <TextBlock x:Uid="Main_083" Style="{StaticResource SettingsDescriptionStyle}" Text="自动时优先网易云；所选来源无合适歌词时继续查找其他来源" />
                                         </StackPanel>
                                     </Grid>
                                     <Grid
@@ -840,8 +840,7 @@
                                         VerticalAlignment="Center">
                                         <ComboBox
                                             x:Name="LyricsSourceComboBox"
-                                            HorizontalAlignment="Stretch"
-                                            SelectionChanged="LyricsSourceComboBox_SelectionChanged">
+                                            HorizontalAlignment="Stretch">
                                             <ComboBoxItem x:Uid="Main_084" Content="自动" Tag="Auto" />
                                             <ComboBoxItem Content="Cider" Tag="Cider" />
                                             <ComboBoxItem x:Uid="Main_085" Content="网易云音乐" Tag="Netease" />
@@ -871,7 +870,7 @@
                                         </Border>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                             <TextBlock x:Uid="Main_087" FontWeight="SemiBold" Text="显示歌词翻译" />
-                                            <TextBlock x:Uid="Main_088" Style="{StaticResource SettingsDescriptionStyle}" Text="有简体中文译文时，在原文下方显示" />
+                                            <TextBlock x:Uid="Main_088" Style="{StaticResource SettingsDescriptionStyle}" Text="开启后优先查找带中文译文的歌词，找到后在原文下方显示" />
                                         </StackPanel>
                                     </Grid>
                                     <Grid
