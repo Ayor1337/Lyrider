@@ -15,6 +15,15 @@ internal static class LyricPresentation
         "title", "artist", "singer", "vocals", "lyrics", "lyricist", "composer", "arranger", "producer"
     ];
 
+    private static readonly HashSet<string> InstrumentalMarkers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "纯音乐", "純音樂", "instrumental", "伴奏", "间奏", "間奏", "尾奏", "interlude", "outro",
+        "纯音乐请欣赏", "純音樂請欣賞", "纯音乐请您欣赏", "純音樂請您欣賞",
+        "此歌曲为没有填词的纯音乐", "此歌曲為沒有填詞的純音樂",
+        "此歌曲为没有填词的纯音乐请欣赏", "此歌曲為沒有填詞的純音樂請欣賞",
+        "此歌曲为没有填词的纯音乐请您欣赏", "此歌曲為沒有填詞的純音樂請您欣賞"
+    };
+
     public const double ActiveScale = 1.08;
     public const double InactiveScale = 1.0;
     public const double ActiveOpacity = 1.0;
@@ -56,6 +65,59 @@ internal static class LyricPresentation
         }
 
         return lines.Count;
+    }
+
+    public static int FindTaskbarLyricIndex(
+        IReadOnlyList<LyricLineInfo> lines,
+        int activeIndex,
+        string? title,
+        string? artist)
+    {
+        var firstIndex = FindFirstTaskbarLyricIndex(lines, title, artist);
+        if (activeIndex < firstIndex || activeIndex >= lines.Count)
+        {
+            return -1;
+        }
+
+        if (!IsTaskbarGap(lines[activeIndex].Text))
+        {
+            return activeIndex;
+        }
+
+        // 间奏预览下一句，尾奏保留最后一句；原始时间轴仍供主窗口使用。
+        var nextIndex = FindNextTaskbarLyricIndex(lines, activeIndex);
+        if (nextIndex >= 0)
+        {
+            return nextIndex;
+        }
+
+        for (var index = activeIndex - 1; index >= firstIndex; index--)
+        {
+            if (!IsTaskbarGap(lines[index].Text))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    public static int FindNextTaskbarLyricIndex(IReadOnlyList<LyricLineInfo> lines, int currentIndex)
+    {
+        if (currentIndex < 0 || currentIndex >= lines.Count)
+        {
+            return -1;
+        }
+
+        for (var index = currentIndex + 1; index < lines.Count; index++)
+        {
+            if (!IsTaskbarGap(lines[index].Text))
+            {
+                return index;
+            }
+        }
+
+        return -1;
     }
 
     public static TimeSpan? DelayUntilNextLine(
@@ -157,11 +219,9 @@ internal static class LyricPresentation
     private static bool IsLeadingNonLyricLine(string text, string? title, string? artist)
     {
         var trimmed = text.Trim();
-        if (trimmed.Length == 0 ||
+        if (IsTaskbarGap(trimmed) ||
             EqualsTrackMetadata(trimmed, title) ||
-            EqualsTrackMetadata(trimmed, artist) ||
-            IsInstrumentalMarker(trimmed) ||
-            IsDecorationOnly(trimmed))
+            EqualsTrackMetadata(trimmed, artist))
         {
             return true;
         }
@@ -186,10 +246,15 @@ internal static class LyricPresentation
         !string.IsNullOrWhiteSpace(metadata) &&
         string.Equals(text, metadata.Trim(), StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsInstrumentalMarker(string text) =>
-        string.Equals(text, "纯音乐", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(text, "純音樂", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(text, "instrumental", StringComparison.OrdinalIgnoreCase);
+    private static bool IsTaskbarGap(string text) =>
+        string.IsNullOrWhiteSpace(text) || IsInstrumentalMarker(text) || IsDecorationOnly(text);
+
+    private static bool IsInstrumentalMarker(string text)
+    {
+        var normalized = string.Concat(text.Where(character =>
+            !char.IsWhiteSpace(character) && !char.IsPunctuation(character)));
+        return InstrumentalMarkers.Contains(normalized);
+    }
 
     private static bool IsCreditSeparator(char character) =>
         char.IsWhiteSpace(character) || character is ':' or '：' or '-' or '—' or '–' or '·' or '/' or '|';
