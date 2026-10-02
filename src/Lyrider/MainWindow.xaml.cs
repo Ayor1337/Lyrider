@@ -654,14 +654,11 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var firstTaskbarLyricIndex = LyricPresentation.FindFirstTaskbarLyricIndex(
+        var taskbarLyricIndex = LyricPresentation.FindTaskbarLyricIndex(
             _lyrics,
+            _currentLyricIndex,
             track.Name,
             track.ArtistName);
-        var taskbarLyricIndex = _currentLyricIndex >= firstTaskbarLyricIndex &&
-            _currentLyricIndex < _lyrics.Count
-                ? _currentLyricIndex
-                : -1;
         var hasCurrentLyric =
             _settings.ShowLyricsInTaskbar &&
             _lyricsAreTimeSynced &&
@@ -670,8 +667,11 @@ public sealed partial class MainWindow : Window
             !string.IsNullOrWhiteSpace(_lyrics[taskbarLyricIndex].Translation)
                 ? DisplayLyricText(DisplayTranslationText(_lyrics[taskbarLyricIndex].Translation!))
                 : null;
-        var nextLyric = hasCurrentLyric && taskbarLyricIndex + 1 < _lyrics.Count
-            ? DisplayLyricText(_lyrics[taskbarLyricIndex + 1].Text)
+        var nextLyricIndex = hasCurrentLyric
+            ? LyricPresentation.FindNextTaskbarLyricIndex(_lyrics, taskbarLyricIndex)
+            : -1;
+        var nextLyric = nextLyricIndex >= 0
+            ? DisplayLyricText(_lyrics[nextLyricIndex].Text)
             : null;
 
         _taskbarWidgetHost.Update(new TaskbarPlaybackState(

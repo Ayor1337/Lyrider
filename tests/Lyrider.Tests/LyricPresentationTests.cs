@@ -124,6 +124,133 @@ public sealed class LyricPresentationTests
         Assert.AreEqual(lines.Count, LyricPresentation.FindFirstTaskbarLyricIndex(lines, "Song", "Artist"));
     }
 
+    [DataTestMethod]
+    [DataRow("纯音乐，请欣赏")]
+    [DataRow("【純音樂，請您欣賞。】")]
+    [DataRow("此歌曲为没有填词的纯音乐，请您欣赏")]
+    [DataRow("此歌曲為沒有填詞的純音樂，請欣賞！")]
+    [DataRow(" [ INSTRUMENTAL ] ")]
+    public void FindTaskbarLyricIndex_WithOnlyInstrumentalAndMetadata_ReturnsMinusOne(string marker)
+    {
+        IReadOnlyList<LyricLineInfo> lines =
+        [
+            new(0, 1, "Song"),
+            new(1, 2, "Artist"),
+            new(2, 3, "作曲：某人"),
+            new(3, 10, marker),
+            new(10, null, "♪ ♫")
+        ];
+
+        for (var activeIndex = 0; activeIndex < lines.Count; activeIndex++)
+        {
+            Assert.AreEqual(-1, LyricPresentation.FindTaskbarLyricIndex(lines, activeIndex, "Song", "Artist"));
+        }
+    }
+
+    [DataTestMethod]
+    [DataRow("纯音乐，请欣赏")]
+    [DataRow("[Instrumental]")]
+    [DataRow("（间奏）")]
+    [DataRow("[Interlude]")]
+    [DataRow("")]
+    [DataRow("♪ ♫")]
+    public void FindTaskbarLyricIndex_DuringInterlude_ReturnsNextLyric(string marker)
+    {
+        IReadOnlyList<LyricLineInfo> lines =
+        [
+            new(0, 10, "第一句歌词"),
+            new(10, 20, marker),
+            new(20, 30, "纯音乐"),
+            new(30, 40, "第二句歌词", "Second lyric"),
+            new(40, null, "第三句歌词")
+        ];
+
+        Assert.AreEqual(0, LyricPresentation.FindTaskbarLyricIndex(lines, 0, "Song", "Artist"));
+        Assert.AreEqual(3, LyricPresentation.FindTaskbarLyricIndex(lines, 1, "Song", "Artist"));
+        Assert.AreEqual(3, LyricPresentation.FindTaskbarLyricIndex(lines, 2, "Song", "Artist"));
+        Assert.AreEqual(3, LyricPresentation.FindTaskbarLyricIndex(lines, 3, "Song", "Artist"));
+        Assert.AreEqual(4, LyricPresentation.FindNextTaskbarLyricIndex(lines, 3));
+    }
+
+    [DataTestMethod]
+    [DataRow("純音樂，請欣賞")]
+    [DataRow("尾奏")]
+    [DataRow("[Outro]")]
+    public void FindTaskbarLyricIndex_DuringOutro_ReturnsLastLyric(string marker)
+    {
+        IReadOnlyList<LyricLineInfo> lines =
+        [
+            new(0, 10, "第一句歌词"),
+            new(10, 20, "最后一句歌词"),
+            new(20, 30, marker),
+            new(30, null, "♪ ♫")
+        ];
+
+        Assert.AreEqual(1, LyricPresentation.FindTaskbarLyricIndex(lines, 2, "Song", "Artist"));
+        Assert.AreEqual(1, LyricPresentation.FindTaskbarLyricIndex(lines, 3, "Song", "Artist"));
+        Assert.AreEqual(-1, LyricPresentation.FindNextTaskbarLyricIndex(lines, 1));
+    }
+
+    [DataTestMethod]
+    [DataRow("在纯音乐中想起你")]
+    [DataRow("This instrumental reminds me of you")]
+    [DataRow("纯音乐，请欣赏这段人生")]
+    [DataRow("Song")]
+    public void FindTaskbarLyricIndex_WithMarkerWordsOrRepeatedTitle_KeepsNormalLyric(string lyric)
+    {
+        IReadOnlyList<LyricLineInfo> lines =
+        [
+            new(0, 10, "第一句歌词"),
+            new(10, null, lyric)
+        ];
+
+        Assert.AreEqual(1, LyricPresentation.FindTaskbarLyricIndex(lines, 1, "Song", "Artist"));
+        Assert.AreEqual(1, LyricPresentation.FindNextTaskbarLyricIndex(lines, 0));
+    }
+
+    [TestMethod]
+    public void FindTaskbarLyricIndex_BeforeFirstLyricOrDuringLeadingCredits_ReturnsMinusOne()
+    {
+        IReadOnlyList<LyricLineInfo> lines =
+        [
+            new(0, 10, "作词：某人"),
+            new(10, 20, "纯音乐，请欣赏"),
+            new(20, null, "第一句歌词")
+        ];
+
+        Assert.AreEqual(-1, LyricPresentation.FindTaskbarLyricIndex(lines, -1, "Song", "Artist"));
+        Assert.AreEqual(-1, LyricPresentation.FindTaskbarLyricIndex(lines, 0, "Song", "Artist"));
+        Assert.AreEqual(-1, LyricPresentation.FindTaskbarLyricIndex(lines, 1, "Song", "Artist"));
+        Assert.AreEqual(2, LyricPresentation.FindTaskbarLyricIndex(lines, 2, "Song", "Artist"));
+    }
+
+    [TestMethod]
+    public void FindTaskbarLyricIndex_WithEmptyLyricsOrInvalidIndex_ReturnsMinusOne()
+    {
+        IReadOnlyList<LyricLineInfo> lines = [new(0, null, "歌词")];
+
+        Assert.AreEqual(-1, LyricPresentation.FindTaskbarLyricIndex([], 0, "Song", "Artist"));
+        Assert.AreEqual(-1, LyricPresentation.FindTaskbarLyricIndex(lines, -1, "Song", "Artist"));
+        Assert.AreEqual(-1, LyricPresentation.FindTaskbarLyricIndex(lines, 1, "Song", "Artist"));
+        Assert.AreEqual(-1, LyricPresentation.FindNextTaskbarLyricIndex(lines, -1));
+        Assert.AreEqual(-1, LyricPresentation.FindNextTaskbarLyricIndex(lines, 1));
+    }
+
+    [TestMethod]
+    public void FindNextTaskbarLyricIndex_WithInterlude_SkipsPlaceholderLines()
+    {
+        IReadOnlyList<LyricLineInfo> lines =
+        [
+            new(0, 10, "第一句歌词"),
+            new(10, 20, "纯音乐，请欣赏"),
+            new(20, 30, ""),
+            new(30, null, "第二句歌词")
+        ];
+
+        Assert.AreEqual(3, LyricPresentation.FindNextTaskbarLyricIndex(lines, 0));
+        Assert.AreEqual(-1, LyricPresentation.FindNextTaskbarLyricIndex(lines, 3));
+    }
+
     [TestMethod]
     public void DelayUntilNextLine_WhenNextLineIsAhead_ReturnsExactRemainingTime()
     {
