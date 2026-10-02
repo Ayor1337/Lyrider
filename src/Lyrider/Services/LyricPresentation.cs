@@ -12,6 +12,7 @@ internal static class LyricPresentation
     private static readonly string[] LeadingCreditLabels =
     [
         "歌名", "歌手", "演唱", "主唱", "作词", "作詞", "填词", "填詞", "作曲", "编曲", "編曲", "制作人", "製作人",
+        "制作", "製作", "混音", "录音", "錄音", "母带", "母帶", "词", "詞", "曲",
         "title", "artist", "singer", "vocals", "lyrics", "lyricist", "composer", "arranger", "producer"
     ];
 
@@ -218,7 +219,7 @@ internal static class LyricPresentation
 
     private static bool IsLeadingNonLyricLine(string text, string? title, string? artist)
     {
-        var trimmed = text.Trim();
+        var trimmed = text.Trim().Trim('【', '】', '[', ']', '(', ')', '（', '）').Trim();
         if (IsTaskbarGap(trimmed) ||
             EqualsTrackMetadata(trimmed, title) ||
             EqualsTrackMetadata(trimmed, artist))
@@ -233,7 +234,14 @@ internal static class LyricPresentation
                 continue;
             }
 
-            if (trimmed.Length == label.Length || IsCreditSeparator(trimmed[label.Length]))
+            if (label.Length == 1)
+            {
+                if (trimmed.Length > 1 && trimmed[1] is ':' or '：')
+                {
+                    return true;
+                }
+            }
+            else if (trimmed.Length == label.Length || IsCreditSeparator(trimmed[label.Length]))
             {
                 return true;
             }

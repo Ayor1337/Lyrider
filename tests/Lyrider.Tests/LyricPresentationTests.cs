@@ -1,5 +1,6 @@
 using Lyrider.Models;
 using Lyrider.Services;
+using Lyrider.TaskbarWidget;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Lyrider.Tests;
@@ -222,6 +223,88 @@ public sealed class LyricPresentationTests
         Assert.AreEqual(-1, LyricPresentation.FindTaskbarLyricIndex(lines, 0, "Song", "Artist"));
         Assert.AreEqual(-1, LyricPresentation.FindTaskbarLyricIndex(lines, 1, "Song", "Artist"));
         Assert.AreEqual(2, LyricPresentation.FindTaskbarLyricIndex(lines, 2, "Song", "Artist"));
+    }
+
+    [DataTestMethod]
+    [DataRow("【制作人：某人】", 0)]
+    [DataRow("【制作人：某人】", 9.999)]
+    [DataRow("【制作人：某人】", 2)]
+    [DataRow("混音：某人", 0)]
+    [DataRow("混音：某人", 9.999)]
+    [DataRow("混音：某人", 2)]
+    [DataRow("词：某人", 0)]
+    [DataRow("词：某人", 2)]
+    [DataRow("詞：某人", 2)]
+    [DataRow("曲：某人", 2)]
+    [DataRow("制作：某人", 2)]
+    [DataRow("製作：某人", 2)]
+    [DataRow("录音：某人", 2)]
+    [DataRow("錄音：某人", 2)]
+    [DataRow("母带：某人", 2)]
+    [DataRow("母帶：某人", 2)]
+    [DataRow("[Producer: Someone]", 2)]
+    [DataRow("（制作人：某人）", 2)]
+    [DataRow("( 制作人：某人 )", 2)]
+    public void GetTaskbarDisplayText_DuringLeadingCreditsAndGap_ShowsTrackMetadata(
+        string credit, double playbackTime)
+    {
+        IReadOnlyList<LyricLineInfo> lines =
+        [
+            new(0, 2, credit),
+            new(2, 10, "♪ ♫"),
+            new(10, null, "第一句歌词")
+        ];
+        var activeIndex = LyricPresentation.FindActiveLineIndex(lines, playbackTime);
+        var taskbarIndex = LyricPresentation.FindTaskbarLyricIndex(lines, activeIndex, "Song", "Artist");
+        var state = new TaskbarPlaybackState("Song", "Artist", null, true, true,
+            taskbarIndex >= 0 ? lines[taskbarIndex].Text : null);
+
+        var display = TaskbarPresentation.GetDisplayText(state);
+
+        Assert.AreEqual("Song", display.Primary, $"Playback time: {playbackTime}");
+        Assert.AreEqual("Artist", display.Secondary);
+        Assert.AreEqual(2, LyricPresentation.FindTaskbarLyricIndex(lines,
+            LyricPresentation.FindActiveLineIndex(lines, 10), "Song", "Artist"));
+    }
+
+    [DataTestMethod]
+    [DataRow("制作人写下夜色")]
+    [DataRow("混音里的回忆")]
+    [DataRow("【作曲家写下夜色】")]
+    [DataRow("词 是未说出口的心事")]
+    [DataRow("曲 是记忆里的声音")]
+    [DataRow("词")]
+    public void FindFirstTaskbarLyricIndex_WithCreditWordsInOrdinaryLyrics_KeepsFirstLine(string lyric)
+    {
+        IReadOnlyList<LyricLineInfo> lines = [new(0, null, lyric)];
+
+        Assert.AreEqual(0, LyricPresentation.FindFirstTaskbarLyricIndex(lines, "Song", "Artist"));
+    }
+
+    [TestMethod]
+    public void GetTaskbarDisplayText_ReplayingLeadingCreditsAndSeeking_ShowsLyricsOnlyAtTheirTimestamp()
+    {
+        IReadOnlyList<LyricLineInfo> lines =
+        [
+            new(0, 1, "【制作人：某人】"),
+            new(1, 2, "制作人：另一人"),
+            new(2, 10, "♪ ♫"),
+            new(10, null, "第一句歌词")
+        ];
+        double[] playbackTimes = [-1, 0, 0.5, 1, 2, 9.999, 10, 10.1, 5, 0, 10];
+
+        foreach (var playbackTime in playbackTimes)
+        {
+            var activeIndex = LyricPresentation.FindActiveLineIndex(lines, playbackTime);
+            var taskbarIndex = LyricPresentation.FindTaskbarLyricIndex(lines, activeIndex, "Song", "Artist");
+            var state = new TaskbarPlaybackState("Song", "Artist", null, true, true,
+                taskbarIndex >= 0 ? lines[taskbarIndex].Text : null);
+            var display = TaskbarPresentation.GetDisplayText(state);
+
+            Assert.AreEqual(playbackTime >= 10 ? "第一句歌词" : "Song", display.Primary,
+                $"Playback time: {playbackTime}");
+            Assert.AreEqual(playbackTime >= 10 ? string.Empty : "Artist", display.Secondary);
+        }
     }
 
     [TestMethod]
