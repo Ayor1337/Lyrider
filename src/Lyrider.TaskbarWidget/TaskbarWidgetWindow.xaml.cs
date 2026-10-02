@@ -138,6 +138,10 @@ public partial class TaskbarWidgetWindow : Window
         PlayPauseIcon.Text = TaskbarPresentation.GetPlayPauseGlyph(state.IsPlaying);
         SetArtwork(state.ArtworkUrl);
         UpdateVisibility();
+        if (displayTextChanged || marqueeModeChanged || lyricTransitionDirection != 0)
+        {
+            PrepareMarquee();
+        }
         if (lyricTransitionDirection != 0 && !_isPointerOver)
         {
             AnimateLyricTransition(previousDisplayText, lyricTransitionDirection);
@@ -386,7 +390,7 @@ public partial class TaskbarWidgetWindow : Window
         OutgoingTitleText.TextAlignment = textAlignment;
         ArtistText.TextAlignment = textAlignment;
         OutgoingArtistText.TextAlignment = textAlignment;
-        StopMarquee();
+        PrepareMarquee();
         Dispatcher.BeginInvoke(new Action(StartMarquee));
     }
 
@@ -672,7 +676,7 @@ public partial class TaskbarWidgetWindow : Window
 
         _isPointerOver = true;
         StopLyricTransition();
-        StopMarquee();
+        PrepareMarquee();
         ControlsPanel.IsHitTestVisible = true;
         AnimatePanel(InfoPanel, 0, -2, 100);
         AnimatePanel(ControlsPanel, 1, 0, 167);
@@ -686,11 +690,13 @@ public partial class TaskbarWidgetWindow : Window
         AnimatePanel(ControlsPanel, 0, 2, 100);
         AnimatePanel(InfoPanel, 1, 0, 167);
         SetRootBackground(_idleBackgroundColor, animate: true);
+        PrepareMarquee();
         Dispatcher.BeginInvoke(new Action(StartMarquee));
     }
 
     private void TextViewport_SizeChanged(object sender, SizeChangedEventArgs e)
     {
+        PrepareMarquee();
         if (!_isPointerOver)
         {
             Dispatcher.BeginInvoke(new Action(StartMarquee));
@@ -698,6 +704,28 @@ public partial class TaskbarWidgetWindow : Window
     }
 
     private void StartMarquee()
+    {
+        var cycleDistance = PrepareMarquee();
+        if (cycleDistance <= 0)
+        {
+            return;
+        }
+
+        var travelDuration = TimeSpan.FromSeconds(cycleDistance / MarqueeSpeed);
+        var cycleDuration = MarqueeStartDelay + travelDuration;
+        ((TranslateTransform)PrimaryMarqueePanel.RenderTransform).BeginAnimation(
+            TranslateTransform.XProperty,
+            CreateMarqueeAnimation(cycleDistance, cycleDuration));
+        if (TaskbarPresentation.ShouldSynchronizeMarquee(_state))
+        {
+            ((TranslateTransform)SecondaryMarqueePanel.RenderTransform).BeginAnimation(
+                TranslateTransform.XProperty,
+                CreateMarqueeAnimation(cycleDistance, cycleDuration));
+        }
+    }
+
+    // Apply text widths and alignment before the incoming lyric becomes visible.
+    private double PrepareMarquee()
     {
         StopMarquee();
         TitleText.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -720,7 +748,7 @@ public partial class TaskbarWidgetWindow : Window
                 ((TranslateTransform)SecondaryMarqueePanel.RenderTransform).X = offset;
             }
 
-            return;
+            return 0;
         }
 
         TitleText.Width = contentWidth;
@@ -734,20 +762,9 @@ public partial class TaskbarWidgetWindow : Window
             SynchronizedSecondaryMarquee.Visibility = Visibility.Visible;
         }
 
-        var cycleDistance = TaskbarPresentation.CalculateMarqueeCycleDistance(
+        return TaskbarPresentation.CalculateMarqueeCycleDistance(
             contentWidth,
             MarqueeGap);
-        var travelDuration = TimeSpan.FromSeconds(cycleDistance / MarqueeSpeed);
-        var cycleDuration = MarqueeStartDelay + travelDuration;
-        ((TranslateTransform)PrimaryMarqueePanel.RenderTransform).BeginAnimation(
-            TranslateTransform.XProperty,
-            CreateMarqueeAnimation(cycleDistance, cycleDuration));
-        if (synchronizeSecondary)
-        {
-            ((TranslateTransform)SecondaryMarqueePanel.RenderTransform).BeginAnimation(
-                TranslateTransform.XProperty,
-                CreateMarqueeAnimation(cycleDistance, cycleDuration));
-        }
     }
 
     private static DoubleAnimationUsingKeyFrames CreateMarqueeAnimation(
