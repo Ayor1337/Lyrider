@@ -66,7 +66,7 @@ public sealed class NextTrackLyricsPreloaderTests
     public void Prepare_UnchangedCandidate_StartsOnlyOneRequest()
     {
         var requests = 0;
-        using var preloader = new NextTrackLyricsPreloader((_, _, _, _) =>
+        using var preloader = new NextTrackLyricsPreloader((_, _, _, _, _) =>
         {
             requests++;
             return Task.FromResult(Snapshot("line"));
@@ -84,7 +84,7 @@ public sealed class NextTrackLyricsPreloaderTests
     {
         var previousCanceled = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        using var preloader = new NextTrackLyricsPreloader(async (item, _, _, cancellationToken) =>
+        using var preloader = new NextTrackLyricsPreloader(async (item, _, _, cancellationToken, _) =>
         {
             if (item.Id == "first")
             {
@@ -113,7 +113,7 @@ public sealed class NextTrackLyricsPreloaderTests
     {
         var requests = 0;
         var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var preloader = new NextTrackLyricsPreloader(async (_, _, _, cancellationToken) =>
+        using var preloader = new NextTrackLyricsPreloader(async (_, _, _, cancellationToken, _) =>
         {
             requests++;
             if (requests == 1)
@@ -146,7 +146,7 @@ public sealed class NextTrackLyricsPreloaderTests
         var requests = 0;
         var result = new TaskCompletionSource<LyricsSnapshot>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        using var preloader = new NextTrackLyricsPreloader((_, _, _, _) =>
+        using var preloader = new NextTrackLyricsPreloader((_, _, _, _, _) =>
         {
             requests++;
             return result.Task;
@@ -176,7 +176,7 @@ public sealed class NextTrackLyricsPreloaderTests
     {
         var result = new TaskCompletionSource<LyricsSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationToken currentToken = default;
-        using var preloader = new NextTrackLyricsPreloader((item, _, _, token) =>
+        using var preloader = new NextTrackLyricsPreloader((item, _, _, token, _) =>
         {
             if (item.Id == "next")
             {
@@ -202,7 +202,7 @@ public sealed class NextTrackLyricsPreloaderTests
     public async Task TakeAsync_CallerCancels_CancelsTakenLoadAndPreservesFollowingTrack()
     {
         CancellationToken takenToken = default;
-        using var preloader = new NextTrackLyricsPreloader((item, _, _, token) =>
+        using var preloader = new NextTrackLyricsPreloader((item, _, _, token, _) =>
         {
             if (item.Id == "next")
             {
@@ -230,7 +230,7 @@ public sealed class NextTrackLyricsPreloaderTests
     public async Task Dispose_TakenLoadInFlight_CancelsLoad()
     {
         CancellationToken takenToken = default;
-        using var preloader = new NextTrackLyricsPreloader(async (_, _, _, token) =>
+        using var preloader = new NextTrackLyricsPreloader(async (_, _, _, token, _) =>
         {
             takenToken = token;
             await Task.Delay(Timeout.InfiniteTimeSpan, token);
@@ -249,7 +249,7 @@ public sealed class NextTrackLyricsPreloaderTests
     public async Task TakeAsync_DifferentTrack_CancelsCandidateAndReturnsNull()
     {
         var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var preloader = new NextTrackLyricsPreloader(async (_, _, _, cancellationToken) =>
+        using var preloader = new NextTrackLyricsPreloader(async (_, _, _, cancellationToken, _) =>
         {
             try
             {
@@ -279,7 +279,7 @@ public sealed class NextTrackLyricsPreloaderTests
     public async Task TakeAsync_EmptyPrefetch_ReturnsNullForForegroundRetry()
     {
         using var preloader = new NextTrackLyricsPreloader(
-            (_, _, _, _) => Task.FromResult(LyricsSnapshot.Empty));
+            (_, _, _, _, _) => Task.FromResult(LyricsSnapshot.Empty));
         preloader.Prepare(CreateItem(1, "next", "Next"), DefaultOptions, null);
 
         var lyrics = await preloader.TakeAsync(
@@ -289,6 +289,87 @@ public sealed class NextTrackLyricsPreloaderTests
             CancellationToken.None);
 
         Assert.IsNull(lyrics);
+    }
+
+    [TestMethod]
+    public async Task TakeAsync_InFlightTranslation_ReportsOriginalAndLaterUpgrade()
+    {
+        var completion = new TaskCompletionSource<LyricsSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Action<LyricsSnapshot>? report = null;
+        var original = Snapshot("original");
+        using var preloader = new NextTrackLyricsPreloader((_, _, _, _, onProgress) =>
+        {
+            report = onProgress;
+            onProgress?.Invoke(original);
+            return completion.Task;
+        });
+        var options = new LyricsResolveOptions(LyricsSource.Auto, true);
+        preloader.Prepare(CreateItem(1, "next", "Next"), options, null);
+        var updates = new List<LyricsSnapshot>();
+
+        var taking = preloader.TakeAsync(CreateNowPlaying("next"), options, null, CancellationToken.None, updates.Add);
+
+        Assert.IsFalse(taking.IsCompleted);
+        Assert.AreSame(original, updates.Single());
+        var translated = original with { Lines = [new(1, null, "original", "译文")] };
+        report!(translated);
+        completion.SetResult(translated);
+        Assert.AreSame(translated, await taking);
+        CollectionAssert.AreEqual(new[] { original, translated }, updates);
+    }
+
+    [TestMethod]
+    public async Task TakeAsync_PrefetchProgressForCider_UsesCurrentTimingFlag()
+    {
+        var completion = new TaskCompletionSource<LyricsSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var original = new LyricsSnapshot([new(1, null, "Cider")], false, LyricsSource.Cider);
+        using var preloader = new NextTrackLyricsPreloader((_, _, _, _, onProgress) =>
+        {
+            onProgress?.Invoke(original);
+            return completion.Task;
+        });
+        preloader.Prepare(CreateItem(1, "next", "Next"), DefaultOptions, null);
+        var updates = new List<LyricsSnapshot>();
+
+        var taking = preloader.TakeAsync(
+            CreateNowPlaying("next", hasTimeSyncedLyrics: true), DefaultOptions, null, CancellationToken.None, updates.Add);
+
+        Assert.IsTrue(updates.Single().IsTimeSynced);
+        completion.SetResult(original);
+        Assert.IsTrue((await taking)!.IsTimeSynced);
+    }
+
+    [TestMethod]
+    public async Task TakeAsync_CanceledProgress_DoesNotUpdateCurrentOrFollowingTrack()
+    {
+        var completion = new TaskCompletionSource<LyricsSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Action<LyricsSnapshot>? reportCurrent = null;
+        using var preloader = new NextTrackLyricsPreloader((item, _, _, _, onProgress) =>
+        {
+            if (item.Id == "next")
+            {
+                reportCurrent = onProgress;
+                return completion.Task;
+            }
+
+            onProgress?.Invoke(Snapshot("following"));
+            return Task.FromResult(Snapshot("following"));
+        });
+        using var cancellation = new CancellationTokenSource();
+        preloader.Prepare(CreateItem(1, "next", "Next"), DefaultOptions, null);
+        var updates = new List<LyricsSnapshot>();
+        var taking = preloader.TakeAsync(CreateNowPlaying("next"), DefaultOptions, null, cancellation.Token, updates.Add);
+        preloader.Prepare(CreateItem(2, "following", "Following"), DefaultOptions, null);
+
+        cancellation.Cancel();
+        reportCurrent!(Snapshot("stale"));
+        await Assert.ThrowsExceptionAsync<TaskCanceledException>(async () => await taking);
+        reportCurrent(Snapshot("still stale"));
+        completion.SetResult(Snapshot("stale"));
+
+        Assert.AreEqual(0, updates.Count);
+        Assert.AreEqual("following", (await preloader.TakeAsync(
+            CreateNowPlaying("following"), DefaultOptions, null, CancellationToken.None))!.Lines[0].Text);
     }
 
     private static QueueItemInfo CreateItem(int index, string id, string name) =>

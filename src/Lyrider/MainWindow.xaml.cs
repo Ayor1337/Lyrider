@@ -407,7 +407,7 @@ public sealed partial class MainWindow : Window
                     UpdateTaskbarWidget(track, playbackStatus);
                 }
 
-                await RefreshTrackDetailsAsync(track);
+                _ = RefreshTrackDetailsAsync(track);
                 UpdateTaskbarWidget(track, playbackStatus);
             }
             else
@@ -439,39 +439,56 @@ public sealed partial class MainWindow : Window
         var expectedTrackKey = TrackIdentity.For(track);
         var options = CurrentLyricsOptions();
 
+        void ApplyLyrics(LyricsSnapshot snapshot)
+        {
+            if (refreshCancellation.IsCancellationRequested ||
+                !ReferenceEquals(_lyricsRefreshCancellation, refreshCancellation) ||
+                !string.Equals(expectedTrackKey, _currentTrackKey, StringComparison.Ordinal) ||
+                !Equals(options, CurrentLyricsOptions()))
+            {
+                return;
+            }
+
+            _lyrics = snapshot.Lines;
+            _lyricsAreTimeSynced = snapshot.IsTimeSynced;
+            var rebuilt = RenderLyrics();
+            RefreshLyricPlayback(forceScroll: rebuilt);
+            UpdateTaskbarWidget(_latestTrack, _latestPlaybackStatus);
+        }
+
+        async Task RefreshTrackQueueAsync()
+        {
+            var queue = await _ciderService.GetQueueAsync(
+                _appToken,
+                track.PlayParameters?.Id,
+                refreshCancellation.Token);
+            if (!refreshCancellation.IsCancellationRequested &&
+                ReferenceEquals(_lyricsRefreshCancellation, refreshCancellation) &&
+                string.Equals(expectedTrackKey, _currentTrackKey, StringComparison.Ordinal))
+            {
+                ApplyQueue(queue, track.PlayParameters?.Id);
+            }
+        }
+
         try
         {
-            var trackId = track.PlayParameters?.Id;
-            var queueTask = _ciderService.GetQueueAsync(
-                _appToken,
-                trackId,
-                refreshCancellation.Token);
+            var queueTask = RefreshTrackQueueAsync();
             var lyricsTask = ResolveTrackLyricsAsync(
                 track,
                 options,
-                refreshCancellation.Token);
-
-            var queue = await queueTask;
-            if (!string.Equals(expectedTrackKey, _currentTrackKey, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            ApplyQueue(queue, trackId);
+                refreshCancellation.Token,
+                ApplyLyrics);
+            await Task.WhenAll(queueTask, lyricsTask);
             var lyrics = await lyricsTask;
-            if (!string.Equals(expectedTrackKey, _currentTrackKey, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            _lyrics = lyrics.Lines;
-            _lyricsAreTimeSynced = lyrics.IsTimeSynced;
-            var rebuilt = RenderLyrics();
-            RefreshLyricPlayback(forceScroll: rebuilt);
+            ApplyLyrics(lyrics);
         }
         catch (OperationCanceledException) when (refreshCancellation.IsCancellationRequested)
         {
-            // A newer track/settings refresh superseded this request, or the window is closing.
+            // 换曲、保存设置或关闭窗口后停止旧请求。
+        }
+        catch (Exception)
+        {
+            Debug.WriteLine("刷新歌词与队列失败，保留已显示的内容。");
         }
         finally
         {
@@ -490,19 +507,24 @@ public sealed partial class MainWindow : Window
             _appToken,
             track.PlayParameters?.Id,
             _lifetimeCancellation.Token);
-        ApplyQueue(queue, track.PlayParameters?.Id);
+        if (string.Equals(TrackIdentity.For(track), _currentTrackKey, StringComparison.Ordinal))
+        {
+            ApplyQueue(queue, track.PlayParameters?.Id);
+        }
     }
 
     private async Task<LyricsSnapshot> ResolveTrackLyricsAsync(
         NowPlayingInfo track,
         LyricsResolveOptions options,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<LyricsSnapshot> onProgress)
     {
         var prefetched = await _nextTrackLyricsPreloader.TakeAsync(
             track,
             options,
             _appToken,
-            cancellationToken);
+            cancellationToken,
+            onProgress);
         if (prefetched is not null)
         {
             return prefetched;
@@ -512,7 +534,7 @@ public sealed partial class MainWindow : Window
             track.PlayParameters?.Id,
             _appToken,
             cancellationToken);
-        return await _lyricsService.ResolveAsync(track, ciderLyrics, options, cancellationToken);
+        return await _lyricsService.ResolveAsync(track, ciderLyrics, options, cancellationToken, onProgress);
     }
 
     private LyricsResolveOptions CurrentLyricsOptions() => new(
@@ -558,6 +580,7 @@ public sealed partial class MainWindow : Window
     {
         if (track is null)
         {
+            _lyricsRefreshCancellation?.Cancel();
             _lyricTimer.Stop();
             _playbackTimeline.Reset();
             _latestTrack = null;
@@ -2059,8 +2082,7 @@ public sealed partial class MainWindow : Window
         _settings.LyricFontSize = LyricFontSizeSlider.Value;
         _settings.ConvertTraditionalLyricsToSimplified = ChineseLyricsToggle.IsOn;
         _settings.LyricsSource = lyricsSource.ToString();
-        _settings.ShowLyricsTranslation =
-            LyricsService.SupportsTranslation(lyricsSource) && LyricsTranslationToggle.IsOn;
+        _settings.ShowLyricsTranslation = LyricsTranslationToggle.IsOn;
         _settings.TaskbarWidgetEnabled = TaskbarWidgetToggle.IsOn;
         _settings.ShowLyricsInTaskbar = TaskbarLyricsToggle.IsOn;
         _settings.RightAlignTaskbarLyrics = TaskbarLyricsAlignmentToggle.IsOn;
@@ -2163,22 +2185,6 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void LyricsSourceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        UpdateLyricsTranslationAvailability();
-    }
-
-    private void UpdateLyricsTranslationAvailability()
-    {
-        var source = LyricsService.ParseSource(SelectedTag(LyricsSourceComboBox, "Auto"));
-        var supportsTranslation = LyricsService.SupportsTranslation(source);
-        LyricsTranslationToggle.IsEnabled = supportsTranslation;
-        if (!supportsTranslation)
-        {
-            LyricsTranslationToggle.IsOn = false;
-        }
-    }
-
     private void LoadSettingsControls()
     {
         SelectByTag(ThemeComboBox, _settings.Theme);
@@ -2187,10 +2193,7 @@ public sealed partial class MainWindow : Window
         SelectByTag(LyricsSourceComboBox, lyricsSource.ToString());
         LyricFontSizeSlider.Value = _settings.LyricFontSize;
         ChineseLyricsToggle.IsOn = _settings.ConvertTraditionalLyricsToSimplified;
-        _settings.ShowLyricsTranslation =
-            LyricsService.SupportsTranslation(lyricsSource) && _settings.ShowLyricsTranslation;
         LyricsTranslationToggle.IsOn = _settings.ShowLyricsTranslation;
-        UpdateLyricsTranslationAvailability();
         MusixmatchApiKeyPasswordBox.Password = _musixmatchApiKey ?? string.Empty;
         TaskbarWidgetToggle.IsOn = _settings.TaskbarWidgetEnabled;
         TaskbarLyricsToggle.IsOn = _settings.ShowLyricsInTaskbar;
