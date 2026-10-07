@@ -8,15 +8,14 @@
     ShowInTaskbar="False"
     SizeToContent="WidthAndHeight"
     SnapsToDevicePixels="True"
-    TextOptions.TextFormattingMode="Display"
-    TextOptions.TextRenderingMode="Grayscale"
+    TextOptions.TextFormattingMode="Ideal"
+    TextOptions.TextRenderingMode="ClearType"
     Topmost="True"
     UseLayoutRounding="True"
     WindowStyle="None"
     Deactivated="MenuWindow_Deactivated"
     KeyDown="MenuWindow_KeyDown">
-    <!--  系统材质要求窗口不是 layered window，因此关闭 AllowsTransparency，
-          由 WindowChrome 保留原生 frame，让 DWM 提供圆角与投影。  -->
+    <!-- 保留原生窗口边框，由 DWM 绘制圆角与投影。 -->
     <WindowChrome.WindowChrome>
         <WindowChrome
             CaptionHeight="0"
@@ -26,17 +25,17 @@
             UseAeroCaptionButtons="False" />
     </WindowChrome.WindowChrome>
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="TrayMenuCheckVisibilityConverter" />
         <SolidColorBrush x:Key="TrayMenuBackgroundBrush" Color="#FFF9F9F9" />
-        <SolidColorBrush x:Key="TrayMenuBorderBrush" Color="#18000000" />
         <SolidColorBrush x:Key="TrayMenuForegroundBrush" Color="#FF1A1A1A" />
-        <SolidColorBrush x:Key="TrayMenuHoverBrush" Color="#0A000000" />
-        <SolidColorBrush x:Key="TrayMenuPressedBrush" Color="#14000000" />
-        <SolidColorBrush x:Key="TrayMenuSeparatorBrush" Color="#14000000" />
+        <SolidColorBrush x:Key="TrayMenuHoverBrush" Color="#FFE9E9E9" />
+        <SolidColorBrush x:Key="TrayMenuPressedBrush" Color="#FFDDDDDD" />
+        <SolidColorBrush x:Key="TrayMenuSeparatorBrush" Color="#28000000" />
         <SolidColorBrush x:Key="TrayMenuFocusBrush" Color="#990078D4" />
-        <Style x:Key="TrayMenuButtonStyle" TargetType="Button">
-            <Setter Property="Height" Value="32" />
-            <Setter Property="Padding" Value="8,0" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+        <Style x:Key="TrayMenuButtonStyle" TargetType="{x:Type ButtonBase}">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="12,0,16,0" />
+            <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -46,23 +45,37 @@
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="Button">
+                    <ControlTemplate TargetType="{x:Type ButtonBase}">
                         <Grid>
                             <Border
                                 x:Name="ButtonSurface"
                                 Padding="{TemplateBinding Padding}"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="4">
-                                <ContentPresenter
-                                    HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                    VerticalAlignment="Center"
-                                    RecognizesAccessKey="True" />
+                                Background="{TemplateBinding Background}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="24" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        x:Name="CheckMark"
+                                        FontFamily="Segoe Fluent Icons"
+                                        FontSize="13"
+                                        Foreground="{TemplateBinding Foreground}"
+                                        Text="&#xE73E;"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource TrayMenuCheckVisibilityConverter}}" />
+                                    <ContentPresenter
+                                        Grid.Column="1"
+                                        HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                        VerticalAlignment="Center"
+                                        RecognizesAccessKey="True" />
+                                </Grid>
                             </Border>
                             <Border
                                 x:Name="FocusBorder"
                                 BorderBrush="Transparent"
                                 BorderThickness="1"
-                                CornerRadius="3"
+                                Margin="2"
                                 IsHitTestVisible="False" />
                         </Grid>
                         <ControlTemplate.Triggers>
@@ -84,15 +97,23 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="TrayMenuToggleStyle" TargetType="ToggleButton" BasedOn="{StaticResource TrayMenuButtonStyle}">
+            <Setter Property="Tag" Value="{Binding IsChecked, RelativeSource={RelativeSource Self}}" />
+        </Style>
+        <Style x:Key="TrayMenuSeparatorStyle" TargetType="Border">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Margin" Value="0,4" />
+            <Setter Property="Background" Value="{DynamicResource TrayMenuSeparatorBrush}" />
+        </Style>
     </Window.Resources>
 
     <Border
-        MinWidth="160"
-        Padding="4"
+        x:Name="MenuSurface"
+        MinWidth="168"
+        Padding="0,4"
         Background="{DynamicResource TrayMenuBackgroundBrush}"
-        BorderBrush="{DynamicResource TrayMenuBorderBrush}"
-        BorderThickness="1"
-        CornerRadius="8">
+        RenderOptions.ClearTypeHint="Enabled"
+        CornerRadius="10">
         <StackPanel>
             <Button x:Uid="Tray_001"
                 x:Name="OpenButton"
@@ -100,14 +121,12 @@
                 Click="OpenButton_Click"
                 Content="打开 Lyrider"
                 Style="{StaticResource TrayMenuButtonStyle}" />
-            <Button x:Name="DesktopLyricsToggleButton" Click="DesktopLyricsToggleButton_Click" Style="{StaticResource TrayMenuButtonStyle}" />
-            <Button x:Name="DesktopLyricsLockButton" Click="DesktopLyricsLockButton_Click" Style="{StaticResource TrayMenuButtonStyle}" />
+            <Border Style="{StaticResource TrayMenuSeparatorStyle}" />
+            <ToggleButton x:Name="DesktopLyricsToggleButton" Click="DesktopLyricsToggleButton_Click" Style="{StaticResource TrayMenuToggleStyle}" />
+            <ToggleButton x:Name="DesktopLyricsLockButton" Click="DesktopLyricsLockButton_Click" Style="{StaticResource TrayMenuToggleStyle}" />
             <Button x:Name="DesktopLyricsSettingsButton" Click="DesktopLyricsSettingsButton_Click" Style="{StaticResource TrayMenuButtonStyle}" />
             <Button x:Name="DesktopLyricsResetButton" Click="DesktopLyricsResetButton_Click" Style="{StaticResource TrayMenuButtonStyle}" />
-            <Border
-                Height="1"
-                Margin="8,3,8,3"
-                Background="{DynamicResource TrayMenuSeparatorBrush}" />
+            <Border Style="{StaticResource TrayMenuSeparatorStyle}" />
             <Button x:Uid="Tray_002"
                 x:Name="ExitButton"
                 AutomationProperties.Name="退出 Lyrider"
