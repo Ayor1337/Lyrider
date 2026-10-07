@@ -10,7 +10,8 @@ Lyrider is a lyrics display companion for [Cider](https://cider.sh). **Windows 1
 - Lyrics and track information on the Windows taskbar
 - Transparent desktop lyrics with translations, moving and resizing, click-through locking, and tray controls
 - Low-latency lyric transitions driven by a locally synchronized playback clock
-- Selectable Cider, NetEase Cloud Music, QQ Music, Musixmatch, and LRCLIB lyrics sources
+- Preferred lyrics source selection with automatic fallback across Cider, NetEase Cloud Music, QQ Music, Musixmatch, and LRCLIB
+- The main window shows the source of the lyrics currently displayed
 - Optional Simplified Chinese translations supplied by the selected lyrics source
 - Simplified Chinese and English interfaces, following the Windows display language by default with a manual language option in Settings
 - Experimental section in Settings: right-align the taskbar lyrics when the Windows taskbar keeps its icons on the left (lyrics flush right beside the artwork, artwork at the right edge)
@@ -19,13 +20,26 @@ Lyrider is a lyrics display companion for [Cider](https://cider.sh). **Windows 1
 
 ### Main window
 
-![Lyrider main window](snapshots/main-window.png)
+![Lyrider main window with lyrics source](snapshots/main-lyrics-source.png)
 
 ### Taskbar widget
 
 <p align="center">
   <img src="snapshots/taskbar-lyrics.png" alt="Taskbar lyrics" width="49%">
   <img src="snapshots/taskbar-controls.png" alt="Taskbar playback controls" width="49%">
+</p>
+
+### Desktop lyrics
+
+![Desktop lyrics](snapshots/desktop-lyrics.png)
+
+![Desktop lyrics context menu](snapshots/desktop-lyrics-menu.png)
+
+### Tray menu
+
+<p align="center">
+  <img src="snapshots/tray-menu-dark.png" alt="Dark tray menu" width="200">
+  <img src="snapshots/tray-menu-light.png" alt="Light tray menu" width="200">
 </p>
 
 ## Installation
@@ -36,23 +50,27 @@ Install and start [Cider](https://cider.sh), then enable the Local API in Cider'
 
 ### Lyrics sources and translations
 
-The default **Automatic** mode tries Cider, NetEase Cloud Music, QQ Music, Musixmatch, and LRCLIB in that order. With translation disabled, it stops at the first confident match. With translation enabled, a source that supplies only original lyrics becomes a fallback while Lyrider continues looking for a source with translations; if none has a translation, the first original result is retained. You can instead lock Lyrider to one source in Settings; fixed sources do not fall back. Because Cider does not supply translations, selecting it as the fixed source turns off and disables the translation option. Musixmatch requires your own API Key; it is encrypted locally with Windows DPAPI and is never written to the regular settings file.
+The default Automatic mode tries NetEase Cloud Music, QQ Music, Cider, Musixmatch, and LRCLIB in that order. Selecting a preferred source in Settings moves it to the front; if it has no suitable result, Lyrider continues with the other sources. Available Cider lyrics can appear while the search runs, and a better result replaces them without interrupting playback updates. The source name beside the track information follows the displayed result, including fallback and preloaded lyrics; it is hidden while loading a new track, when no lyrics are available, or when disconnected.
+
+With translation enabled, Lyrider looks for time-synced lyrics with Chinese translations covering at least 80% of nonblank lines. Primarily Chinese lyrics do not need translations. If no result meets these conditions, Lyrider keeps the best available candidate. You can enable translation with Cider as the preferred source; other sources can supply the missing translation. Each remote lyrics source has a separate four-second timeout. Musixmatch is skipped unless you provide an API Key, which is encrypted locally with Windows DPAPI and never written to the regular settings file.
 
 Translation displays only Simplified Chinese text supplied by the matched source; Lyrider does not machine-translate missing lines. When enabled, the main lyrics view shows the translation below each original line, and the taskbar shows the current original line above its translation. If the original lyrics are primarily Chinese or the current line has no translation, Lyrider keeps the current/next-line layout. Time-synced external lyrics are aligned to Cider timing when at least three unique lyric lines match. When Apple Music uses different titles or artist names across storefronts, Lyrider uses the Apple track ID to query Japanese-store metadata as an additional search alias. Without a track ID, a different title is accepted only when artist and duration identify one unique result, reducing false matches with other versions. NetEase Cloud Music and QQ Music rely on unofficial web endpoints and may stop working when those providers change them.
 
 ### Desktop lyrics
 
-Enable desktop lyrics in Settings and save to show lyrics above ordinary app windows. “Two-line lyrics” and “Show desktop lyrics translation” are on by default, showing the current line and its translation, or the current and next lines when no translation is available. Turning translation off shows the current and next lines. Turning two-line lyrics off shows only the current line and keeps your translation preference. The overlay shows the song title while lyrics are loading or no synced lyrics are available, and hides when Cider disconnects or no track is active. Desktop lyrics requests translations when both switches are on; the existing translation switch still controls the main lyrics view and taskbar.
+Enable desktop lyrics in Settings and save to show lyrics above ordinary app windows. Two-line lyrics and translation are enabled by default. For non-Chinese songs with a translation, the overlay shows the current original line and its translation, even in single-line mode. Otherwise, two-line mode shows the current and next lines, and single-line mode shows only the current line. Desktop translation is independent of the translation switch for the main window and taskbar. The overlay shows the song title while loading or when no synced lyrics are available, and hides when Cider disconnects or no track is active.
 
-Choose Vertical or Top left / bottom right under Lyrics layout and save. Both layouts center the lyrics vertically in the window and adjust the gap between lines as the window height changes. The staggered layout uses inset padding, placing the first slot on the left and the second below on the right. Two original lines play alternately in these slots: each upcoming line stays in place when it starts, and the finished slot receives the new upcoming line. Highlighting and karaoke follow the active slot, including the final line. Single-line mode and song titles stay left-aligned and vertically centered in this layout. Translations remain below the current original line.
+Choose horizontal or vertical text, with Center, Split, Left, or Right alignment. Split alignment places the two original lines at opposite sides; each line stays in its slot when it starts, and the finished slot receives the new upcoming line. Translation mode, single-line mode, and song titles use centered alignment when Split is selected. Lyrics stay vertically centered, with spacing adjusted to the window height. Existing layout preferences are preserved when upgrading.
 
-The overlay starts unlocked. Drag it to move it, or drag its right-hand handle to change the width, its bottom handle to change the height, or its bottom-right corner to change both. Locking makes the background transparent and passes mouse input through to the app underneath. Hovering shows only a clickable unlock icon; choose “Unlock desktop lyrics” from the tray menu to adjust it again. The tray also provides show/hide, settings, and position reset actions. Font size, text color, background opacity, and hiding while paused have separate settings. Position, width, height, and lock state are saved locally. Resetting the position restores the default width and automatic content height. The overlay continues working when the main window is hidden and closes when Lyrider exits.
+The settings preview updates as you adjust the controls and can show ordinary lyrics or translations. Choose a color preset, or set sung and unsung colors separately. Both lines use the same font size; you can also set Normal, SemiBold, or Bold weight, outline color, and outline thickness from 0 to 8 DIP (0 disables the outline). In translation mode, both lines use the sung color. Otherwise, the current line uses the sung color and the next line uses the unsung color.
 
-Window size is limited to 320 to 1200 DIP wide and 80 to 480 DIP high; font size ranges from 16 to 72 DIP. The window also fits within the current monitor work area, and its minimum height keeps the lyrics visible.
+Enable Word-by-word display and save to sweep the current original line using real word timing supplied by Cider. The highlight freezes when paused. Lyrider prefers lyrics with word timing and can add matching translations from another source. Without valid word timing, the current line is highlighted as a whole; Lyrider does not estimate word progress. Translation mode uses the sung color for both lines without a word sweep.
 
-Both lines use the same font size. The current line uses Current lyric highlight color, while translation or the next line uses Text color. With karaoke off or no word timing available, the whole current line is highlighted.
+The overlay starts unlocked. Drag it to move it; use the right, bottom, or bottom-right handles to resize it. Hovering shows previous, play/pause, next, lock, and close controls inside the window. Right-click unlocked lyrics to change font size, alignment, single/two-line mode, text direction, translation, or word-by-word display, or to lock, reset, or close the overlay. These shortcuts take effect immediately and are saved locally.
 
-Enable “Karaoke mode” and save to highlight the current original line using word timing supplied by the lyric source. The highlight freezes when paused. You can choose a separate highlight color; translation and the next line keep their text color. Lyrider requests word timing from Cider and prefers lyrics that include it. Tracks without word timing highlight the whole current line with normal line sync, without estimated word progress. Word sync must be available for the track and its Cider lyric source.
+Locking hides the background and passes mouse input through to the app underneath. Hovering shows a clickable unlock icon. You can also uncheck Lock desktop lyrics in the tray menu to unlock it. The tray menu uses check marks for visibility and lock state, and provides settings and position reset actions. Font size, background opacity, and hiding while paused have separate settings. Position, size, and lock state are saved locally; resetting restores the default width and automatic content height. Desktop lyrics continue working when the main window is hidden and close when Lyrider exits.
+
+Window size is limited to 320–1200 DIP wide and 80–480 DIP high; font size ranges from 16 to 72 DIP. The window fits within the current monitor work area, and its minimum height keeps the lyrics visible.
 
 ### Install Lyrider
 
