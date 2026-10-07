@@ -25,7 +25,7 @@ public sealed class AppSettings
 
     [JsonIgnore]
     public bool IncludeLyricsTranslation => ShowLyricsTranslation ||
-        (DesktopLyrics.Enabled && DesktopLyrics.ShowDoubleLine && DesktopLyrics.ShowTranslation);
+        (DesktopLyrics.Enabled && DesktopLyrics.ShowTranslation);
 
     public bool TaskbarWidgetEnabled { get; set; }
 

@@ -16,12 +16,48 @@ public enum DesktopLyricsLayout
     Horizontal
 }
 
+public enum DesktopLyricsTextDirection
+{
+    Horizontal,
+    Vertical
+}
+
+public enum DesktopLyricsAlignment
+{
+    Center,
+    Split,
+    Left,
+    Right
+}
+
+public enum DesktopLyricsFontWeight
+{
+    Normal,
+    SemiBold,
+    Bold
+}
+
 public enum DesktopLyricsCommand
 {
     ToggleEnabled,
     ToggleLocked,
     OpenSettings,
-    ResetPosition
+    ResetPosition,
+    Previous,
+    TogglePlayPause,
+    Next,
+    IncreaseFontSize,
+    DecreaseFontSize,
+    AlignCenter,
+    AlignSplit,
+    AlignLeft,
+    AlignRight,
+    SingleLine,
+    DoubleLine,
+    HorizontalText,
+    VerticalText,
+    ToggleTranslation,
+    ToggleKaraoke
 }
 
 public sealed record DesktopLyricsPosition(string Monitor, double CenterRatio, double BottomRatio, double Width,
@@ -40,7 +76,12 @@ public sealed record DesktopLyricsOptions(
     string HighlightColor = "#4FDFFF",
     bool? DoubleLineEnabled = null,
     bool? TranslationEnabled = null,
-    DesktopLyricsLayout Layout = DesktopLyricsLayout.Vertical)
+    DesktopLyricsLayout Layout = DesktopLyricsLayout.Vertical,
+    DesktopLyricsTextDirection TextDirection = DesktopLyricsTextDirection.Horizontal,
+    DesktopLyricsAlignment? Alignment = null,
+    DesktopLyricsFontWeight FontWeight = DesktopLyricsFontWeight.SemiBold,
+    double StrokeThickness = 4,
+    string StrokeColor = "#000000")
 {
     // 新开关缺失时沿用旧显示模式，保留已有配置。
     [JsonIgnore]
@@ -49,10 +90,43 @@ public sealed record DesktopLyricsOptions(
     [JsonIgnore]
     public bool ShowTranslation => TranslationEnabled ?? (DisplayMode == DesktopLyricsDisplayMode.Translation);
 
+    [JsonIgnore]
+    public DesktopLyricsAlignment EffectiveAlignment => Alignment ??
+        (Layout == DesktopLyricsLayout.Horizontal ? DesktopLyricsAlignment.Split : DesktopLyricsAlignment.Center);
+
+    public DesktopLyricsOptions ApplyCommand(DesktopLyricsCommand command)
+    {
+        var options = Normalize();
+        return (command switch
+        {
+            DesktopLyricsCommand.ToggleEnabled => options with { Enabled = !options.Enabled },
+            DesktopLyricsCommand.ToggleLocked => options with { Locked = !options.Locked },
+            DesktopLyricsCommand.ResetPosition => options with { Position = null },
+            DesktopLyricsCommand.IncreaseFontSize => options with { FontSize = options.FontSize + 2 },
+            DesktopLyricsCommand.DecreaseFontSize => options with { FontSize = options.FontSize - 2 },
+            DesktopLyricsCommand.AlignCenter => options with { Alignment = DesktopLyricsAlignment.Center },
+            DesktopLyricsCommand.AlignSplit => options with { Alignment = DesktopLyricsAlignment.Split },
+            DesktopLyricsCommand.AlignLeft => options with { Alignment = DesktopLyricsAlignment.Left },
+            DesktopLyricsCommand.AlignRight => options with { Alignment = DesktopLyricsAlignment.Right },
+            DesktopLyricsCommand.SingleLine => options with { DoubleLineEnabled = false },
+            DesktopLyricsCommand.DoubleLine => options with { DoubleLineEnabled = true },
+            DesktopLyricsCommand.HorizontalText => options with { TextDirection = DesktopLyricsTextDirection.Horizontal },
+            DesktopLyricsCommand.VerticalText => options with { TextDirection = DesktopLyricsTextDirection.Vertical },
+            DesktopLyricsCommand.ToggleTranslation => options with { TranslationEnabled = !options.ShowTranslation },
+            DesktopLyricsCommand.ToggleKaraoke => options with { KaraokeEnabled = !options.KaraokeEnabled },
+            _ => options
+        }).Normalize();
+    }
+
     public DesktopLyricsOptions Normalize() => this with
     {
         DisplayMode = Enum.IsDefined(DisplayMode) ? DisplayMode : DesktopLyricsDisplayMode.Translation,
         Layout = Enum.IsDefined(Layout) ? Layout : DesktopLyricsLayout.Vertical,
+        TextDirection = Enum.IsDefined(TextDirection) ? TextDirection : DesktopLyricsTextDirection.Horizontal,
+        Alignment = Alignment is { } alignment && !Enum.IsDefined(alignment) ? DesktopLyricsAlignment.Center : Alignment,
+        FontWeight = Enum.IsDefined(FontWeight) ? FontWeight : DesktopLyricsFontWeight.SemiBold,
+        StrokeThickness = ClampFinite(StrokeThickness, 0, 8, 4),
+        StrokeColor = IsColor(StrokeColor) ? StrokeColor : "#000000",
         FontSize = ClampFinite(FontSize, 16, 72, 32),
         TextColor = IsColor(TextColor) ? TextColor : "#FFFFFF",
         HighlightColor = IsColor(HighlightColor) ? HighlightColor : "#4FDFFF",
@@ -82,7 +156,8 @@ public sealed record DesktopLyricsState(
     string? Translation = null,
     string? NextLyric = null,
     DesktopLyricsTiming? Timing = null,
-    int LineOrdinal = 0)
+    int LineOrdinal = 0,
+    bool IsChineseSong = false)
 {
     public static DesktopLyricsState Unavailable { get; } = new(string.Empty, false, false);
 }
@@ -121,12 +196,25 @@ public static class DesktopLyricsPresentation
             return new(state.Title, null, visible);
         }
 
-        var hasTranslation = options.ShowTranslation && !string.IsNullOrWhiteSpace(state.Translation);
+        var hasTranslation = UsesTranslation(state, options);
+        if (hasTranslation) return new(state.CurrentLyric, state.Translation, visible);
         var secondary = options.ShowDoubleLine
-            ? hasTranslation ? state.Translation : state.NextLyric
+            ? state.NextLyric
             : null;
         if (options.ShowDoubleLine && !hasTranslation && (state.LineOrdinal & 1) == 1)
             return new(string.IsNullOrWhiteSpace(secondary) ? string.Empty : secondary, state.CurrentLyric, visible, true);
         return new(state.CurrentLyric, string.IsNullOrWhiteSpace(secondary) ? null : secondary, visible);
+    }
+
+    public static bool UsesTranslation(DesktopLyricsState state, DesktopLyricsOptions options) =>
+        options.ShowTranslation && !state.IsChineseSong && !string.IsNullOrWhiteSpace(state.CurrentLyric) &&
+        !string.IsNullOrWhiteSpace(state.Translation);
+
+    public static DesktopLyricsAlignment ResolveAlignment(DesktopLyricsState state, DesktopLyricsOptions options)
+    {
+        var alignment = options.EffectiveAlignment;
+        return alignment == DesktopLyricsAlignment.Split &&
+            (UsesTranslation(state, options) || !options.ShowDoubleLine || string.IsNullOrWhiteSpace(state.CurrentLyric))
+            ? DesktopLyricsAlignment.Center : alignment;
     }
 }

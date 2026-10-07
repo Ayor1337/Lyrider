@@ -9,6 +9,63 @@ namespace Lyrider.Tests;
 public sealed class DesktopLyricsTests
 {
     [TestMethod]
+    public void ApplyCommand_QuickSettings_PreservesColorsPositionAndLegacyTranslation()
+    {
+        var options = new DesktopLyricsOptions(Enabled: true, DisplayMode: DesktopLyricsDisplayMode.Translation,
+            Layout: DesktopLyricsLayout.Horizontal, TextColor: "#123456", HighlightColor: "#654321",
+            Position: new("monitor", 0.4, 0.1, 600, 240), StrokeThickness: 2);
+        foreach (var (command, alignment) in new[]
+        {
+            (DesktopLyricsCommand.AlignCenter, DesktopLyricsAlignment.Center),
+            (DesktopLyricsCommand.AlignSplit, DesktopLyricsAlignment.Split),
+            (DesktopLyricsCommand.AlignLeft, DesktopLyricsAlignment.Left),
+            (DesktopLyricsCommand.AlignRight, DesktopLyricsAlignment.Right)
+        })
+            Assert.AreEqual(alignment, options.ApplyCommand(command).EffectiveAlignment);
+        var updated = options.ApplyCommand(DesktopLyricsCommand.IncreaseFontSize)
+            .ApplyCommand(DesktopLyricsCommand.SingleLine).ApplyCommand(DesktopLyricsCommand.VerticalText)
+            .ApplyCommand(DesktopLyricsCommand.AlignLeft).ApplyCommand(DesktopLyricsCommand.ToggleKaraoke);
+        Assert.AreEqual(options with { FontSize = 34, DoubleLineEnabled = false,
+            TextDirection = DesktopLyricsTextDirection.Vertical, Alignment = DesktopLyricsAlignment.Left,
+            KaraokeEnabled = true }, updated);
+        Assert.IsTrue(updated.ShowTranslation);
+        Assert.IsFalse(updated.ApplyCommand(DesktopLyricsCommand.ToggleTranslation).ShowTranslation);
+        Assert.IsTrue(updated.ApplyCommand(DesktopLyricsCommand.DoubleLine).ShowDoubleLine);
+        Assert.AreEqual(DesktopLyricsTextDirection.Horizontal, updated.ApplyCommand(DesktopLyricsCommand.HorizontalText).TextDirection);
+        var restored = System.Text.Json.JsonSerializer.Deserialize<DesktopLyricsOptions>(
+            System.Text.Json.JsonSerializer.Serialize(updated));
+        Assert.AreEqual(updated, restored);
+    }
+
+    [DataTestMethod]
+    [DataRow(16.0, DesktopLyricsCommand.DecreaseFontSize, 16.0)]
+    [DataRow(17.0, DesktopLyricsCommand.DecreaseFontSize, 16.0)]
+    [DataRow(32.0, DesktopLyricsCommand.DecreaseFontSize, 30.0)]
+    [DataRow(32.0, DesktopLyricsCommand.IncreaseFontSize, 34.0)]
+    [DataRow(71.0, DesktopLyricsCommand.IncreaseFontSize, 72.0)]
+    [DataRow(72.0, DesktopLyricsCommand.IncreaseFontSize, 72.0)]
+    [DataRow(double.NaN, DesktopLyricsCommand.IncreaseFontSize, 34.0)]
+    public void ApplyCommand_FontSize_ClampsToSupportedRange(double fontSize, DesktopLyricsCommand command, double expected)
+    {
+        Assert.AreEqual(expected, new DesktopLyricsOptions(FontSize: fontSize).ApplyCommand(command).FontSize);
+    }
+
+    [TestMethod]
+    public void ApplyCommand_TranslatedLyrics_KeepsSelectionForFallback()
+    {
+        var state = new DesktopLyricsState("Song", true, true, "Original", "译文", "Next");
+        var options = new DesktopLyricsOptions(Enabled: true).ApplyCommand(DesktopLyricsCommand.SingleLine)
+            .ApplyCommand(DesktopLyricsCommand.AlignSplit);
+        Assert.AreEqual(new DesktopLyricsDisplayText("Original", "译文", true), DesktopLyricsPresentation.Select(state, options));
+        Assert.AreEqual(DesktopLyricsAlignment.Center, DesktopLyricsPresentation.ResolveAlignment(state, options));
+        options = options.ApplyCommand(DesktopLyricsCommand.DoubleLine);
+        Assert.AreEqual(DesktopLyricsAlignment.Split, options.EffectiveAlignment);
+        var noTranslation = state with { Translation = null };
+        Assert.AreEqual(DesktopLyricsAlignment.Split, DesktopLyricsPresentation.ResolveAlignment(noTranslation, options));
+        Assert.AreEqual("Next", DesktopLyricsPresentation.Select(noTranslation, options).Secondary);
+    }
+
+    [TestMethod]
     public void Select_NextLineMode_AlternatesSlotsWithoutMovingUpcomingLyric()
     {
         LyricLineInfo[] lines = [new(0, 2, "第一句"), new(2, 4, "第二句"), new(4, 6, "第三句"), new(6, 8, "最后一句")];
@@ -49,7 +106,7 @@ public sealed class DesktopLyricsTests
         var state = new DesktopLyricsState("歌曲", true, true, "当前句", "译文", "下一句", LineOrdinal: 1);
         Assert.AreEqual(new DesktopLyricsDisplayText("当前句", "译文", true),
             DesktopLyricsPresentation.Select(state, new(Enabled: true)));
-        Assert.AreEqual(new DesktopLyricsDisplayText("当前句", null, true),
+        Assert.AreEqual(new DesktopLyricsDisplayText("当前句", "译文", true),
             DesktopLyricsPresentation.Select(state, new(Enabled: true, DoubleLineEnabled: false)));
         Assert.AreEqual(new DesktopLyricsDisplayText("下一句", "当前句", true, true),
             DesktopLyricsPresentation.Select(state with { Translation = null }, new(Enabled: true)));
@@ -82,7 +139,7 @@ public sealed class DesktopLyricsTests
 
     [DataTestMethod]
     [DataRow(false, false, null)]
-    [DataRow(false, true, null)]
+    [DataRow(false, true, "译文")]
     [DataRow(true, false, "下一句")]
     [DataRow(true, true, "译文")]
     public void Select_IndependentSwitches_SelectsAtMostOneSecondary(bool doubleLine, bool translation, string? expected)
@@ -98,7 +155,7 @@ public sealed class DesktopLyricsTests
 
     [DataTestMethod]
     [DataRow(false, false, false, false)]
-    [DataRow(false, false, true, false)]
+    [DataRow(false, false, true, true)]
     [DataRow(false, true, false, false)]
     [DataRow(false, true, true, true)]
     [DataRow(true, false, false, true)]
@@ -111,6 +168,46 @@ public sealed class DesktopLyricsTests
         Assert.AreEqual(mainTranslation, settings.ShowLyricsTranslation);
         settings.DesktopLyrics = settings.DesktopLyrics with { Enabled = false };
         Assert.AreEqual(mainTranslation, settings.IncludeLyricsTranslation);
+    }
+
+    [DataTestMethod]
+    [DataRow(false, false, DesktopLyricsAlignment.Center)]
+    [DataRow(true, false, DesktopLyricsAlignment.Center)]
+    [DataRow(false, true, DesktopLyricsAlignment.Split)]
+    public void ResolveAlignment_TranslationAndSingleLine_CentersWithoutChangingPreference(
+        bool translation, bool doubleLine, DesktopLyricsAlignment expected)
+    {
+        var options = new DesktopLyricsOptions(Enabled: true, TranslationEnabled: translation,
+            DoubleLineEnabled: doubleLine, Alignment: DesktopLyricsAlignment.Split);
+        var state = new DesktopLyricsState("Song", true, true, "Original", "译文", "Next");
+        Assert.AreEqual(expected, DesktopLyricsPresentation.ResolveAlignment(state, options));
+        Assert.AreEqual(DesktopLyricsAlignment.Split, options.Alignment);
+    }
+
+    [TestMethod]
+    public void Select_ChineseSongWithTranslation_UsesOrdinaryLayout()
+    {
+        var state = DesktopLyricStateBuilder.Build("歌曲", "歌手",
+            [new(0, 2, "中文歌词", "English translation"), new(2, 4, "下一句")], 0, true, true, false);
+        var options = new DesktopLyricsOptions(Enabled: true, Alignment: DesktopLyricsAlignment.Split);
+        Assert.IsTrue(state.IsChineseSong);
+        Assert.IsFalse(DesktopLyricsPresentation.UsesTranslation(state, options));
+        Assert.AreEqual("下一句", DesktopLyricsPresentation.Select(state, options).Secondary);
+        Assert.AreEqual(DesktopLyricsAlignment.Split, DesktopLyricsPresentation.ResolveAlignment(state, options));
+    }
+
+    [TestMethod]
+    public void Select_ForeignSongMissingTranslation_RestoresSelectedLayout()
+    {
+        var state = DesktopLyricStateBuilder.Build("Song", "Artist",
+            [new(0, 2, "Stay with me", "陪着我"), new(2, 4, "Until morning")], 0, true, true, false);
+        var options = new DesktopLyricsOptions(Enabled: true, Alignment: DesktopLyricsAlignment.Split);
+        Assert.IsFalse(state.IsChineseSong);
+        Assert.AreEqual("陪着我", DesktopLyricsPresentation.Select(state, options).Secondary);
+        Assert.AreEqual(DesktopLyricsAlignment.Center, DesktopLyricsPresentation.ResolveAlignment(state, options));
+        state = state with { Translation = null };
+        Assert.AreEqual("Until morning", DesktopLyricsPresentation.Select(state, options).Secondary);
+        Assert.AreEqual(DesktopLyricsAlignment.Split, DesktopLyricsPresentation.ResolveAlignment(state, options));
     }
 
     [TestMethod]

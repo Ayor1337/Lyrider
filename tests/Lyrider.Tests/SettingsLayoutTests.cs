@@ -173,27 +173,29 @@ public sealed class SettingsLayoutTests
     }
 
     [TestMethod]
-    public void SettingsPage_DesktopLyrics_ProvidesIndependentControlsInResponsiveRows()
+    public void SettingsPage_DesktopLyrics_GroupsControlsAndProvidesPreview()
     {
         var document = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "MainWindow.xaml"));
         var section = FindNamedElement(document, "DesktopLyricsSettingsSection");
         Assert.IsNotNull(section);
-        foreach (var name in new[] { "DesktopLyricsEnabledToggle", "DesktopLyricsLockedToggle", "DesktopLyricsDoubleLineToggle", "DesktopLyricsTranslationToggle",
-            "DesktopLyricsKaraokeToggle", "DesktopLyricsHighlightColorPicker",
-            "DesktopLyricsLayoutComboBox", "DesktopLyricsSizeRangeSettingsRow",
-            "DesktopLyricsFontSlider", "DesktopLyricsColorPicker", "DesktopLyricsBackgroundSlider", "DesktopLyricsPauseToggle", "DesktopLyricsResetButton" })
-        {
+        foreach (var name in new[] { "DesktopLyricsEnabledToggle", "DesktopLyricsLockedToggle", "DesktopLyricsLineRadioButtons",
+            "DesktopLyricsTranslationToggle", "DesktopLyricsDirectionRadioButtons", "DesktopLyricsAlignmentRadioButtons",
+            "DesktopLyricsPresetRadioButtons", "DesktopLyricsKaraokeToggle", "DesktopLyricsHighlightColorPicker",
+            "DesktopLyricsFontSlider", "DesktopLyricsFontNumberBox", "DesktopLyricsFontWeightComboBox",
+            "DesktopLyricsStrokeSlider", "DesktopLyricsStrokeColorPicker", "DesktopLyricsColorPicker",
+            "DesktopLyricsBackgroundSlider", "DesktopLyricsPauseToggle", "DesktopLyricsResetButton", "DesktopLyricsPreviewImage" })
             Assert.IsTrue(FindNamedElement(document, name)!.Ancestors().Contains(section));
-        }
-        Assert.AreEqual("ToggleSwitch", FindNamedElement(document, "DesktopLyricsDoubleLineToggle")!.Name.LocalName);
-        Assert.AreEqual("ToggleSwitch", FindNamedElement(document, "DesktopLyricsTranslationToggle")!.Name.LocalName);
-        CollectionAssert.AreEqual(new[] { "Vertical", "Horizontal" },
-            FindNamedElement(document, "DesktopLyricsLayoutComboBox")!.Elements().Select(element => element.Attribute("Tag")?.Value).ToArray());
-        var slider = FindNamedElement(document, "DesktopLyricsFontSlider")!;
-        Assert.AreEqual("16", slider.Attribute("Minimum")?.Value);
-        Assert.AreEqual("72", slider.Attribute("Maximum")?.Value);
-        Assert.AreEqual("False", FindNamedElement(document, "DesktopLyricsColorPicker")!.Attribute("IsAlphaEnabled")?.Value);
-        Assert.AreEqual("False", FindNamedElement(document, "DesktopLyricsHighlightColorPicker")!.Attribute("IsAlphaEnabled")?.Value);
+        CollectionAssert.AreEqual(new[] { "Center", "Split", "Left", "Right" },
+            FindNamedElement(document, "DesktopLyricsAlignmentRadioButtons")!.Elements().Select(element => element.Attribute("Tag")?.Value).ToArray());
+        CollectionAssert.AreEqual(new[] { "Horizontal", "Vertical" },
+            FindNamedElement(document, "DesktopLyricsDirectionRadioButtons")!.Elements().Select(element => element.Attribute("Tag")?.Value).ToArray());
+        CollectionAssert.AreEqual(new[] { "Blue", "Gold", "Purple", "Mint", "Custom" },
+            FindNamedElement(document, "DesktopLyricsPresetRadioButtons")!.Elements().Select(element => element.Attribute("Tag")?.Value).ToArray());
+        Assert.AreEqual("16", FindNamedElement(document, "DesktopLyricsFontSlider")!.Attribute("Minimum")?.Value);
+        Assert.AreEqual("72", FindNamedElement(document, "DesktopLyricsFontSlider")!.Attribute("Maximum")?.Value);
+        Assert.AreEqual("0", FindNamedElement(document, "DesktopLyricsStrokeSlider")!.Attribute("Minimum")?.Value);
+        Assert.AreEqual("8", FindNamedElement(document, "DesktopLyricsStrokeSlider")!.Attribute("Maximum")?.Value);
+        Assert.AreEqual(6, section!.Elements().Count(element => element.Name.LocalName == "Border"));
     }
 
     private static XElement? FindNamedElement(XDocument document, string name) =>

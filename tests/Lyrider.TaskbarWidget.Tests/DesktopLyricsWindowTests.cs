@@ -18,6 +18,394 @@ namespace Lyrider.TaskbarWidget.Tests;
 [TestClass]
 public sealed class DesktopLyricsWindowTests
 {
+    [TestMethod]
+    public void QuickMenu_RightClick_OpensVerticalMenuAndAppliesSelectedCommands()
+    {
+        RunOnSta(() =>
+        {
+            var window = new DesktopLyricsWindow();
+            try
+            {
+                var options = new DesktopLyricsOptions(Enabled: true, TranslationEnabled: false, BackgroundOpacity: 0.45);
+                window.ApplyOptions(options);
+                window.SetPlaybackState(new("Song", true, false, "夜空中最亮的星", NextLyric: "照亮我们前行的路"));
+                PumpDispatcher(TimeSpan.FromMilliseconds(80));
+                var surface = (FrameworkElement)window.FindName("Surface");
+                var menu = surface.ContextMenu!;
+                MenuItem[] Commands(ItemCollection items) => items.OfType<MenuItem>()
+                    .SelectMany(item => item.Tag is DesktopLyricsCommand ? new[] { item } : Commands(item.Items)).ToArray();
+                var commands = Commands(menu.Items);
+                MenuItem Find(DesktopLyricsCommand command) => commands.Single(item => Equals(item.Tag, command));
+                void OpenAtLyrics()
+                {
+                    surface.RaiseEvent(new System.Windows.Input.MouseButtonEventArgs(System.Windows.Input.Mouse.PrimaryDevice,
+                        Environment.TickCount, System.Windows.Input.MouseButton.Right)
+                    { RoutedEvent = UIElement.MouseRightButtonUpEvent });
+                    PumpDispatcher(TimeSpan.FromMilliseconds(80));
+                    Assert.IsTrue(menu.IsOpen, "The right-click context menu did not open.");
+                }
+                OpenAtLyrics();
+                Assert.IsTrue(Find(DesktopLyricsCommand.AlignCenter).IsChecked);
+                Assert.IsTrue(Find(DesktopLyricsCommand.DoubleLine).IsChecked);
+                Assert.IsTrue(Find(DesktopLyricsCommand.HorizontalText).IsChecked);
+                Assert.IsFalse(commands.Any(item => Equals(item.Tag, DesktopLyricsCommand.OpenSettings)));
+                Assert.IsTrue(commands.All(item => !string.IsNullOrWhiteSpace(System.Windows.Automation.AutomationProperties.GetName(item))));
+                var topItems = menu.Items.OfType<MenuItem>().ToArray();
+                for (var index = 1; index < topItems.Length; index++)
+                    Assert.IsTrue(topItems[index].TranslatePoint(new System.Windows.Point(), menu).Y >
+                        topItems[index - 1].TranslatePoint(new System.Windows.Point(), menu).Y);
+                var bitmap = new RenderTargetBitmap((int)Math.Ceiling(menu.ActualWidth),
+                    (int)Math.Ceiling(menu.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+                bitmap.Render(menu);
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using (var output = File.Create(Path.Combine(AppContext.BaseDirectory, "desktop-quick-menu.png"))) encoder.Save(output);
+                var alignmentGroup = (MenuItem)menu.Items[3];
+                alignmentGroup.IsSubmenuOpen = true;
+                PumpDispatcher(TimeSpan.FromMilliseconds(80));
+                var popup = (Popup)alignmentGroup.Template.FindName("PART_Popup", alignmentGroup);
+                Assert.IsTrue(popup.IsOpen);
+                var submenu = (FrameworkElement)popup.Child;
+                var alignmentItems = alignmentGroup.Items.OfType<MenuItem>().ToArray();
+                Assert.IsTrue(alignmentItems.All(item => item.IsVisible && item.ActualHeight >= 28));
+                Assert.IsTrue(((FrameworkElement)alignmentItems[0].Template.FindName("Check", alignmentItems[0])).IsVisible);
+                bitmap = new RenderTargetBitmap((int)Math.Ceiling(submenu.ActualWidth),
+                    (int)Math.Ceiling(submenu.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+                bitmap.Render(submenu);
+                encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using (var output = File.Create(Path.Combine(AppContext.BaseDirectory, "desktop-quick-alignment.png"))) encoder.Save(output);
+                menu.IsOpen = false;
+                var closeWait = Stopwatch.StartNew();
+                while (popup.IsOpen && closeWait.Elapsed < TimeSpan.FromSeconds(1))
+                    PumpDispatcher(TimeSpan.FromMilliseconds(20));
+                Assert.IsFalse(menu.IsOpen);
+                Assert.IsFalse(popup.IsOpen, "The submenu remained open after its parent closed.");
+                window.CommandRequested += command => { options = options.ApplyCommand(command); window.ApplyOptions(options); };
+                foreach (var command in new[] { DesktopLyricsCommand.IncreaseFontSize, DesktopLyricsCommand.AlignRight,
+                    DesktopLyricsCommand.SingleLine, DesktopLyricsCommand.VerticalText, DesktopLyricsCommand.ToggleTranslation })
+                {
+                    Find(command).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                    Assert.IsFalse(menu.IsOpen);
+                    OpenAtLyrics();
+                }
+                Assert.AreEqual(34, options.FontSize);
+                Assert.IsTrue(Find(DesktopLyricsCommand.AlignRight).IsChecked);
+                Assert.IsTrue(Find(DesktopLyricsCommand.SingleLine).IsChecked);
+                Assert.IsTrue(Find(DesktopLyricsCommand.VerticalText).IsChecked);
+                Assert.IsTrue(Find(DesktopLyricsCommand.ToggleTranslation).IsChecked);
+                var current = (OutlinedLyricText)window.FindName("PrimaryText");
+                Assert.AreEqual(34.0, (double)typeof(OutlinedLyricText).GetField("_fontSize", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(current)!);
+                Assert.AreEqual(Visibility.Collapsed, ((FrameworkElement)window.FindName("SecondaryText")).Visibility);
+                window.ApplyOptions(options with { Locked = true });
+                Assert.IsFalse(menu.IsOpen);
+                Assert.IsNull(surface.ContextMenu);
+                window.ApplyOptions(options with { Enabled = false });
+                Assert.IsFalse(menu.IsOpen);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void QuickMenu_FontLimitsAndUnpersistedCommand_ReflectsAppliedOptionsOnly()
+    {
+        RunOnSta(() =>
+        {
+            var window = new DesktopLyricsWindow();
+            try
+            {
+                window.ApplyOptions(new(Enabled: true, FontSize: 72, Layout: DesktopLyricsLayout.Horizontal));
+                var menu = ((FrameworkElement)window.FindName("Surface")).ContextMenu!;
+                var increase = (MenuItem)menu.Items[0];
+                var decrease = (MenuItem)menu.Items[1];
+                Assert.IsFalse(increase.IsEnabled);
+                Assert.IsTrue(decrease.IsEnabled);
+                var alignment = (MenuItem)menu.Items[3];
+                Assert.IsTrue(((MenuItem)alignment.Items[1]).IsChecked);
+                DesktopLyricsCommand? requested = null;
+                window.CommandRequested += command => requested = command;
+                ((MenuItem)alignment.Items[2]).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                Assert.AreEqual(DesktopLyricsCommand.AlignLeft, requested);
+                Assert.IsTrue(((MenuItem)alignment.Items[1]).IsChecked);
+                Assert.IsFalse(((MenuItem)alignment.Items[2]).IsChecked);
+                window.ApplyOptions(new(Enabled: true, FontSize: 16));
+                Assert.IsTrue(increase.IsEnabled);
+                Assert.IsFalse(decrease.IsEnabled);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void LockedHover_FirstVisibleFrame_HasFinalToolbarPlacement()
+    {
+        RunOnSta(() =>
+        {
+            var window = new DesktopLyricsWindow();
+            var unlock = new DesktopLyricsUnlockWindow();
+            var presentations = new List<(NativeRect Bounds, bool LayoutReady)>();
+            void CapturePresentation()
+            {
+                if (!unlock.IsVisible || unlock.Opacity == 0) return;
+                GetWindowRect(new WindowInteropHelper(unlock).Handle, out var rect);
+                var button = (FrameworkElement)unlock.FindName("UnlockButton");
+                presentations.Add((rect, button.IsMeasureValid && button.IsArrangeValid));
+            }
+            var opacity = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(UIElement.OpacityProperty, typeof(Window))!;
+            EventHandler opacityChanged = (_, _) => CapturePresentation();
+            opacity.AddValueChanged(unlock, opacityChanged);
+            unlock.IsVisibleChanged += (_, _) => CapturePresentation();
+            try
+            {
+                window.ApplyOptions(new(Enabled: true, Locked: true));
+                window.SetPlaybackState(new("Song", true, false, "歌词"));
+                PumpDispatcher(TimeSpan.FromMilliseconds(80));
+                unlock.Owner = window;
+                ReadField<DispatcherTimer>(window, "_lockedHoverTimer")!.Stop();
+                typeof(DesktopLyricsWindow).GetMethod("CloseUnlockWindow", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, null);
+                typeof(DesktopLyricsWindow).GetField("_unlockWindow", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(window, unlock);
+                GetWindowRect(new WindowInteropHelper(window).Handle, out var lyricsRect);
+                UpdateLockedHover(window, new((lyricsRect.Left + lyricsRect.Right) / 2, (lyricsRect.Top + lyricsRect.Bottom) / 2));
+                PumpDispatcher(TimeSpan.FromMilliseconds(80));
+                GetWindowRect(new WindowInteropHelper(unlock).Handle, out var final);
+                Assert.IsTrue(presentations.Count > 0);
+                foreach (var presentation in presentations)
+                {
+                    Assert.IsTrue(presentation.LayoutReady, "The unlock button became visible before layout finished.");
+                    Assert.AreEqual(final.Left, presentation.Bounds.Left, "The unlock button moved horizontally after appearing.");
+                    Assert.AreEqual(final.Top, presentation.Bounds.Top, "The unlock button moved vertically after appearing.");
+                    Assert.AreEqual(final.Right, presentation.Bounds.Right);
+                    Assert.AreEqual(final.Bottom, presentation.Bounds.Bottom);
+                }
+            }
+            finally
+            {
+                opacity.RemoveValueChanged(unlock, opacityChanged);
+                window.Close();
+                unlock.Close();
+            }
+        });
+    }
+
+    [DataTestMethod]
+    [DataRow(DesktopLyricsTextDirection.Horizontal, false)]
+    [DataRow(DesktopLyricsTextDirection.Horizontal, true)]
+    [DataRow(DesktopLyricsTextDirection.Vertical, false)]
+    [DataRow(DesktopLyricsTextDirection.Vertical, true)]
+    public void SetPlaybackState_WrappedLineChange_CommitsFinalBoundsWithoutIntermediateMoves(DesktopLyricsTextDirection direction, bool manualHeight)
+    {
+        RunOnSta(() =>
+        {
+            var window = new DesktopLyricsWindow();
+            HwndSource? source = null;
+            var moves = new List<NativeRect>();
+            nint ObserveMove(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
+            {
+                if (message == 0x0047 && window.IsVisible && window.Opacity > 0)
+                {
+                    GetWindowRect(hwnd, out var bounds);
+                    moves.Add(bounds);
+                }
+                return 0;
+            }
+            try
+            {
+                window.ApplyOptions(new(Enabled: true, TranslationEnabled: false, TextDirection: direction,
+                    Position: new(GetPrimaryMonitorName(), 0.5, 0.2, 320, manualHeight ? 400 : null)));
+                window.SetPlaybackState(new("Song", true, false, "Short", NextLyric: "Next"));
+                PumpDispatcher(TimeSpan.FromMilliseconds(80));
+                source = HwndSource.FromHwnd(new WindowInteropHelper(window).Handle);
+                source!.AddHook(ObserveMove);
+                window.SetPlaybackState(new("Song", true, false,
+                    "A much longer lyric that must wrap over two lines and change the window height", NextLyric: "Next"));
+                PumpDispatcher(TimeSpan.FromMilliseconds(80));
+                GetWindowRect(new WindowInteropHelper(window).Handle, out var final);
+                foreach (var move in moves)
+                {
+                    Assert.AreEqual(final.Top, move.Top, "A visible intermediate move changed the vertical anchor.");
+                    Assert.AreEqual(final.Bottom, move.Bottom, "A visible intermediate resize changed the bottom anchor.");
+                }
+            }
+            finally
+            {
+                source?.RemoveHook(ObserveMove);
+                window.Close();
+            }
+        });
+    }
+
+    [TestMethod]
+    public void SetPlaybackState_PendingFirstFrame_ShowsLatestContentAndCancelsWhenDisabled()
+    {
+        RunOnSta(() =>
+        {
+            var window = new DesktopLyricsWindow();
+            var presented = new List<string>();
+            var opacity = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(UIElement.OpacityProperty, typeof(Window))!;
+            EventHandler opacityChanged = (_, _) =>
+            {
+                if (window.IsVisible && window.Opacity > 0)
+                    presented.Add(((OutlinedLyricText)window.FindName("PrimaryText")).Text);
+            };
+            opacity.AddValueChanged(window, opacityChanged);
+            try
+            {
+                var options = new DesktopLyricsOptions(Enabled: true, HideWhenPaused: true);
+                window.ApplyOptions(options);
+                window.SetPlaybackState(new("Song", true, true, "Old"));
+                window.SetPlaybackState(new("Song", true, true, "Latest"));
+                PumpDispatcher(TimeSpan.FromMilliseconds(80));
+                CollectionAssert.AreEqual(new[] { "Latest" }, presented);
+                window.SetPlaybackState(new("Song", true, false, "Latest"));
+                window.SetPlaybackState(new("Song", true, true, "Cancelled"));
+                window.ApplyOptions(options with { Enabled = false });
+                PumpDispatcher(TimeSpan.FromMilliseconds(80));
+                Assert.IsFalse(window.IsVisible);
+                Assert.AreEqual(0, window.Opacity);
+                CollectionAssert.AreEqual(new[] { "Latest" }, presented);
+            }
+            finally
+            {
+                opacity.RemoveValueChanged(window, opacityChanged);
+                window.Close();
+            }
+        });
+    }
+
+    [TestMethod]
+    public void SetPlaybackState_FirstVisibleFrame_HasFinalLayoutAndPlacement()
+    {
+        RunOnSta(() =>
+        {
+            var window = new DesktopLyricsWindow();
+            var presentations = new List<(NativeRect Bounds, bool LayoutReady)>();
+            void CapturePresentation()
+            {
+                if (!window.IsVisible || window.Opacity == 0) return;
+                var surface = (FrameworkElement)window.FindName("Surface");
+                GetWindowRect(new WindowInteropHelper(window).Handle, out var rect);
+                presentations.Add((rect, surface.IsMeasureValid && surface.IsArrangeValid));
+            }
+            var opacity = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(UIElement.OpacityProperty, typeof(Window))!;
+            EventHandler opacityChanged = (_, _) => CapturePresentation();
+            opacity.AddValueChanged(window, opacityChanged);
+            window.IsVisibleChanged += (_, _) => CapturePresentation();
+            try
+            {
+                window.ApplyOptions(new(Enabled: true, HideWhenPaused: true, FontSize: 40,
+                    Position: new(GetPrimaryMonitorName(), 0.2, 0.2, 320)));
+                foreach (var lyric in new[] { "第一次显示的长歌词，需要换行才能显示完整", "恢复播放后显示的另一句歌词" })
+                {
+                    presentations.Clear();
+                    window.SetPlaybackState(new("Song", true, true, lyric, "Translation that also needs to wrap"));
+                    PumpDispatcher(TimeSpan.FromMilliseconds(80));
+                    GetWindowRect(new WindowInteropHelper(window).Handle, out var final);
+                    Assert.IsTrue(presentations.Count > 0, "The prepared frame was never shown.");
+                    foreach (var presentation in presentations)
+                    {
+                        Assert.IsTrue(presentation.LayoutReady, "A visible frame still needed layout.");
+                        Assert.AreEqual(final.Left, presentation.Bounds.Left, "The window moved horizontally after becoming visible.");
+                        Assert.AreEqual(final.Top, presentation.Bounds.Top, "The window moved vertically after becoming visible.");
+                        Assert.AreEqual(final.Right, presentation.Bounds.Right);
+                        Assert.AreEqual(final.Bottom, presentation.Bounds.Bottom);
+                    }
+                    window.SetPlaybackState(new("Song", true, false, lyric));
+                    Assert.IsFalse(window.IsVisible);
+                }
+            }
+            finally
+            {
+                opacity.RemoveValueChanged(window, opacityChanged);
+                window.Close();
+            }
+        });
+    }
+
+    [DataTestMethod]
+    [DataRow(320, DesktopLyricsTextDirection.Horizontal)]
+    [DataRow(320, DesktopLyricsTextDirection.Vertical)]
+    [DataRow(960, DesktopLyricsTextDirection.Horizontal)]
+    [DataRow(960, DesktopLyricsTextDirection.Vertical)]
+    public void Toolbar_AllActions_AreCenteredAboveLyricsAndKeepSpaceWhenHidden(int width, DesktopLyricsTextDirection direction)
+    {
+        RunOnSta(() =>
+        {
+            var window = new DesktopLyricsWindow();
+            try
+            {
+                window.ApplyOptions(new(Enabled: true, TextDirection: direction, BackgroundOpacity: 0.45,
+                    TranslationEnabled: false, Position: new(GetPrimaryMonitorName(), 0.5, 0.1, width, 400)));
+                window.SetPlaybackState(new("Song", true, true, "夜空中最亮的星", NextLyric: "照亮我们前行的路"));
+                PumpDispatcher(TimeSpan.FromMilliseconds(80));
+                var toolbar = (StackPanel)window.FindName("Toolbar");
+                var capsule = (Border)window.FindName("ToolbarSurface");
+                toolbar.Visibility = Visibility.Visible;
+                window.UpdateLayout();
+                var origin = capsule.TranslatePoint(new System.Windows.Point(), window);
+                Assert.AreEqual(window.ActualWidth / 2, origin.X + capsule.ActualWidth / 2, 1);
+                Assert.IsTrue(origin.X >= 12);
+                var content = (FrameworkElement)window.FindName("LyricsContent");
+                var lyricsTop = content.TranslatePoint(new System.Windows.Point(), window).Y;
+                Assert.IsTrue(origin.Y + capsule.ActualHeight <= lyricsTop);
+                Assert.AreEqual(Visibility.Visible, capsule.Visibility);
+                var buttons = toolbar.Children.OfType<System.Windows.Controls.Button>().ToArray();
+                Assert.AreEqual(5, buttons.Length);
+                Assert.IsNull(window.FindName("SettingsButton"));
+                var commands = new List<DesktopLyricsCommand>();
+                window.CommandRequested += commands.Add;
+                foreach (var button in buttons)
+                {
+                    Assert.IsFalse(string.IsNullOrWhiteSpace(System.Windows.Automation.AutomationProperties.GetName(button)));
+                    button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                }
+                CollectionAssert.AreEqual(new[] { DesktopLyricsCommand.Previous, DesktopLyricsCommand.TogglePlayPause,
+                    DesktopLyricsCommand.Next, DesktopLyricsCommand.ToggleLocked,
+                    DesktopLyricsCommand.ToggleEnabled }, commands);
+                var surface = (FrameworkElement)window.FindName("Surface");
+                var bitmap = new RenderTargetBitmap((int)Math.Ceiling(surface.ActualWidth),
+                    (int)Math.Ceiling(surface.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+                bitmap.Render(surface);
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using (var output = File.Create(Path.Combine(AppContext.BaseDirectory, $"desktop-toolbar-{width}-{direction}.png")))
+                    encoder.Save(output);
+                toolbar.Visibility = Visibility.Hidden;
+                window.UpdateLayout();
+                Assert.AreEqual(Visibility.Hidden, capsule.Visibility);
+                Assert.AreEqual(lyricsTop, content.TranslatePoint(new System.Windows.Point(), window).Y, 1);
+                window.ApplyOptions(new(Enabled: true, Locked: true));
+                Assert.AreEqual(Visibility.Hidden, toolbar.Visibility);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void SetPlaybackState_PlayingAndPaused_UpdatesToolbarIconAndAccessibleAction()
+    {
+        RunOnSta(() =>
+        {
+            var window = new DesktopLyricsWindow();
+            try
+            {
+                window.ApplyOptions(new(Enabled: true));
+                var button = (System.Windows.Controls.Button)window.FindName("PlayPauseButton");
+                var icon = (TextBlock)window.FindName("PlayPauseIcon");
+                window.SetPlaybackState(new("Song", true, true, "歌词"));
+                Assert.AreEqual("\uE769", icon.Text);
+                var pauseName = System.Windows.Automation.AutomationProperties.GetName(button);
+                Assert.AreEqual(button.ToolTip, pauseName);
+                window.SetPlaybackState(new("Song", true, false, "歌词"));
+                Assert.AreEqual("\uE768", icon.Text);
+                var playName = System.Windows.Automation.AutomationProperties.GetName(button);
+                Assert.AreEqual(button.ToolTip, playName);
+                Assert.AreNotEqual(pauseName, playName);
+            }
+            finally { window.Close(); }
+        });
+    }
+
     [DataTestMethod]
     [DataRow(false)]
     [DataRow(true)]
@@ -105,7 +493,7 @@ public sealed class DesktopLyricsWindowTests
                 Assert.AreEqual(window.MinWidth, window.ActualWidth, 2);
                 Assert.AreEqual(window.MinHeight, window.ActualHeight, 2);
                 var content = (FrameworkElement)window.FindName("LyricsContent");
-                Assert.IsTrue(content.DesiredSize.Height + 40 <= window.ActualHeight + 2);
+                Assert.IsTrue(content.DesiredSize.Height + 52 <= window.ActualHeight + 2);
                 var surface = (FrameworkElement)window.FindName("Surface");
                 var bitmap = new RenderTargetBitmap((int)Math.Ceiling(surface.ActualWidth),
                     (int)Math.Ceiling(surface.ActualHeight), 96, 96, PixelFormats.Pbgra32);
@@ -145,6 +533,7 @@ public sealed class DesktopLyricsWindowTests
                 var options = new DesktopLyricsOptions(Enabled: true, Locked: true, BackgroundOpacity: 0.8);
                 lyrics.ApplyOptions(options);
                 lyrics.SetPlaybackState(new("Title", true, false, "夜空中最亮的星", NextLyric: "照亮我们前行的路"));
+                PumpDispatcher(TimeSpan.FromMilliseconds(80));
                 var timer = ReadField<DispatcherTimer>(lyrics, "_lockedHoverTimer")!;
                 Assert.IsTrue(timer.IsEnabled);
                 timer.Stop();
@@ -152,9 +541,10 @@ public sealed class DesktopLyricsWindowTests
                 GetWindowRect(handle, out var rect);
                 SetWindowPos(new WindowInteropHelper(underneath).Handle, new nint(-1), rect.Left, rect.Top,
                     rect.Right - rect.Left, rect.Bottom - rect.Top, 0x0010);
-                var point = new PixelPoint((rect.Left + rect.Right) / 2, rect.Top + 50);
+                var point = new PixelPoint((rect.Left + rect.Right) / 2, (rect.Top + rect.Bottom) / 2);
                 UpdateLockedHover(lyrics, point);
                 var unlock = ReadField<DesktopLyricsUnlockWindow>(lyrics, "_unlockWindow")!;
+                PumpDispatcher(TimeSpan.FromMilliseconds(80));
                 Assert.IsTrue(unlock.IsVisible);
                 Assert.IsFalse(unlock.IsActive);
                 Assert.AreEqual(0, ((SolidColorBrush)((Border)lyrics.FindName("Backdrop")).Background).Color.A);
@@ -166,11 +556,17 @@ public sealed class DesktopLyricsWindowTests
                 Assert.AreNotEqual(0L, GetWindowLongPtr(unlockHandle, -20).ToInt64() & 0x08000000);
                 GetWindowRect(unlockHandle, out var iconRect);
                 var iconScale = GetDpiForWindow(handle) / 96.0;
-                Assert.AreEqual(24 * iconScale, iconRect.Right - iconRect.Left, 1);
+                var lockButton = (Button)lyrics.FindName("LockButton");
+                var lockButtonTop = lockButton.TranslatePoint(new System.Windows.Point(), lyrics).Y;
+                Assert.AreEqual(lockButton.ActualWidth * iconScale, iconRect.Right - iconRect.Left, 1);
+                Assert.AreEqual(lockButton.ActualHeight * iconScale, iconRect.Bottom - iconRect.Top, 1);
                 Assert.AreEqual((rect.Left + rect.Right) / 2.0, (iconRect.Left + iconRect.Right) / 2.0, 1);
-                Assert.AreEqual(rect.Top + Math.Round(6 * iconScale), iconRect.Top, 1);
+                Assert.AreEqual(rect.Top + Math.Round(lockButtonTop * iconScale), iconRect.Top, 1);
                 var iconPoint = new NativePoint { X = (iconRect.Left + iconRect.Right) / 2, Y = (iconRect.Top + iconRect.Bottom) / 2 };
-                Assert.AreEqual(unlockHandle, WindowFromPoint(iconPoint));
+                var renderWait = Stopwatch.StartNew();
+                while (WindowFromPoint(iconPoint) != unlockHandle && renderWait.Elapsed < TimeSpan.FromSeconds(1))
+                    PumpDispatcher(TimeSpan.FromMilliseconds(20));
+                Assert.AreEqual(unlockHandle, WindowFromPoint(iconPoint), "The prepared unlock frame never became clickable.");
                 Assert.AreEqual(new WindowInteropHelper(underneath).Handle, WindowFromPoint(new() { X = point.X, Y = point.Y }));
                 UpdateLockedHover(lyrics, new(iconPoint.X, iconPoint.Y));
                 Assert.IsTrue(unlock.IsVisible);
@@ -321,131 +717,46 @@ public sealed class DesktopLyricsWindowTests
     }
 
     [TestMethod]
-    public void ApplyOptions_Layouts_UsesCompactInsetsAndPreservesSingleLineAlignment()
+    public void ApplyOptions_DirectionsAndAlignment_RespectTranslationAndSingleLineOverrides()
     {
         RunOnSta(() =>
         {
             var window = new DesktopLyricsWindow();
             try
             {
-                var primary = (OutlinedLyricText)window.FindName("PrimaryText");
-                var secondary = (OutlinedLyricText)window.FindName("SecondaryText");
-                var options = new DesktopLyricsOptions(Enabled: true, Locked: true, KaraokeEnabled: true,
-                    Position: new(GetPrimaryMonitorName(), 0.5, 0.1, 960, 240));
-                var content = (FrameworkElement)window.FindName("LyricsContent");
-                var timing = new DesktopLyricsTiming([new(0, 10, 0, 1)], 5, Stopwatch.GetTimestamp());
-                foreach (var layout in new[] { DesktopLyricsLayout.Vertical, DesktopLyricsLayout.Horizontal })
+                var options = new DesktopLyricsOptions(Enabled: true, Locked: true, TranslationEnabled: false,
+                    Position: new(GetPrimaryMonitorName(), 0.5, 0.1, 960, 400));
+                var state = new DesktopLyricsState("Song", true, false, "Original ABC 123", "译文", "下一句");
+                foreach (var direction in Enum.GetValues<DesktopLyricsTextDirection>())
+                foreach (var alignment in Enum.GetValues<DesktopLyricsAlignment>())
                 {
-                    window.ApplyOptions(options with { Layout = layout });
-                    window.SetPlaybackState(new("Song", true, false, "夜空中最亮的星", "The brightest star", "照亮我们前行的路", timing));
+                    window.ApplyOptions(options with { TextDirection = direction, Alignment = alignment });
+                    window.SetPlaybackState(state);
                     window.UpdateLayout();
-                    var first = primary.TranslatePoint(new System.Windows.Point(), window);
-                    var second = secondary.TranslatePoint(new System.Windows.Point(), window);
-                    var gap = second.Y - first.Y - primary.ActualHeight;
-                    Assert.AreEqual(window.ActualHeight / 2,
-                        content.TranslatePoint(new System.Windows.Point(), window).Y + content.ActualHeight / 2, 1);
-                    if (layout == DesktopLyricsLayout.Horizontal)
+                    var content = (DesktopLyricsContent)window.FindName("LyricsContent");
+                    var first = content.PrimaryText.TranslatePoint(new System.Windows.Point(), window);
+                    var second = content.SecondaryText.TranslatePoint(new System.Windows.Point(), window);
+                    if (direction == DesktopLyricsTextDirection.Vertical)
                     {
-                        Assert.IsTrue(first.X >= 32 && first.Y >= 48);
-                        Assert.IsTrue(gap >= 12 && gap <= 40);
+                        Assert.AreEqual(first.Y, second.Y, 1);
+                        Assert.IsTrue(second.X > first.X);
+                        if (alignment == DesktopLyricsAlignment.Left) Assert.IsTrue(first.X < 40);
+                        if (alignment == DesktopLyricsAlignment.Right) Assert.IsTrue(second.X > window.ActualWidth - 100);
                     }
                     else
                     {
-                        Assert.IsTrue(second.Y >= first.Y + primary.ActualHeight);
-                        Assert.AreEqual(first.X, second.X, 1);
+                        Assert.IsTrue(second.Y > first.Y);
                     }
-                    window.ApplyOptions(options with { Layout = layout, Position = options.Position! with { Height = 400 } });
-                    window.UpdateLayout();
-                    var expandedFirst = primary.TranslatePoint(new System.Windows.Point(), window);
-                    var expandedSecond = secondary.TranslatePoint(new System.Windows.Point(), window);
-                    var expandedGap = expandedSecond.Y - expandedFirst.Y - primary.ActualHeight;
-                    Assert.AreEqual(gap + 32, expandedGap, 2);
-                    Assert.AreEqual(window.ActualHeight / 2,
-                        content.TranslatePoint(new System.Windows.Point(), window).Y + content.ActualHeight / 2, 1);
-                    var expandedSurface = (FrameworkElement)window.FindName("Surface");
-                    var expandedBitmap = new RenderTargetBitmap((int)Math.Ceiling(expandedSurface.ActualWidth),
-                        (int)Math.Ceiling(expandedSurface.ActualHeight), 96, 96, PixelFormats.Pbgra32);
-                    expandedBitmap.Render(expandedSurface);
-                    var expandedEncoder = new PngBitmapEncoder();
-                    expandedEncoder.Frames.Add(BitmapFrame.Create(expandedBitmap));
-                    using (var output = File.Create(Path.Combine(AppContext.BaseDirectory, $"desktop-layout-{layout}-expanded.png")))
-                        expandedEncoder.Save(output);
-                    window.ApplyOptions(options with { Layout = layout });
-                    window.UpdateLayout();
-                    Assert.AreEqual(gap, secondary.TranslatePoint(new System.Windows.Point(), window).Y
-                        - primary.TranslatePoint(new System.Windows.Point(), window).Y - primary.ActualHeight, 1);
-                    Assert.AreEqual(0.5, primary.KaraokeProgress);
-                    var surface = (FrameworkElement)window.FindName("Surface");
-                    var bitmap = new RenderTargetBitmap((int)Math.Ceiling(surface.ActualWidth),
-                        (int)Math.Ceiling(surface.ActualHeight), 96, 96, PixelFormats.Pbgra32);
-                    bitmap.Render(surface);
-                    if (layout == DesktopLyricsLayout.Horizontal)
+                    if (alignment == DesktopLyricsAlignment.Split)
                     {
-                        var pixels = new byte[bitmap.PixelWidth * bitmap.PixelHeight * 4];
-                        bitmap.CopyPixels(pixels, bitmap.PixelWidth * 4, 0);
-                        var split = (first.Y + primary.ActualHeight + second.Y) / 2;
-                        long topX = 0, bottomX = 0;
-                        var topCount = 0;
-                        var bottomCount = 0;
-                        for (var y = 0; y < bitmap.PixelHeight; y++)
-                        for (var x = 0; x < bitmap.PixelWidth; x++)
-                        {
-                            var offset = (y * bitmap.PixelWidth + x) * 4;
-                            if (pixels[offset] < 120 || pixels[offset + 1] < 120) continue;
-                            if (y < split) { topX += x; topCount++; }
-                            else { bottomX += x; bottomCount++; }
-                        }
-                        Assert.IsTrue(topCount > 100 && bottomCount > 100);
-                        Assert.IsTrue(topX / (double)topCount < bitmap.PixelWidth / 2.0);
-                        Assert.IsTrue(bottomX / (double)bottomCount > bitmap.PixelWidth / 2.0);
-                    }
-                    var encoder = new PngBitmapEncoder();
-                    encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                    using (var output = File.Create(Path.Combine(AppContext.BaseDirectory, $"desktop-layout-{layout}.png")))
-                        encoder.Save(output);
-                    window.SetPlaybackState(new("Song", true, false, "夜空中最亮的星", NextLyric: "照亮我们前行的路"));
-                    Assert.AreEqual("照亮我们前行的路", secondary.Text);
-                    foreach (var scenario in new[]
-                    {
-                        (State: new DesktopLyricsState("Song", true, false, "夜空中最亮的星", NextLyric: "下一句"), DoubleLine: false, Name: "single"),
-                        (State: new DesktopLyricsState("Song", true, false, "最后一句歌词"), DoubleLine: true, Name: "final"),
-                        (State: new DesktopLyricsState("歌曲名称", true, false), DoubleLine: true, Name: "title")
-                    })
-                    {
-                        window.ApplyOptions(options with { Layout = layout, DoubleLineEnabled = scenario.DoubleLine });
-                        window.SetPlaybackState(scenario.State);
+                        window.ApplyOptions(options with { TextDirection = direction, Alignment = alignment, TranslationEnabled = true, DoubleLineEnabled = false });
                         window.UpdateLayout();
-                        Assert.AreEqual(Visibility.Collapsed, secondary.Visibility);
-                        var single = primary.TranslatePoint(new System.Windows.Point(), window);
-                        Assert.AreEqual(window.ActualHeight / 2,
-                            content.TranslatePoint(new System.Windows.Point(), window).Y + content.ActualHeight / 2, 1);
-                        if (layout == DesktopLyricsLayout.Horizontal)
-                        {
-                            Assert.AreEqual(first.X, single.X, 1);
-                            bitmap.Clear();
-                            bitmap.Render(surface);
-                            var pixels = new byte[bitmap.PixelWidth * bitmap.PixelHeight * 4];
-                            bitmap.CopyPixels(pixels, bitmap.PixelWidth * 4, 0);
-                            var minX = bitmap.PixelWidth;
-                            var maxX = 0;
-                            for (var offset = 0; offset < pixels.Length; offset += 4)
-                            {
-                                if (pixels[offset] < 120 || pixels[offset + 1] < 120) continue;
-                                var x = (offset / 4) % bitmap.PixelWidth;
-                                minX = Math.Min(minX, x);
-                                maxX = Math.Max(maxX, x);
-                            }
-                            Assert.IsTrue(minX >= 32 && minX <= 40);
-                            Assert.IsTrue(maxX < bitmap.PixelWidth / 2);
-                            var singleEncoder = new PngBitmapEncoder();
-                            singleEncoder.Frames.Add(BitmapFrame.Create(bitmap));
-                            using var output = File.Create(Path.Combine(AppContext.BaseDirectory, $"desktop-layout-{layout}-{scenario.Name}.png"));
-                            singleEncoder.Save(output);
-                        }
-                        else
-                        {
-                            Assert.AreEqual(window.ActualWidth / 2, single.X + primary.ActualWidth / 2, 1);
-                        }
+                        Assert.AreEqual("译文", content.SecondaryText.Text);
+                        Assert.AreEqual(Visibility.Visible, content.SecondaryText.Visibility);
+                        Assert.AreEqual(new Thickness(0), content.Margin);
+                        window.ApplyOptions(options with { TextDirection = direction, Alignment = alignment, DoubleLineEnabled = false });
+                        Assert.AreEqual(Visibility.Collapsed, content.SecondaryText.Visibility);
+                        Assert.AreEqual(new Thickness(0), content.Margin);
                     }
                 }
             }
@@ -552,13 +863,13 @@ public sealed class DesktopLyricsWindowTests
                 var primary = (OutlinedLyricText)window.FindName("PrimaryText");
                 var secondary = (OutlinedLyricText)window.FindName("SecondaryText");
                 Assert.AreEqual("The brightest star in the night sky", secondary.Text);
-                Assert.AreEqual(0.5, primary.KaraokeProgress);
+                Assert.AreEqual(0, primary.KaraokeProgress);
                 window.ApplyOptions(options with { TranslationEnabled = false });
                 Assert.AreEqual("照亮我们继续前行的路", secondary.Text);
                 Assert.AreEqual(Visibility.Visible, secondary.Visibility);
                 window.ApplyOptions(options with { DoubleLineEnabled = false });
-                Assert.AreEqual(Visibility.Collapsed, secondary.Visibility);
-                Assert.AreEqual(0.5, primary.KaraokeProgress);
+                Assert.AreEqual(Visibility.Visible, secondary.Visibility);
+                Assert.AreEqual(0, primary.KaraokeProgress);
                 window.ApplyOptions(options);
                 Assert.AreEqual("The brightest star in the night sky", secondary.Text);
                 Assert.AreEqual(Visibility.Visible, secondary.Visibility);
@@ -587,13 +898,13 @@ public sealed class DesktopLyricsWindowTests
                 window.ApplyOptions(new(Enabled: true, KaraokeEnabled: true));
                 window.SetPlaybackState(new("Title", true, false));
                 var timing = new DesktopLyricsTiming([new(0, 2, 0, 1)], 0.5, Stopwatch.GetTimestamp());
-                window.SetPlaybackState(new("Title", true, true, "你好世界", "译文", Timing: timing));
+                window.SetPlaybackState(new("Title", true, true, "你好世界", NextLyric: "下一句", Timing: timing));
                 var text = (OutlinedLyricText)window.FindName("PrimaryText");
                 var timer = ReadField<DispatcherTimer>(window, "_karaokeTimer")!;
                 Assert.IsTrue(timer.IsEnabled);
                 PumpDispatcher(TimeSpan.FromMilliseconds(150));
                 Assert.IsTrue(text.KaraokeProgress > 0.3);
-                window.SetPlaybackState(new("Title", true, false, "你好世界", "译文", Timing: timing with { Position = 1 }));
+                window.SetPlaybackState(new("Title", true, false, "你好世界", NextLyric: "下一句", Timing: timing with { Position = 1 }));
                 Assert.AreEqual(0.5, text.KaraokeProgress);
                 Assert.IsFalse(timer.IsEnabled);
                 PumpDispatcher(TimeSpan.FromMilliseconds(80));
@@ -625,7 +936,7 @@ public sealed class DesktopLyricsWindowTests
             var window = new DesktopLyricsWindow();
             try
             {
-                window.ApplyOptions(new(Enabled: true, Locked: true, KaraokeEnabled: true, HighlightColor: "#00FFFF",
+                window.ApplyOptions(new(Enabled: true, Locked: true, KaraokeEnabled: true, TranslationEnabled: false, HighlightColor: "#00FFFF",
                     BackgroundOpacity: 0.4, Position: new(GetPrimaryMonitorName(), 0.5, 0.1, 640)));
                 var timing = new DesktopLyricsTiming([new(0, 10, 0, 1)], 0, Stopwatch.GetTimestamp());
                 const string lyric = "夜空中最亮的星，照亮我们继续前行的路。让每一句歌词都跟着歌声变色。";
@@ -775,6 +1086,7 @@ public sealed class DesktopLyricsWindowTests
                 underneath.Show();
                 lyrics.ApplyOptions(new(Enabled: true));
                 lyrics.SetPlaybackState(new("Title", true, true, "Current lyric"));
+                PumpDispatcher(TimeSpan.FromMilliseconds(80));
                 var lyricHandle = new WindowInteropHelper(lyrics).Handle;
                 var underneathHandle = new WindowInteropHelper(underneath).Handle;
                 GetWindowRect(lyricHandle, out var rect);
@@ -892,7 +1204,7 @@ public sealed class DesktopLyricsWindowTests
                 encoder.Frames.Add(BitmapFrame.Create(bitmap));
                 using var output = File.Create(Path.Combine(AppContext.BaseDirectory, "desktop-lyrics-preview.png"));
                 encoder.Save(output);
-                window.ApplyOptions(new(Enabled: true, BackgroundOpacity: 0.35,
+                window.ApplyOptions(new(Enabled: true, BackgroundOpacity: 0.45,
                     Position: new(GetPrimaryMonitorName(), 0.5, 0.1, 640)));
                 ((StackPanel)window.FindName("Toolbar")).Visibility = Visibility.Visible;
                 window.UpdateLayout();
@@ -904,6 +1216,161 @@ public sealed class DesktopLyricsWindowTests
                 toolbarEncoder.Save(toolbarOutput);
             }
             finally { window.Close(); }
+        });
+    }
+
+    [DataTestMethod]
+    [DataRow(false, false)]
+    [DataRow(false, true)]
+    [DataRow(true, false)]
+    [DataRow(true, true)]
+    public void SetPlaybackState_Translation_ColorsBothLinesAsSungAndRestoresOrdinaryHighlight(bool karaoke, bool hasTiming)
+    {
+        RunOnSta(() =>
+        {
+            var window = new DesktopLyricsWindow();
+            try
+            {
+                var state = new DesktopLyricsState("Song", true, true, "Original ABC", "译文", "Next",
+                    hasTiming ? new([new(0, 10, 0, 1)], 5, Stopwatch.GetTimestamp()) : null);
+                foreach (var direction in Enum.GetValues<DesktopLyricsTextDirection>())
+                {
+                    window.ApplyOptions(new(Enabled: true, Locked: true, KaraokeEnabled: karaoke,
+                        TextColor: "#FF0000", HighlightColor: "#00FFFF", TextDirection: direction));
+                    window.SetPlaybackState(state);
+                    var primary = (OutlinedLyricText)window.FindName("PrimaryText");
+                    var secondary = (OutlinedLyricText)window.FindName("SecondaryText");
+                    Assert.AreEqual(Colors.Cyan, ReadField<SolidColorBrush>(primary, "_foreground")!.Color);
+                    Assert.AreEqual(Colors.Cyan, ReadField<SolidColorBrush>(secondary, "_foreground")!.Color);
+                    Assert.AreEqual(0, primary.KaraokeProgress);
+                    Assert.AreEqual(0, secondary.KaraokeProgress);
+                    Assert.IsFalse(ReadField<DispatcherTimer>(window, "_karaokeTimer")!.IsEnabled);
+                    window.SetPlaybackState(state with { Translation = null });
+                    Assert.AreEqual(karaoke && hasTiming ? Colors.Red : Colors.Cyan,
+                        ReadField<SolidColorBrush>(primary, "_foreground")!.Color);
+                    Assert.AreEqual(Colors.Red, ReadField<SolidColorBrush>(secondary, "_foreground")!.Color);
+                    Assert.AreEqual(karaoke && hasTiming, ReadField<DispatcherTimer>(window, "_karaokeTimer")!.IsEnabled);
+                }
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public async Task RenderPreview_Translation_UsesSungColorForBothLines()
+    {
+        using var host = new DesktopLyricsHost();
+        var state = new DesktopLyricsState("Song", true, false, "Original ABC", "译文", "Next",
+            new([new(0, 10, 0, 1)], 5, 0));
+        foreach (var direction in Enum.GetValues<DesktopLyricsTextDirection>())
+        {
+            var bytes = await host.RenderPreviewAsync(new(KaraokeEnabled: true, TextDirection: direction,
+                TextColor: "#FF0000", HighlightColor: "#00FFFF"), state, 0.5);
+            RunOnSta(() =>
+            {
+                using var stream = new MemoryStream(bytes);
+                var frame = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames[0];
+                var bitmap = new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0);
+                var pixels = new byte[bitmap.PixelWidth * bitmap.PixelHeight * 4];
+                bitmap.CopyPixels(pixels, bitmap.PixelWidth * 4, 0);
+                var sung = 0;
+                var unsung = 0;
+                for (var offset = 0; offset < pixels.Length; offset += 4)
+                {
+                    if (pixels[offset] > 180 && pixels[offset + 1] > 180 && pixels[offset + 2] < 80) sung++;
+                    if (pixels[offset + 2] > 180 && pixels[offset + 1] < 80 && pixels[offset] < 80) unsung++;
+                }
+                Assert.IsTrue(sung > 100);
+                Assert.AreEqual(0, unsung);
+            });
+        }
+    }
+
+    [TestMethod]
+    public async Task RenderPreview_DisabledDesktop_ProducesBothDirectionsWithoutOpeningWindow()
+    {
+        using var host = new DesktopLyricsHost();
+        var state = new DesktopLyricsState("Song", true, false, "陪你 ABC 2026 😀", "与你同行", "下一句",
+            new([new(0, 10, 0, 1)], 5, 0));
+        foreach (var direction in Enum.GetValues<DesktopLyricsTextDirection>())
+        {
+            var options = new DesktopLyricsOptions(TextDirection: direction, Alignment: DesktopLyricsAlignment.Split,
+                DoubleLineEnabled: false, KaraokeEnabled: true, StrokeColor: "#FF00FF", StrokeThickness: 2);
+            var bytes = await host.RenderPreviewAsync(options, state, 0.5);
+            CollectionAssert.AreEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }, bytes[..8]);
+            Assert.IsTrue(bytes.Length > 1000);
+            Assert.IsNull(ReadField<DesktopLyricsWindow>(host, "_window"));
+            File.WriteAllBytes(Path.Combine(AppContext.BaseDirectory, $"desktop-shared-preview-{direction}.png"), bytes);
+        }
+    }
+
+    [TestMethod]
+    public void SetText_VerticalLatinAndCombinedCharacters_RotatesTrimsAndHighlightsInReadingOrder()
+    {
+        RunOnSta(() =>
+        {
+            var text = new OutlinedLyricText();
+            var options = new DesktopLyricsOptions(TextDirection: DesktopLyricsTextDirection.Vertical,
+                FontWeight: DesktopLyricsFontWeight.Bold, StrokeThickness: 0);
+            text.ApplyStyle(options);
+            text.SetText("ABC123", 32, Colors.White);
+            text.Measure(new System.Windows.Size(100, 440));
+            var geometry = ReadField<Geometry>(text, "_geometry")!;
+            Assert.IsTrue(geometry.Bounds.Height > geometry.Bounds.Width * 2);
+            text.SetText("你e\u0301😀好ABCDEFGHIJKLMNOPQRSTUVWXYZ再见", 32, Colors.White);
+            text.Measure(new System.Windows.Size(100, 180));
+            text.Arrange(new Rect(0, 0, text.DesiredSize.Width, text.DesiredSize.Height));
+            Assert.IsTrue(text.DesiredSize.Height <= 180);
+            var elements = ReadField<List<Rect>>(text, "_verticalElements")!;
+            Assert.IsTrue(elements.Count >= 3 && elements.Count < 32);
+            Assert.IsTrue(elements[1].Top >= elements[0].Bottom - 1);
+            Assert.IsTrue(elements[2].Top >= elements[1].Bottom - 1);
+            int HighlightedPixels(double progress)
+            {
+                text.SetKaraokeProgress(progress, Colors.Red);
+                text.UpdateLayout();
+                var bitmap = new RenderTargetBitmap(100, 180, 96, 96, PixelFormats.Pbgra32);
+                bitmap.Render(text);
+                var pixels = new byte[100 * 180 * 4];
+                bitmap.CopyPixels(pixels, 400, 0);
+                var count = 0;
+                for (var offset = 0; offset < pixels.Length; offset += 4)
+                    if (pixels[offset + 2] > 180 && pixels[offset + 1] < 80) count++;
+                return count;
+            }
+            var partial = HighlightedPixels(0.02);
+            var advanced = HighlightedPixels(0.1);
+            Assert.IsTrue(partial > 0);
+            Assert.IsTrue(advanced > partial);
+            Assert.IsTrue(HighlightedPixels(1) >= advanced);
+        });
+    }
+
+    [TestMethod]
+    public void ApplyStyle_OutlineWidthAndColor_ChangesRenderedPixels()
+    {
+        RunOnSta(() =>
+        {
+            var text = new OutlinedLyricText();
+            text.SetText("描边 ABC", 32, Colors.White);
+            int OutlinePixels(double thickness)
+            {
+                text.ApplyStyle(new(StrokeThickness: thickness, StrokeColor: "#FF0000"));
+                text.Measure(new System.Windows.Size(300, 100));
+                text.Arrange(new Rect(0, 0, 300, 100));
+                text.UpdateLayout();
+                var bitmap = new RenderTargetBitmap(300, 100, 96, 96, PixelFormats.Pbgra32);
+                bitmap.Render(text);
+                var pixels = new byte[300 * 100 * 4];
+                bitmap.CopyPixels(pixels, 1200, 0);
+                var count = 0;
+                for (var offset = 0; offset < pixels.Length; offset += 4)
+                    if (pixels[offset + 2] > 180 && pixels[offset + 1] < 80) count++;
+                return count;
+            }
+            Assert.AreEqual(0, OutlinePixels(0));
+            Assert.IsTrue(OutlinePixels(2) > 100);
+            Assert.IsTrue(OutlinePixels(8) > OutlinePixels(2));
         });
     }
 

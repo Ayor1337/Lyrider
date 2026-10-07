@@ -31,7 +31,8 @@ internal static class DesktopLyricStateBuilder
             ordinal++;
         return new(title, true, isPlaying, text,
             string.IsNullOrWhiteSpace(translation) ? null : ChineseTextConverter.ToSimplified(translation),
-            nextIndex < 0 ? null : Display(lines[nextIndex].Text), timing, ordinal);
+            nextIndex < 0 ? null : Display(lines[nextIndex].Text), timing, ordinal,
+            LyricsSelection.IsPrimarilyChinese(new(lines, timeSynced, LyricsSource.Auto)));
     }
 
     private static ImmutableArray<DesktopLyricsWord> MapWords(LyricLineInfo line, string displayedText)

@@ -249,13 +249,7 @@ public sealed partial class MainWindow : Window
         foreach (var row in new[] { ThemeSettingsRow, LanguageSettingsRow, BackgroundSettingsRow, BackgroundBlurSettingsRow,
             LyricFontSettingsRow, LyricsSourceSettingsRow, LyricsTranslationSettingsRow, MusixmatchSettingsRow,
             ChineseLyricsSettingsRow, TaskbarWidgetSettingsRow, TaskbarLyricsSettingsRow,
-            SilentStartupSettingsRow, MinimizeToTraySettingsRow, TaskbarLyricsAlignmentSettingsRow,
-            DesktopLyricsEnabledSettingsRow, DesktopLyricsLockedSettingsRow,
-            DesktopLyricsDoubleLineSettingsRow, DesktopLyricsTranslationSettingsRow,
-            DesktopLyricsLayoutSettingsRow,
-            DesktopLyricsKaraokeSettingsRow, DesktopLyricsHighlightColorSettingsRow,
-            DesktopLyricsFontSettingsRow, DesktopLyricsColorSettingsRow, DesktopLyricsBackgroundSettingsRow,
-            DesktopLyricsPauseSettingsRow, DesktopLyricsResetSettingsRow })
+            SilentStartupSettingsRow, MinimizeToTraySettingsRow, TaskbarLyricsAlignmentSettingsRow })
         {
             var stacked = RootGrid.ActualWidth < 720;
             row.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
@@ -263,6 +257,8 @@ public sealed partial class MainWindow : Window
             Grid.SetColumn((FrameworkElement)row.Children[1], stacked ? 0 : 1);
             Grid.SetRow((FrameworkElement)row.Children[1], stacked ? 1 : 0);
         }
+
+        UpdateDesktopLyricsSettingsLayout();
 
         var stackConnectionHeader = RootGrid.ActualWidth < 720;
         ConnectionHeaderGrid.ColumnDefinitions[1].Width = stackConnectionHeader
@@ -2108,20 +2104,7 @@ public sealed partial class MainWindow : Window
         _settings.MinimizeToTrayOnClose = MinimizeToTrayToggle.IsOn;
         _settings.BackgroundOpacity = BackgroundOpacitySlider.Value / 100;
         _settings.BackgroundBlur = BackgroundBlurSlider.Value;
-        _settings.DesktopLyrics = (_settings.DesktopLyrics with
-        {
-            Enabled = DesktopLyricsEnabledToggle.IsOn,
-            Locked = DesktopLyricsLockedToggle.IsOn,
-            DoubleLineEnabled = DesktopLyricsDoubleLineToggle.IsOn,
-            TranslationEnabled = DesktopLyricsTranslationToggle.IsOn,
-            Layout = Enum.Parse<DesktopLyricsLayout>(SelectedTag(DesktopLyricsLayoutComboBox, "Vertical")),
-            FontSize = DesktopLyricsFontSlider.Value,
-            TextColor = DesktopLyricsColorHex(),
-            BackgroundOpacity = DesktopLyricsBackgroundSlider.Value / 100,
-            HideWhenPaused = DesktopLyricsPauseToggle.IsOn,
-            KaraokeEnabled = DesktopLyricsKaraokeToggle.IsOn,
-            HighlightColor = ColorHex(DesktopLyricsHighlightColorPicker.Color)
-        }).Normalize();
+        _settings.DesktopLyrics = ReadDesktopLyricsDraft();
 
         if (!_settingsStore.TrySave(_settings))
         {
@@ -2237,22 +2220,7 @@ public sealed partial class MainWindow : Window
         TaskbarLyricsAlignmentToggle.IsOn = _settings.RightAlignTaskbarLyrics;
         SilentStartupToggle.IsOn = _settings.StartSilently;
         MinimizeToTrayToggle.IsOn = _settings.MinimizeToTrayOnClose;
-        DesktopLyricsEnabledToggle.IsOn = _settings.DesktopLyrics.Enabled;
-        DesktopLyricsLockedToggle.IsOn = _settings.DesktopLyrics.Locked;
-        DesktopLyricsKaraokeToggle.IsOn = _settings.DesktopLyrics.KaraokeEnabled;
-        var highlightRgb = Convert.ToUInt32(_settings.DesktopLyrics.HighlightColor[1..], 16);
-        DesktopLyricsHighlightColorPicker.Color = ColorHelper.FromArgb(255, (byte)(highlightRgb >> 16), (byte)(highlightRgb >> 8), (byte)highlightRgb);
-        DesktopLyricsHighlightColorPreview.Background = new SolidColorBrush(DesktopLyricsHighlightColorPicker.Color);
-        DesktopLyricsDoubleLineToggle.IsOn = _settings.DesktopLyrics.ShowDoubleLine;
-        DesktopLyricsTranslationToggle.IsOn = _settings.DesktopLyrics.ShowTranslation;
-        SelectByTag(DesktopLyricsLayoutComboBox, _settings.DesktopLyrics.Layout.ToString());
-        DesktopLyricsFontSlider.Value = _settings.DesktopLyrics.FontSize;
-        DesktopLyricsFontValueText.Text = $"{_settings.DesktopLyrics.FontSize:0} DIP";
-        DesktopLyricsBackgroundSlider.Value = _settings.DesktopLyrics.BackgroundOpacity * 100;
-        DesktopLyricsBackgroundValueText.Text = FormatPercent(DesktopLyricsBackgroundSlider.Value);
-        var rgb = Convert.ToUInt32(_settings.DesktopLyrics.TextColor[1..], 16);
-        DesktopLyricsColorPicker.Color = ColorHelper.FromArgb(255, (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb);
-        DesktopLyricsColorPreview.Background = new SolidColorBrush(DesktopLyricsColorPicker.Color);
+        LoadDesktopLyricsControls();
         // The sliders work in whole percentages while the model keeps the 0–1 fraction, so
         // settings files written by earlier versions keep their original look.
         BackgroundOpacitySlider.Value = _settings.BackgroundOpacity * 100;
@@ -2316,6 +2284,16 @@ public sealed partial class MainWindow : Window
         DispatcherQueue.TryEnqueue(async () =>
         {
             if (_lifetimeCancellation.IsCancellationRequested) return;
+            if (command is DesktopLyricsCommand.Previous or DesktopLyricsCommand.TogglePlayPause or DesktopLyricsCommand.Next)
+            {
+                await RunTaskbarPlaybackCommandAsync(command switch
+                {
+                    DesktopLyricsCommand.Previous => TaskbarPlaybackCommand.Previous,
+                    DesktopLyricsCommand.Next => TaskbarPlaybackCommand.Next,
+                    _ => TaskbarPlaybackCommand.TogglePlayPause
+                });
+                return;
+            }
             if (command == DesktopLyricsCommand.OpenSettings)
             {
                 _appWindow.Show(true);
@@ -2326,13 +2304,7 @@ public sealed partial class MainWindow : Window
             }
 
             var previous = _settings.DesktopLyrics;
-            var updated = command switch
-            {
-                DesktopLyricsCommand.ToggleEnabled => previous with { Enabled = !previous.Enabled },
-                DesktopLyricsCommand.ToggleLocked => previous with { Locked = !previous.Locked },
-                DesktopLyricsCommand.ResetPosition => previous with { Position = null },
-                _ => previous
-            };
+            var updated = previous.ApplyCommand(command);
             await SaveDesktopLyricsOptionsAsync(updated);
         });
 
@@ -2371,10 +2343,7 @@ public sealed partial class MainWindow : Window
         }
 
         ApplyDesktopLyricsSettings();
-        if (previous.Enabled != _settings.DesktopLyrics.Enabled)
-            DesktopLyricsEnabledToggle.IsOn = _settings.DesktopLyrics.Enabled;
-        if (previous.Locked != _settings.DesktopLyrics.Locked)
-            DesktopLyricsLockedToggle.IsOn = _settings.DesktopLyrics.Locked;
+        SyncDesktopLyricsQuickSettings(previous);
         UpdatePlaybackSurfaces(_latestTrack, _latestPlaybackStatus);
         if (!Equals(previousLyricsOptions, CurrentLyricsOptions()))
         {
@@ -2384,39 +2353,13 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private string DesktopLyricsColorHex()
-    {
-        return ColorHex(DesktopLyricsColorPicker.Color);
-    }
-
     private static string ColorHex(Windows.UI.Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
 
-    private void DesktopLyricsHighlightColorPicker_ColorChanged(ColorPicker sender, ColorChangedEventArgs args)
+    private async void DesktopLyricsResetButton_Click(object sender, RoutedEventArgs e)
     {
-        if (DesktopLyricsHighlightColorPreview is not null)
-            DesktopLyricsHighlightColorPreview.Background = new SolidColorBrush(args.NewColor);
-    }
-
-    private void DesktopLyricsColorPicker_ColorChanged(ColorPicker sender, ColorChangedEventArgs args)
-    {
-        if (DesktopLyricsColorPreview is not null)
-        {
-            DesktopLyricsColorPreview.Background = new SolidColorBrush(args.NewColor);
-        }
-    }
-
-    private void DesktopLyricsFontSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
-    {
-        if (DesktopLyricsFontValueText is not null) DesktopLyricsFontValueText.Text = $"{e.NewValue:0} DIP";
-    }
-
-    private void DesktopLyricsBackgroundSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
-    {
-        if (DesktopLyricsBackgroundValueText is not null) DesktopLyricsBackgroundValueText.Text = FormatPercent(e.NewValue);
-    }
-
-    private async void DesktopLyricsResetButton_Click(object sender, RoutedEventArgs e) =>
         await SaveDesktopLyricsOptionsAsync(_settings.DesktopLyrics with { Position = null });
+        RefreshDesktopLyricsPreview();
+    }
 
     private string DisplayLyricText(string text) =>
         _settings.ConvertTraditionalLyricsToSimplified

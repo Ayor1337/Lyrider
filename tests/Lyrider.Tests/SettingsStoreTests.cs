@@ -88,4 +88,44 @@ public sealed class SettingsStoreTests
         }
         Assert.IsFalse(store.Load().DesktopLyrics.Enabled);
     }
+
+    [DataTestMethod]
+    [DataRow(0, DesktopLyricsAlignment.Center)]
+    [DataRow(1, DesktopLyricsAlignment.Split)]
+    public void Load_LegacyLayout_KeepsHorizontalWritingAndMigratesAlignment(int legacy, DesktopLyricsAlignment expected)
+    {
+        File.WriteAllText(SettingsPath, "{\"desktopLyrics\":{\"layout\":" + legacy + "}}");
+        var options = new SettingsStore(SettingsPath).Load().DesktopLyrics;
+        Assert.AreEqual(DesktopLyricsTextDirection.Horizontal, options.TextDirection);
+        Assert.AreEqual(expected, options.EffectiveAlignment);
+        Assert.AreEqual(DesktopLyricsFontWeight.SemiBold, options.FontWeight);
+        Assert.AreEqual(4, options.StrokeThickness);
+        Assert.AreEqual("#000000", options.StrokeColor);
+    }
+
+    [TestMethod]
+    public void TrySave_NewTypographyAndCustomColors_RoundTripsAndOverridesLegacyLayout()
+    {
+        var options = new DesktopLyricsOptions(Layout: DesktopLyricsLayout.Horizontal,
+            TextDirection: DesktopLyricsTextDirection.Vertical, Alignment: DesktopLyricsAlignment.Right,
+            FontWeight: DesktopLyricsFontWeight.Bold, StrokeThickness: 2.5, StrokeColor: "#123456",
+            TextColor: "#654321", HighlightColor: "#ABCDEF");
+        var store = new SettingsStore(SettingsPath);
+        Assert.IsTrue(store.TrySave(new AppSettings { DesktopLyrics = options }));
+        var restored = store.Load().DesktopLyrics;
+        Assert.AreEqual(options, restored);
+        Assert.AreEqual(DesktopLyricsAlignment.Right, restored.EffectiveAlignment);
+    }
+
+    [TestMethod]
+    public void Load_InvalidTypography_NormalizesNewFields()
+    {
+        File.WriteAllText(SettingsPath, """{"desktopLyrics":{"textDirection":99,"alignment":99,"fontWeight":99,"strokeThickness":-1,"strokeColor":"invalid"}}""");
+        var options = new SettingsStore(SettingsPath).Load().DesktopLyrics;
+        Assert.AreEqual(DesktopLyricsTextDirection.Horizontal, options.TextDirection);
+        Assert.AreEqual(DesktopLyricsAlignment.Center, options.Alignment);
+        Assert.AreEqual(DesktopLyricsFontWeight.SemiBold, options.FontWeight);
+        Assert.AreEqual(0, options.StrokeThickness);
+        Assert.AreEqual("#000000", options.StrokeColor);
+    }
 }

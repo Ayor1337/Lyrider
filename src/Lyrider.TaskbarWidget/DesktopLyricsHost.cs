@@ -12,6 +12,7 @@ public sealed class DesktopLyricsHost : IDisposable
     private DesktopLyricsWindow? _window;
     private bool _disposed;
     private bool _refreshQueued;
+    private TaskCompletionSource<Dispatcher>? _dispatcherReady;
 
     public event Action<DesktopLyricsCommand>? CommandRequested;
     public event Action<DesktopLyricsPosition>? PositionChanged;
@@ -25,12 +26,32 @@ public sealed class DesktopLyricsHost : IDisposable
             _options = options.Normalize();
             if (_options.Enabled && _thread is null)
             {
-                _thread = new Thread(ThreadMain) { IsBackground = true, Name = "Lyrider desktop lyrics" };
-                _thread.SetApartmentState(ApartmentState.STA);
-                _thread.Start();
+                StartThread();
             }
             QueueRefresh();
         }
+    }
+
+    private void StartThread()
+    {
+        _dispatcherReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _thread = new Thread(ThreadMain) { IsBackground = true, Name = "Lyrider desktop lyrics" };
+        _thread.SetApartmentState(ApartmentState.STA);
+        _thread.Start();
+    }
+
+    public async Task<byte[]> RenderPreviewAsync(DesktopLyricsOptions options, DesktopLyricsState state, double progress)
+    {
+        Task<Dispatcher> ready;
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_thread is null) StartThread();
+            ready = _dispatcherReady!.Task;
+        }
+        var dispatcher = await ready.ConfigureAwait(false);
+        return await dispatcher.InvokeAsync(() => DesktopLyricsPreview.Render(options.Normalize(), state, progress),
+            DispatcherPriority.Background).Task.ConfigureAwait(false);
     }
 
     public void Update(DesktopLyricsState state)
@@ -68,12 +89,14 @@ public sealed class DesktopLyricsHost : IDisposable
             {
                 if (_disposed) return;
                 _dispatcher = Dispatcher.CurrentDispatcher;
+                _dispatcherReady?.TrySetResult(_dispatcher);
                 QueueRefresh();
             }
             Dispatcher.Run();
         }
         catch (Exception)
         {
+            _dispatcherReady?.TrySetException(new InvalidOperationException("Desktop lyrics dispatcher stopped."));
             Failed?.Invoke();
         }
         finally
@@ -144,6 +167,7 @@ public sealed class DesktopLyricsHost : IDisposable
         {
             if (_disposed) return;
             _disposed = true;
+            _dispatcherReady?.TrySetCanceled();
             thread = _thread;
             if (_dispatcher is { HasShutdownStarted: false } dispatcher)
             {

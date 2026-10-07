@@ -1,12 +1,14 @@
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Interop;
+using System.Windows.Threading;
 
 namespace Lyrider.TaskbarWidget;
 
 public partial class DesktopLyricsUnlockWindow : Window
 {
     private HwndSource? _source;
+    private DispatcherOperation? _revealOperation;
     private nint Handle => new WindowInteropHelper(this).Handle;
 
     public event Action? UnlockRequested;
@@ -25,17 +27,41 @@ public partial class DesktopLyricsUnlockWindow : Window
             _source = HwndSource.FromHwnd(Handle);
             _source?.AddHook(WindowHook);
         };
-        Closed += (_, _) => _source?.RemoveHook(WindowHook);
+        Closed += (_, _) =>
+        {
+            _revealOperation?.Abort();
+            _source?.RemoveHook(WindowHook);
+        };
     }
 
-    internal void ShowAt(nint lyricsHandle, NativeRect lyricsRect)
+    internal void ShowAt(nint lyricsHandle, NativeRect lyricsRect, Rect toolbarButtonBounds)
     {
-        if (!IsVisible) Show();
+        Width = toolbarButtonBounds.Width;
+        Height = toolbarButtonBounds.Height;
+        if (!IsVisible)
+        {
+            Opacity = 0;
+            Show();
+        }
         var scale = Math.Max(96, NativeMethods.GetDpiForWindow(lyricsHandle)) / 96.0;
-        var size = (int)Math.Ceiling(Width * scale);
+        var width = (int)Math.Ceiling(Width * scale);
+        var height = (int)Math.Ceiling(Height * scale);
         NativeMethods.SetWindowPos(Handle, new nint(-1),
-            lyricsRect.Left + (lyricsRect.Right - lyricsRect.Left - size) / 2,
-            lyricsRect.Top + (int)Math.Round(6 * scale), size, size, NativeMethods.SwpNoActivate);
+            lyricsRect.Left + (lyricsRect.Right - lyricsRect.Left - width) / 2,
+            lyricsRect.Top + (int)Math.Round(toolbarButtonBounds.Top * scale), width, height, NativeMethods.SwpNoActivate);
+        UpdateLayout();
+        if (Opacity == 0)
+        {
+            _revealOperation?.Abort();
+            _revealOperation = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+            {
+                _revealOperation = null;
+                if (IsVisible && Owner is { IsVisible: true, Opacity: > 0 })
+                {
+                    Opacity = 1;
+                }
+            }));
+        }
     }
 
     private static nint WindowHook(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
