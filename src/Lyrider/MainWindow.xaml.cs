@@ -35,6 +35,7 @@ public sealed partial class MainWindow : Window
     private readonly List<LyricLineVisual> _lyricLines = [];
     private readonly SolidColorBrush _transparentLyricBackground = new(Colors.Transparent);
     private readonly TaskbarWidgetHost _taskbarWidgetHost = new();
+    private readonly DesktopLyricsHost _desktopLyricsHost = new();
     private readonly LyricsService _lyricsService = new();
     private readonly CiderService _ciderService;
     private readonly NextTrackLyricsPreloader _nextTrackLyricsPreloader;
@@ -125,6 +126,10 @@ public sealed partial class MainWindow : Window
         var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Lyrider.ico");
         _appWindow.SetIcon(iconPath);
         _trayIconHost = new TrayIconHost(iconPath, ShowFromTray, ExitApplication);
+        _trayIconHost.DesktopLyricsCommandRequested += DesktopLyrics_CommandRequested;
+        _desktopLyricsHost.CommandRequested += DesktopLyrics_CommandRequested;
+        _desktopLyricsHost.PositionChanged += DesktopLyrics_PositionChanged;
+        _desktopLyricsHost.Failed += DesktopLyrics_Failed;
         _appWindow.Closing += AppWindow_Closing;
         RootGrid.ActualThemeChanged += RootGrid_ActualThemeChanged;
         var scale = GetDpiForWindow(windowHandle) / 96.0;
@@ -244,7 +249,7 @@ public sealed partial class MainWindow : Window
         foreach (var row in new[] { ThemeSettingsRow, LanguageSettingsRow, BackgroundSettingsRow, BackgroundBlurSettingsRow,
             LyricFontSettingsRow, LyricsSourceSettingsRow, LyricsTranslationSettingsRow, MusixmatchSettingsRow,
             ChineseLyricsSettingsRow, TaskbarWidgetSettingsRow, TaskbarLyricsSettingsRow,
-            SilentStartupSettingsRow, MinimizeToTraySettingsRow })
+            SilentStartupSettingsRow, MinimizeToTraySettingsRow, TaskbarLyricsAlignmentSettingsRow })
         {
             var stacked = RootGrid.ActualWidth < 720;
             row.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
@@ -252,6 +257,8 @@ public sealed partial class MainWindow : Window
             Grid.SetColumn((FrameworkElement)row.Children[1], stacked ? 0 : 1);
             Grid.SetRow((FrameworkElement)row.Children[1], stacked ? 1 : 0);
         }
+
+        UpdateDesktopLyricsSettingsLayout();
 
         var stackConnectionHeader = RootGrid.ActualWidth < 720;
         ConnectionHeaderGrid.ColumnDefinitions[1].Width = stackConnectionHeader
@@ -385,7 +392,7 @@ public sealed partial class MainWindow : Window
 
             if (result.State != CiderConnectionState.Connected || result.Track is null)
             {
-                UpdateTaskbarWidget(null, playbackStatus);
+                UpdatePlaybackSurfaces(null, playbackStatus);
                 UpdateNowPlaying(null);
                 return;
             }
@@ -404,16 +411,16 @@ public sealed partial class MainWindow : Window
                     _lyrics = [];
                     _lyricsAreTimeSynced = false;
                     RenderLyrics();
-                    UpdateTaskbarWidget(track, playbackStatus);
+                    UpdatePlaybackSurfaces(track, playbackStatus);
                 }
 
                 _ = RefreshTrackDetailsAsync(track);
-                UpdateTaskbarWidget(track, playbackStatus);
+                UpdatePlaybackSurfaces(track, playbackStatus);
             }
             else
             {
                 RefreshLyricPlayback();
-                UpdateTaskbarWidget(track, playbackStatus);
+                UpdatePlaybackSurfaces(track, playbackStatus);
                 _refreshCount++;
                 if (_refreshCount % 5 == 0)
                 {
@@ -453,7 +460,7 @@ public sealed partial class MainWindow : Window
             _lyricsAreTimeSynced = snapshot.IsTimeSynced;
             var rebuilt = RenderLyrics();
             RefreshLyricPlayback(forceScroll: rebuilt);
-            UpdateTaskbarWidget(_latestTrack, _latestPlaybackStatus);
+            UpdatePlaybackSurfaces(_latestTrack, _latestPlaybackStatus);
         }
 
         async Task RefreshTrackQueueAsync()
@@ -533,14 +540,16 @@ public sealed partial class MainWindow : Window
         var ciderLyrics = await _ciderService.GetLyricsAsync(
             track.PlayParameters?.Id,
             _appToken,
-            cancellationToken);
+            cancellationToken,
+            includeWordTiming: options.IncludeWordTiming);
         return await _lyricsService.ResolveAsync(track, ciderLyrics, options, cancellationToken, onProgress);
     }
 
     private LyricsResolveOptions CurrentLyricsOptions() => new(
         LyricsService.ParseSource(_settings.LyricsSource),
-        _settings.ShowLyricsTranslation,
-        _musixmatchApiKey);
+        _settings.IncludeLyricsTranslation,
+        _musixmatchApiKey,
+        _settings.DesktopLyrics.Enabled && _settings.DesktopLyrics.KaraokeEnabled);
 
     private void PrepareNextLyrics() =>
         _nextTrackLyricsPreloader.Prepare(_nextQueueItem, CurrentLyricsOptions(), _appToken);
@@ -669,8 +678,12 @@ public sealed partial class MainWindow : Window
         titleBar.ButtonPressedForegroundColor = foreground;
     }
 
-    private void UpdateTaskbarWidget(NowPlayingInfo? track, PlaybackStatus? status)
+    private void UpdatePlaybackSurfaces(NowPlayingInfo? track, PlaybackStatus? status)
     {
+        _desktopLyricsHost.Update(track is null ? DesktopLyricsState.Unavailable : DesktopLyricStateBuilder.Build(
+            ValueOrFallback(track.Name), ValueOrFallback(track.ArtistName), _lyrics, _currentLyricIndex,
+            _lyricsAreTimeSynced, status?.IsPlaying ?? false, _settings.ConvertTraditionalLyricsToSimplified,
+            _optimisticSeekIndex >= 0 ? _optimisticSeekTarget : _playbackTimeline.PositionAt(_playbackClock.Elapsed), Stopwatch.GetTimestamp()));
         if (track is null)
         {
             _taskbarWidgetHost.Update(TaskbarPlaybackState.Unavailable);
@@ -896,7 +909,7 @@ public sealed partial class MainWindow : Window
         _lastPlaybackTime = playbackTime;
         if (UpdateCurrentLyric(playbackTime, forceScroll))
         {
-            UpdateTaskbarWidget(_latestTrack, _latestPlaybackStatus);
+            UpdatePlaybackSurfaces(_latestTrack, _latestPlaybackStatus);
         }
 
         ScheduleNextLyricUpdate(playbackTime);
@@ -1137,10 +1150,12 @@ public sealed partial class MainWindow : Window
             _optimisticSeekTarget = startTime;
             _optimisticSeekDeadline = DateTimeOffset.Now.AddSeconds(OptimisticSeekSeconds);
             SetCurrentLyricIndex(index, forceScroll: true);
+            UpdatePlaybackSurfaces(_latestTrack, _latestPlaybackStatus);
 
             if (!await _ciderService.SeekAsync(startTime, _appToken, _lifetimeCancellation.Token))
             {
                 _optimisticSeekIndex = -1;
+                RefreshLyricPlayback(forceScroll: true);
                 ReportCommandRejected(AppText.Get("Cider 未接受跳转指令", "Cider did not accept the seek command"));
                 return;
             }
@@ -1207,7 +1222,9 @@ public sealed partial class MainWindow : Window
         await ShowPlayerPanelAsync("Lyrics");
     }
 
-    private async void MenuSettingsItem_Click(object sender, RoutedEventArgs e)
+    private async void MenuSettingsItem_Click(object sender, RoutedEventArgs e) => await ShowSettingsPageAsync();
+
+    private async Task ShowSettingsPageAsync()
     {
         if (_isSettingsTransitioning || SettingsPageGrid.Visibility == Visibility.Visible)
         {
@@ -2070,11 +2087,8 @@ public sealed partial class MainWindow : Window
 
     private async Task SaveSettingsAsync()
     {
-        _nextTrackLyricsPreloader.Clear();
-        _nextQueueItem = null;
-        _artworkPresenter.PrepareNext(null);
-        _taskbarWidgetHost.PrepareArtwork(null);
-
+        var previousSettings = _settings;
+        _settings = _settings.Copy();
         var lyricsSource = LyricsService.ParseSource(SelectedTag(LyricsSourceComboBox, "Auto"));
         _settings.Theme = SelectedTag(ThemeComboBox, "System");
         var previousLanguage = _settings.Language;
@@ -2090,9 +2104,11 @@ public sealed partial class MainWindow : Window
         _settings.MinimizeToTrayOnClose = MinimizeToTrayToggle.IsOn;
         _settings.BackgroundOpacity = BackgroundOpacitySlider.Value / 100;
         _settings.BackgroundBlur = BackgroundBlurSlider.Value;
+        _settings.DesktopLyrics = ReadDesktopLyricsDraft();
 
         if (!_settingsStore.TrySave(_settings))
         {
+            _settings = previousSettings;
             await ShowSettingsDialogAsync(
                 AppText.Get("无法保存设置", "Could not save settings"),
                 AppText.Get("无法保存应用设置", "Could not save the app settings"));
@@ -2100,6 +2116,10 @@ public sealed partial class MainWindow : Window
         }
 
         ApplySettings();
+        _nextTrackLyricsPreloader.Clear();
+        _nextQueueItem = null;
+        _artworkPresenter.PrepareNext(null);
+        _taskbarWidgetHost.PrepareArtwork(null);
         var taskbarWidgetUnsupported = _settings.TaskbarWidgetEnabled && !_taskbarWidgetHost.IsSupported;
         await RefreshAsync(forceDetails: true);
         await ShowSettingsDialogAsync(
@@ -2200,6 +2220,7 @@ public sealed partial class MainWindow : Window
         TaskbarLyricsAlignmentToggle.IsOn = _settings.RightAlignTaskbarLyrics;
         SilentStartupToggle.IsOn = _settings.StartSilently;
         MinimizeToTrayToggle.IsOn = _settings.MinimizeToTrayOnClose;
+        LoadDesktopLyricsControls();
         // The sliders work in whole percentages while the model keeps the 0–1 fraction, so
         // settings files written by earlier versions keep their original look.
         BackgroundOpacitySlider.Value = _settings.BackgroundOpacity * 100;
@@ -2225,6 +2246,7 @@ public sealed partial class MainWindow : Window
 
     private void ApplySettings()
     {
+        ApplyDesktopLyricsSettings();
         RootGrid.RequestedTheme = _settings.Theme switch
         {
             "Light" => ElementTheme.Light,
@@ -2249,6 +2271,94 @@ public sealed partial class MainWindow : Window
         {
             RefreshLyricPlayback(forceScroll: true);
         }
+        UpdatePlaybackSurfaces(_latestTrack, _latestPlaybackStatus);
+    }
+
+    private void ApplyDesktopLyricsSettings()
+    {
+        _desktopLyricsHost.ApplyOptions(_settings.DesktopLyrics);
+        _trayIconHost.SetDesktopLyricsState(_settings.DesktopLyrics.Enabled, _settings.DesktopLyrics.Locked);
+    }
+
+    private void DesktopLyrics_CommandRequested(DesktopLyricsCommand command) =>
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            if (_lifetimeCancellation.IsCancellationRequested) return;
+            if (command is DesktopLyricsCommand.Previous or DesktopLyricsCommand.TogglePlayPause or DesktopLyricsCommand.Next)
+            {
+                await RunTaskbarPlaybackCommandAsync(command switch
+                {
+                    DesktopLyricsCommand.Previous => TaskbarPlaybackCommand.Previous,
+                    DesktopLyricsCommand.Next => TaskbarPlaybackCommand.Next,
+                    _ => TaskbarPlaybackCommand.TogglePlayPause
+                });
+                return;
+            }
+            if (command == DesktopLyricsCommand.OpenSettings)
+            {
+                _appWindow.Show(true);
+                Activate();
+                await ShowSettingsPageAsync();
+                DesktopLyricsSettingsSection.StartBringIntoView();
+                return;
+            }
+
+            var previous = _settings.DesktopLyrics;
+            var updated = previous.ApplyCommand(command);
+            await SaveDesktopLyricsOptionsAsync(updated);
+        });
+
+    private void DesktopLyrics_PositionChanged(DesktopLyricsPosition position) =>
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            if (!_lifetimeCancellation.IsCancellationRequested)
+            {
+                await SaveDesktopLyricsOptionsAsync(_settings.DesktopLyrics with { Position = position });
+            }
+        });
+
+    private void DesktopLyrics_Failed() => DispatcherQueue.TryEnqueue(async () =>
+    {
+        if (_lifetimeCancellation.IsCancellationRequested) return;
+        _appWindow.Show(true);
+        Activate();
+        await ShowSettingsDialogAsync(AppText.Get("桌面歌词无法显示", "Could not show desktop lyrics"),
+            AppText.Get("请关闭桌面歌词后重新开启。", "Turn desktop lyrics off and then on again."));
+    });
+
+    private async Task SaveDesktopLyricsOptionsAsync(DesktopLyricsOptions options)
+    {
+        var previous = _settings.DesktopLyrics;
+        var previousLyricsOptions = CurrentLyricsOptions();
+        _settings.DesktopLyrics = options.Normalize();
+        if (!_settingsStore.TrySave(_settings))
+        {
+            _settings.DesktopLyrics = previous;
+            ApplyDesktopLyricsSettings();
+            _appWindow.Show(true);
+            Activate();
+            await ShowSettingsDialogAsync(AppText.Get("无法保存设置", "Could not save settings"),
+                AppText.Get("桌面歌词设置未能保存，已恢复原状态。", "Desktop lyric settings could not be saved. The previous state was restored."));
+            return;
+        }
+
+        ApplyDesktopLyricsSettings();
+        SyncDesktopLyricsQuickSettings(previous);
+        UpdatePlaybackSurfaces(_latestTrack, _latestPlaybackStatus);
+        if (!Equals(previousLyricsOptions, CurrentLyricsOptions()))
+        {
+            _nextTrackLyricsPreloader.Clear();
+            PrepareNextLyrics();
+            if (_latestTrack is { } track) _ = RefreshTrackDetailsAsync(track);
+        }
+    }
+
+    private static string ColorHex(Windows.UI.Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+
+    private async void DesktopLyricsResetButton_Click(object sender, RoutedEventArgs e)
+    {
+        await SaveDesktopLyricsOptionsAsync(_settings.DesktopLyrics with { Position = null });
+        RefreshDesktopLyricsPreview();
     }
 
     private string DisplayLyricText(string text) =>
@@ -2321,6 +2431,11 @@ public sealed partial class MainWindow : Window
         _lifetimeCancellation.Cancel();
         _taskbarWidgetHost.CommandRequested -= TaskbarWidgetHost_CommandRequested;
         _taskbarWidgetHost.Dispose();
+        _desktopLyricsHost.CommandRequested -= DesktopLyrics_CommandRequested;
+        _desktopLyricsHost.PositionChanged -= DesktopLyrics_PositionChanged;
+        _desktopLyricsHost.Failed -= DesktopLyrics_Failed;
+        _trayIconHost.DesktopLyricsCommandRequested -= DesktopLyrics_CommandRequested;
+        _desktopLyricsHost.Dispose();
         _nextTrackLyricsPreloader.Dispose();
         _artworkPresenter.Dispose();
         _trayIconHost.Dispose();

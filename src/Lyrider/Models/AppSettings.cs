@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using Lyrider.TaskbarWidget;
+
 namespace Lyrider.Models;
 
 public sealed class AppSettings
@@ -17,6 +20,12 @@ public sealed class AppSettings
     public string LyricsSource { get; set; } = nameof(global::Lyrider.Models.LyricsSource.Auto);
 
     public bool ShowLyricsTranslation { get; set; }
+
+    public DesktopLyricsOptions DesktopLyrics { get; set; } = new();
+
+    [JsonIgnore]
+    public bool IncludeLyricsTranslation => ShowLyricsTranslation ||
+        (DesktopLyrics.Enabled && DesktopLyrics.ShowTranslation);
 
     public bool TaskbarWidgetEnabled { get; set; }
 
@@ -39,4 +48,6 @@ public sealed class AppSettings
 
     /// <summary>Backdrop artwork blur radius, as a 0–100 percentage.</summary>
     public double BackgroundBlur { get; set; } = 40;
+
+    public AppSettings Copy() => (AppSettings)MemberwiseClone();
 }

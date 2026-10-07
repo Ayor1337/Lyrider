@@ -5,7 +5,8 @@ namespace Lyrider.Services;
 public sealed record LyricsResolveOptions(
     LyricsSource Source,
     bool IncludeTranslation,
-    string? MusixmatchApiKey = null);
+    string? MusixmatchApiKey = null,
+    bool IncludeWordTiming = false);
 
 public sealed class LyricsService : IDisposable
 {
@@ -70,17 +71,34 @@ public sealed class LyricsService : IDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
             var prepared = PrepareSnapshot(snapshot, ciderSnapshot);
+            if (options.IncludeWordTiming && options.IncludeTranslation && best is not null)
+                prepared = MergeMatchingTranslations(prepared, best);
             if (!prepared.Lines.Any(line => !string.IsNullOrWhiteSpace(line.Text)))
             {
                 return;
             }
 
             var comparison = best is null ? 1 : LyricsSelection.Compare(prepared, best, options.IncludeTranslation);
+            if (options.IncludeWordTiming && best is not null)
+            {
+                var candidateHasWords = prepared.IsTimeSynced && prepared.Lines.Any(line => line.Words is { Count: > 0 });
+                var bestHasWords = best.IsTimeSynced && best.Lines.Any(line => line.Words is { Count: > 0 });
+                if (candidateHasWords != bestHasWords) comparison = candidateHasWords ? 1 : -1;
+            }
             if (comparison > 0 ||
                 (comparison == 0 && Array.IndexOf(sources, prepared.Source) < Array.IndexOf(sources, best!.Source)))
             {
                 best = prepared;
                 onProgress?.Invoke(prepared);
+            }
+            if (options.IncludeWordTiming && options.IncludeTranslation && best is not null)
+            {
+                var translated = MergeMatchingTranslations(best, prepared);
+                if (!ReferenceEquals(translated, best))
+                {
+                    best = translated;
+                    onProgress?.Invoke(best);
+                }
             }
         }
 
@@ -145,6 +163,20 @@ public sealed class LyricsService : IDisposable
 
         cancellationToken.ThrowIfCancellationRequested();
         return best ?? LyricsSnapshot.Empty;
+    }
+
+    private static LyricsSnapshot MergeMatchingTranslations(LyricsSnapshot target, LyricsSnapshot source)
+    {
+        var translated = target.Lines.Select(line =>
+        {
+            if (!string.IsNullOrWhiteSpace(line.Translation)) return line;
+            var matches = source.Lines.Where(candidate =>
+                !string.IsNullOrWhiteSpace(candidate.Translation) &&
+                LyricsMatching.Normalize(candidate.Text) == LyricsMatching.Normalize(line.Text) &&
+                Math.Abs(candidate.StartTime - line.StartTime) <= 0.5).ToArray();
+            return matches.Length == 1 ? line with { Translation = matches[0].Translation } : line;
+        }).ToArray();
+        return translated.SequenceEqual(target.Lines) ? target : target with { Lines = translated };
     }
 
     private async Task<IReadOnlyList<LyricsSearchTrack>> ResolveSearchTracksAsync(
@@ -223,7 +255,15 @@ public sealed class LyricsService : IDisposable
             double? endTime = line.EndTime is { } end
                 ? Math.Max(startTime, end - offset)
                 : null;
-            return line with { StartTime = startTime, EndTime = endTime };
+            return line with
+            {
+                StartTime = startTime, EndTime = endTime,
+                Words = line.Words?.Select(word => word with
+                {
+                    StartTime = Math.Max(0, word.StartTime - offset),
+                    EndTime = Math.Max(0, word.EndTime - offset)
+                }).ToArray()
+            };
         }).ToArray();
         return snapshot with { Lines = alignedLines };
     }

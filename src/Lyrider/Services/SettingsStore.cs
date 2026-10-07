@@ -9,10 +9,13 @@ public sealed class SettingsStore
     {
         WriteIndented = true
     };
-    private readonly string _settingsPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Lyrider",
-        "settings.json");
+    private readonly string _settingsPath;
+
+    public SettingsStore(string? settingsPath = null)
+    {
+        _settingsPath = settingsPath ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Lyrider", "settings.json");
+    }
 
     public AppSettings Load()
     {
@@ -24,7 +27,9 @@ public sealed class SettingsStore
             }
 
             var json = File.ReadAllText(_settingsPath);
-            return JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions) ?? new AppSettings();
+            var settings = JsonSerializer.Deserialize<AppSettings>(json, _jsonOptions) ?? new AppSettings();
+            settings.DesktopLyrics = (settings.DesktopLyrics ?? new()).Normalize();
+            return settings;
         }
         catch (Exception)
         {

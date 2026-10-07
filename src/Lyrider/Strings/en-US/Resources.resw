@@ -49,7 +49,7 @@
   <data name="Main_040.Text" xml:space="preserve"><value>Lyric font size</value></data>
   <data name="Main_041.Text" xml:space="preserve"><value>Adjust the timeline lyric text size</value></data>
   <data name="Main_042.Text" xml:space="preserve"><value>Convert Traditional Chinese lyrics</value></data>
-  <data name="Main_043.Text" xml:space="preserve"><value>Convert Traditional Chinese lyrics to Simplified Chinese in the lyrics view and taskbar</value></data>
+  <data name="Main_043.Text" xml:space="preserve"><value>Convert Traditional Chinese lyrics to Simplified Chinese in the lyrics panel, taskbar, and desktop overlay</value></data>
   <data name="Main_052.Text" xml:space="preserve"><value>Taskbar playback status</value></data>
   <data name="Main_053.Text" xml:space="preserve"><value>Show playback information beside Widgets on the Windows 11 taskbar</value></data>
   <data name="Main_054.Text" xml:space="preserve"><value>Show lyrics in taskbar</value></data>
@@ -102,4 +102,65 @@
   <data name="Main_098.Text" xml:space="preserve"><value>Right-aligned taskbar lyrics</value></data>
   <data name="Main_099.Text" xml:space="preserve"><value>Applies when taskbar icons are left-aligned: the lyrics align right beside the artwork, which moves to the right edge</value></data>
   <data name="Main_100.Text" xml:space="preserve"><value>Experimental</value></data>
+  <data name="Main_101.Text" xml:space="preserve"><value>Desktop lyrics</value></data>
+  <data name="Main_106.Content" xml:space="preserve"><value>Reset position</value></data>
+  <data name="DesktopPreviewTitle.Text" xml:space="preserve"><value>Preview</value></data>
+  <data name="DesktopSceneLyrics.Content" xml:space="preserve"><value>Lyrics</value></data>
+  <data name="DesktopSceneTranslation.Content" xml:space="preserve"><value>With translation</value></data>
+  <data name="DesktopPreviewImage.AutomationProperties.Name" xml:space="preserve"><value>Desktop lyrics preview</value></data>
+  <data name="DesktopPreviewHint.Text" xml:space="preserve"><value>Preview changes here, then save to apply them to the desktop</value></data>
+  <data name="DesktopEnableTitle.Text" xml:space="preserve"><value>Enable</value></data>
+  <data name="DesktopEnable.Header" xml:space="preserve"><value>Enable desktop lyrics</value></data>
+  <data name="DesktopLock.Header" xml:space="preserve"><value>Lock position and pass clicks through</value></data>
+  <data name="DesktopPause.Header" xml:space="preserve"><value>Hide when paused</value></data>
+  <data name="DesktopTranslationTitle.Text" xml:space="preserve"><value>Translation</value></data>
+  <data name="DesktopTranslation.Header" xml:space="preserve"><value>Show translations for non-Chinese songs</value></data>
+  <data name="DesktopTranslationHint.Text" xml:space="preserve"><value>Show the current lyric and its translation in the sung color when available; otherwise use the selected layout</value></data>
+  <data name="DesktopLayoutTitle.Text" xml:space="preserve"><value>Layout</value></data>
+  <data name="DesktopLineLabel.Text" xml:space="preserve"><value>Lyric lines</value></data>
+  <data name="DesktopSingle.Text" xml:space="preserve"><value>Single line</value></data>
+  <data name="DesktopDouble.Text" xml:space="preserve"><value>Two lines</value></data>
+  <data name="DesktopDirectionLabel.Text" xml:space="preserve"><value>Text direction</value></data>
+  <data name="DesktopHorizontal.Text" xml:space="preserve"><value>Horizontal</value></data>
+  <data name="DesktopVertical.Text" xml:space="preserve"><value>Vertical</value></data>
+  <data name="DesktopAlignmentLabel.Text" xml:space="preserve"><value>Alignment</value></data>
+  <data name="DesktopCenter.Text" xml:space="preserve"><value>Center</value></data>
+  <data name="DesktopSplit.Text" xml:space="preserve"><value>Split</value></data>
+  <data name="DesktopLeft.Text" xml:space="preserve"><value>Left</value></data>
+  <data name="DesktopRight.Text" xml:space="preserve"><value>Right</value></data>
+  <data name="DesktopLayoutHint.Text" xml:space="preserve"><value>Translations follow the text direction; split alignment becomes centered for translations and single lines</value></data>
+  <data name="DesktopSizeHint.Text" xml:space="preserve"><value>Drag lyrics or their edges on the desktop to move or resize them. Reset position takes effect immediately.</value></data>
+  <data name="DesktopBlue.Text" xml:space="preserve"><value>Blue</value></data>
+  <data name="DesktopGold.Text" xml:space="preserve"><value>Gold</value></data>
+  <data name="DesktopPurple.Text" xml:space="preserve"><value>Purple</value></data>
+  <data name="DesktopMint.Text" xml:space="preserve"><value>Mint</value></data>
+  <data name="DesktopCustom.Text" xml:space="preserve"><value>Custom</value></data>
+  <data name="DesktopColorTitle.Text" xml:space="preserve"><value>Colors</value></data>
+  <data name="DesktopPlayedColor.Text" xml:space="preserve"><value>Sung</value></data>
+  <data name="DesktopPlayedColorAction.AutomationProperties.Name" xml:space="preserve"><value>Sung</value></data>
+  <data name="DesktopUnplayedColor.Text" xml:space="preserve"><value>Unsung</value></data>
+  <data name="DesktopUnplayedColorAction.AutomationProperties.Name" xml:space="preserve"><value>Unsung</value></data>
+  <data name="DesktopKaraoke.Header" xml:space="preserve"><value>Word-by-word display</value></data>
+  <data name="DesktopKaraokeHint.Text" xml:space="preserve"><value>Highlight the whole line when word timing is unavailable</value></data>
+  <data name="DesktopBackgroundLabel.Text" xml:space="preserve"><value>Background opacity</value></data>
+  <data name="DesktopBackgroundSlider.AutomationProperties.Name" xml:space="preserve"><value>Background opacity</value></data>
+  <data name="DesktopTypographyTitle.Text" xml:space="preserve"><value>Typography</value></data>
+  <data name="DesktopFontLabel.Text" xml:space="preserve"><value>Font size</value></data>
+  <data name="DesktopFontSlider.AutomationProperties.Name" xml:space="preserve"><value>Font size</value></data>
+  <data name="DesktopFontNumber.AutomationProperties.Name" xml:space="preserve"><value>Font size</value></data>
+  <data name="DesktopWeightLabel.Text" xml:space="preserve"><value>Font weight</value></data>
+  <data name="DesktopWeightNormal.Content" xml:space="preserve"><value>Regular</value></data>
+  <data name="DesktopWeightSemiBold.Content" xml:space="preserve"><value>Semibold</value></data>
+  <data name="DesktopWeightBold.Content" xml:space="preserve"><value>Bold</value></data>
+  <data name="DesktopStrokeLabel.Text" xml:space="preserve"><value>Outline width (0 to turn off)</value></data>
+  <data name="DesktopStrokeSlider.AutomationProperties.Name" xml:space="preserve"><value>Outline width</value></data>
+  <data name="DesktopStrokeNumber.AutomationProperties.Name" xml:space="preserve"><value>Outline width</value></data>
+  <data name="DesktopStrokeColor.Text" xml:space="preserve"><value>Outline color</value></data>
+  <data name="DesktopStrokeColorAction.AutomationProperties.Name" xml:space="preserve"><value>Outline color</value></data>
+  <data name="DesktopSceneGroup.AutomationProperties.Name" xml:space="preserve"><value>Preview scene</value></data>
+  <data name="DesktopLineGroup.AutomationProperties.Name" xml:space="preserve"><value>Lyric lines</value></data>
+  <data name="DesktopDirectionGroup.AutomationProperties.Name" xml:space="preserve"><value>Text direction</value></data>
+  <data name="DesktopAlignmentGroup.AutomationProperties.Name" xml:space="preserve"><value>Alignment</value></data>
+  <data name="DesktopPresetGroup.AutomationProperties.Name" xml:space="preserve"><value>Color scheme</value></data>
+  <data name="DesktopWeightGroup.AutomationProperties.Name" xml:space="preserve"><value>Font weight</value></data>
 </root>

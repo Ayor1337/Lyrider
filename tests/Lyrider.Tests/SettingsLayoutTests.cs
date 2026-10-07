@@ -163,13 +163,39 @@ public sealed class SettingsLayoutTests
         Assert.AreEqual("实验", heading.Attribute("Text")?.Value);
         Assert.AreEqual("Main_100", heading.Attribute(XamlNamespace + "Uid")?.Value);
 
-        // That section sits between "歌词与播放" and the Cider connection.
+        // 实验设置位于桌面歌词和 Cider 连接之间。
         Assert.AreEqual(
-            "歌词与播放",
+            "桌面歌词",
             section.ElementsBeforeSelf().Last().Elements().First().Attribute("Text")?.Value);
         Assert.AreEqual(
             "Cider 连接",
             section.ElementsAfterSelf().First().Elements().First().Attribute("Text")?.Value);
+    }
+
+    [TestMethod]
+    public void SettingsPage_DesktopLyrics_GroupsControlsAndProvidesPreview()
+    {
+        var document = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "MainWindow.xaml"));
+        var section = FindNamedElement(document, "DesktopLyricsSettingsSection");
+        Assert.IsNotNull(section);
+        foreach (var name in new[] { "DesktopLyricsEnabledToggle", "DesktopLyricsLockedToggle", "DesktopLyricsLineRadioButtons",
+            "DesktopLyricsTranslationToggle", "DesktopLyricsDirectionRadioButtons", "DesktopLyricsAlignmentRadioButtons",
+            "DesktopLyricsPresetRadioButtons", "DesktopLyricsKaraokeToggle", "DesktopLyricsHighlightColorPicker",
+            "DesktopLyricsFontSlider", "DesktopLyricsFontNumberBox", "DesktopLyricsFontWeightComboBox",
+            "DesktopLyricsStrokeSlider", "DesktopLyricsStrokeColorPicker", "DesktopLyricsColorPicker",
+            "DesktopLyricsBackgroundSlider", "DesktopLyricsPauseToggle", "DesktopLyricsResetButton", "DesktopLyricsPreviewImage" })
+            Assert.IsTrue(FindNamedElement(document, name)!.Ancestors().Contains(section));
+        CollectionAssert.AreEqual(new[] { "Center", "Split", "Left", "Right" },
+            FindNamedElement(document, "DesktopLyricsAlignmentRadioButtons")!.Elements().Select(element => element.Attribute("Tag")?.Value).ToArray());
+        CollectionAssert.AreEqual(new[] { "Horizontal", "Vertical" },
+            FindNamedElement(document, "DesktopLyricsDirectionRadioButtons")!.Elements().Select(element => element.Attribute("Tag")?.Value).ToArray());
+        CollectionAssert.AreEqual(new[] { "Blue", "Gold", "Purple", "Mint", "Custom" },
+            FindNamedElement(document, "DesktopLyricsPresetRadioButtons")!.Elements().Select(element => element.Attribute("Tag")?.Value).ToArray());
+        Assert.AreEqual("16", FindNamedElement(document, "DesktopLyricsFontSlider")!.Attribute("Minimum")?.Value);
+        Assert.AreEqual("72", FindNamedElement(document, "DesktopLyricsFontSlider")!.Attribute("Maximum")?.Value);
+        Assert.AreEqual("0", FindNamedElement(document, "DesktopLyricsStrokeSlider")!.Attribute("Minimum")?.Value);
+        Assert.AreEqual("8", FindNamedElement(document, "DesktopLyricsStrokeSlider")!.Attribute("Maximum")?.Value);
+        Assert.AreEqual(6, section!.Elements().Count(element => element.Name.LocalName == "Border"));
     }
 
     private static XElement? FindNamedElement(XDocument document, string name) =>

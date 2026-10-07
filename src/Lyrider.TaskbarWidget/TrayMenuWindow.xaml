@@ -100,6 +100,10 @@
                 Click="OpenButton_Click"
                 Content="打开 Lyrider"
                 Style="{StaticResource TrayMenuButtonStyle}" />
+            <Button x:Name="DesktopLyricsToggleButton" Click="DesktopLyricsToggleButton_Click" Style="{StaticResource TrayMenuButtonStyle}" />
+            <Button x:Name="DesktopLyricsLockButton" Click="DesktopLyricsLockButton_Click" Style="{StaticResource TrayMenuButtonStyle}" />
+            <Button x:Name="DesktopLyricsSettingsButton" Click="DesktopLyricsSettingsButton_Click" Style="{StaticResource TrayMenuButtonStyle}" />
+            <Button x:Name="DesktopLyricsResetButton" Click="DesktopLyricsResetButton_Click" Style="{StaticResource TrayMenuButtonStyle}" />
             <Border
                 Height="1"
                 Margin="8,3,8,3"

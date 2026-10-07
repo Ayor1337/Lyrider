@@ -51,7 +51,10 @@ public sealed record LyricLineInfo(
     double StartTime,
     double? EndTime,
     string Text,
-    string? Translation = null);
+    string? Translation = null,
+    IReadOnlyList<LyricWordInfo>? Words = null);
+
+public sealed record LyricWordInfo(double StartTime, double EndTime, string Text);
 
 public enum LyricsSource
 {

@@ -10,7 +10,9 @@ internal static class NativeMethods
     internal const long WsExToolWindow = 0x00000080L;
     internal const long WsExAppWindow = 0x00040000L;
     internal const long WsExNoActivate = 0x08000000L;
+    internal const long WsExTransparent = 0x00000020L;
     internal const uint SwpNoActivate = 0x0010;
+    internal const uint SwpNoSize = 0x0001;
     internal const uint SwpNoZOrder = 0x0004;
     internal const uint SwpAsyncWindowPos = 0x4000;
     internal const uint SwpShowWindow = 0x0040;
@@ -37,6 +39,10 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetWindowRect(nint windowHandle, out NativeRect rectangle);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetCursorPos(out NativePoint point);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

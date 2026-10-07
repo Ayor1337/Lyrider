@@ -1,0 +1,186 @@
+<Window
+    x:Class="Lyrider.TaskbarWidget.DesktopLyricsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:Lyrider.TaskbarWidget"
+    Title="Lyrider Desktop Lyrics"
+    AllowsTransparency="True"
+    Background="Transparent"
+    WindowStyle="None"
+    ResizeMode="NoResize"
+    ShowInTaskbar="False"
+    ShowActivated="False"
+    Topmost="True"
+    Opacity="0"
+    SizeToContent="Height"
+    Width="960"
+    UseLayoutRounding="True">
+    <Window.Resources>
+        <Style x:Key="QuickMenuStyle" TargetType="ContextMenu">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="MinWidth" Value="210" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="#F0202020" BorderBrush="#505050" BorderThickness="1" Padding="4">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" CanContentScroll="True">
+                                <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle" />
+                            </ScrollViewer>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="Separator">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Border Height="1" Margin="8,4" Background="#505050" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="MenuItem">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Grid>
+                            <Border x:Name="ItemSurface" Background="Transparent" Padding="8,7">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="22" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="18" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock x:Name="Check" Text="&#xE73E;" FontFamily="Segoe Fluent Icons"
+                                               FontSize="12" VerticalAlignment="Center" Visibility="Hidden" />
+                                    <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True" />
+                                    <TextBlock x:Name="Arrow" Grid.Column="2" Text="&#xE76C;" FontFamily="Segoe Fluent Icons"
+                                               FontSize="10" HorizontalAlignment="Right" VerticalAlignment="Center" Visibility="Hidden" />
+                                </Grid>
+                            </Border>
+                            <Popup x:Name="PART_Popup" Placement="Right" HorizontalOffset="-1"
+                                   IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                   Focusable="False" AllowsTransparency="True">
+                                <Border Background="#F0202020" BorderBrush="#505050" BorderThickness="1" Padding="4" MinWidth="170">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" CanContentScroll="True">
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemSurface" Property="Background" Value="#30FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsSubmenuOpen" Value="True">
+                                <Setter TargetName="ItemSurface" Property="Background" Value="#30FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="HasItems" Value="True">
+                                <Setter TargetName="Arrow" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#777777" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="ToolbarButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Margin" Value="2" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonSurface" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonSurface" Property="Background" Value="#30FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonSurface" Property="Background" Value="#50FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="ButtonSurface" Property="Background" Value="#30FFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <Grid x:Name="Surface" Background="#01000000" MouseLeftButtonDown="Surface_MouseLeftButtonDown"
+          MouseRightButtonUp="Surface_MouseRightButtonUp"
+          MouseEnter="Surface_MouseEnter" MouseLeave="Surface_MouseLeave">
+        <Grid Margin="12,4">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="44" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Border x:Name="Backdrop" Grid.RowSpan="2" IsHitTestVisible="False" />
+            <Border x:Name="ToolbarSurface" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Padding="6,2" Visibility="{Binding Visibility, ElementName=Toolbar}">
+                <StackPanel x:Name="Toolbar" Orientation="Horizontal" HorizontalAlignment="Center" Visibility="Hidden">
+                    <Button x:Name="PreviousButton" Click="PreviousButton_Click" Style="{StaticResource ToolbarButtonStyle}">
+                        <TextBlock FontFamily="Segoe Fluent Icons" FontSize="16" Text="&#xE892;" />
+                    </Button>
+                    <Button x:Name="PlayPauseButton" Click="PlayPauseButton_Click" Style="{StaticResource ToolbarButtonStyle}" Width="34">
+                        <TextBlock x:Name="PlayPauseIcon" FontFamily="Segoe Fluent Icons" FontSize="18" Text="&#xE768;" />
+                    </Button>
+                    <Button x:Name="NextButton" Click="NextButton_Click" Style="{StaticResource ToolbarButtonStyle}">
+                        <TextBlock FontFamily="Segoe Fluent Icons" FontSize="16" Text="&#xE893;" />
+                    </Button>
+                    <Border Width="1" Height="16" Margin="7,0" Background="#38FFFFFF" />
+                    <Button x:Name="LockButton" Click="LockButton_Click" Style="{StaticResource ToolbarButtonStyle}">
+                        <TextBlock FontFamily="Segoe Fluent Icons" FontSize="16" Text="&#xE72E;" />
+                    </Button>
+                    <Button x:Name="CloseButton" Click="CloseButton_Click" Style="{StaticResource ToolbarButtonStyle}">
+                        <TextBlock FontFamily="Segoe Fluent Icons" FontSize="16" Text="&#xE711;" />
+                    </Button>
+                </StackPanel>
+            </Border>
+            <local:DesktopLyricsContent x:Name="LyricsContent" Grid.Row="1" VerticalAlignment="Center" />
+        </Grid>
+        <Thumb x:Name="WidthHandle" Width="10" HorizontalAlignment="Right" Cursor="SizeWE"
+               Background="Transparent" DragDelta="WidthHandle_DragDelta" DragCompleted="WidthHandle_DragCompleted">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb">
+                    <Border Background="#01000000" />
+                </ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
+        <Thumb x:Name="HeightHandle" Height="10" VerticalAlignment="Bottom" Cursor="SizeNS"
+               Background="Transparent" DragDelta="HeightHandle_DragDelta" DragCompleted="ResizeHandle_DragCompleted">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb">
+                    <Border Background="#01000000" />
+                </ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
+        <Thumb x:Name="CornerHandle" Width="16" Height="16" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+               Margin="0,0,16,8" Opacity="0"
+               Cursor="SizeNWSE" Background="Transparent" DragDelta="CornerHandle_DragDelta" DragCompleted="ResizeHandle_DragCompleted">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb">
+                    <Border Background="#01000000">
+                        <Path Data="M 5,13 L 13,5 M 9,13 L 13,9" Stroke="#90FFFFFF" StrokeThickness="2" />
+                    </Border>
+                </ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
+    </Grid>
+</Window>

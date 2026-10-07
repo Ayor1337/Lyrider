@@ -25,7 +25,8 @@ internal sealed class NextTrackLyricsPreloader : IDisposable
                 item.Id,
                 appToken,
                 cancellationToken,
-                CiderPreloadTimeout);
+                CiderPreloadTimeout,
+                options.IncludeWordTiming);
             return await lyricsService.ResolveAsync(track, ciderLyrics, options, cancellationToken, onProgress);
         })
     {

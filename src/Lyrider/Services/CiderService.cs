@@ -210,7 +210,8 @@ public sealed class CiderService : IDisposable
         string? trackId,
         string? appToken,
         CancellationToken cancellationToken = default,
-        TimeSpan? requestTimeout = null)
+        TimeSpan? requestTimeout = null,
+        bool includeWordTiming = false)
     {
         if (string.IsNullOrWhiteSpace(trackId))
         {
@@ -221,7 +222,7 @@ public sealed class CiderService : IDisposable
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(requestTimeout ?? _defaultLyricsRequestTimeout);
-            using var document = await GetLyricsDocumentAsync(trackId, appToken, timeout.Token);
+            using var document = await GetLyricsDocumentAsync(trackId, appToken, timeout.Token, includeWordTiming);
             if (document is null || !TryFindArray(document.RootElement, out var array, "lyrics", "lines", "data"))
             {
                 return [];
@@ -249,7 +250,20 @@ public sealed class CiderService : IDisposable
 
                 var startTime = TryFindTime(element, "startTime", "start", "begin", "time") ?? lines.Count;
                 var endTime = TryFindTime(element, "endTime", "end", "finish");
-                lines.Add(new LyricLineInfo(startTime, endTime, text));
+                var words = new List<LyricWordInfo>();
+                if (TryGetProperty(element, "words", out var wordArray) && wordArray.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var word in wordArray.EnumerateArray())
+                    {
+                        var wordText = TryFindString(word, "text", "word");
+                        var wordStart = TryFindTime(word, "start", "startTime", "begin");
+                        var wordEnd = TryFindTime(word, "end", "endTime", "finish");
+                        if (wordText is not null && wordStart is { } begin && wordEnd is { } finish &&
+                            double.IsFinite(begin) && double.IsFinite(finish) && begin >= 0 && finish > begin)
+                            words.Add(new(begin, finish, wordText));
+                    }
+                }
+                lines.Add(new LyricLineInfo(startTime, endTime, text, Words: words.Count > 0 ? words.ToArray() : null));
             }
 
             return lines.OrderBy(line => line.StartTime).ToArray();
@@ -271,7 +285,8 @@ public sealed class CiderService : IDisposable
     private async Task<JsonDocument?> GetLyricsDocumentAsync(
         string trackId,
         string? appToken,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool includeWordTiming)
     {
         // Cider 4 serves lyrics from the scoped /api/v2 surface, where the app token is
         // checked against the "lyrics" scope. The /api/v1 lyrics route belongs to the
@@ -281,7 +296,7 @@ public sealed class CiderService : IDisposable
         {
             var document = await GetJsonAsync(
                 _lyricsHttpClient,
-                $"{path}{Uri.EscapeDataString(trackId)}",
+                $"{path}{Uri.EscapeDataString(trackId)}{(includeWordTiming && path.Contains("v2") ? "?words=true" : string.Empty)}",
                 appToken,
                 cancellationToken);
             if (document is not null)

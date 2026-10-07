@@ -49,7 +49,7 @@
   <data name="Main_040.Text" xml:space="preserve"><value>歌词字号</value></data>
   <data name="Main_041.Text" xml:space="preserve"><value>调整时间轴歌词的显示大小</value></data>
   <data name="Main_042.Text" xml:space="preserve"><value>繁体歌词转简体</value></data>
-  <data name="Main_043.Text" xml:space="preserve"><value>自动将歌词页面和任务栏中的繁体歌词转换为简体</value></data>
+  <data name="Main_043.Text" xml:space="preserve"><value>自动将歌词页面、任务栏和桌面歌词中的繁体歌词转换为简体</value></data>
   <data name="Main_052.Text" xml:space="preserve"><value>任务栏播放状态</value></data>
   <data name="Main_053.Text" xml:space="preserve"><value>在 Windows 11 主任务栏的小组件旁显示播放信息</value></data>
   <data name="Main_054.Text" xml:space="preserve"><value>任务栏显示歌词</value></data>
@@ -102,4 +102,65 @@
   <data name="Main_098.Text" xml:space="preserve"><value>任务栏歌词右对齐</value></data>
   <data name="Main_099.Text" xml:space="preserve"><value>任务栏图标靠左时生效：歌词在封面左侧右对齐，封面移到最右侧</value></data>
   <data name="Main_100.Text" xml:space="preserve"><value>实验</value></data>
+  <data name="Main_101.Text" xml:space="preserve"><value>桌面歌词</value></data>
+  <data name="Main_106.Content" xml:space="preserve"><value>重置位置</value></data>
+  <data name="DesktopPreviewTitle.Text" xml:space="preserve"><value>效果预览</value></data>
+  <data name="DesktopSceneLyrics.Content" xml:space="preserve"><value>普通歌词</value></data>
+  <data name="DesktopSceneTranslation.Content" xml:space="preserve"><value>带翻译</value></data>
+  <data name="DesktopPreviewImage.AutomationProperties.Name" xml:space="preserve"><value>桌面歌词效果预览</value></data>
+  <data name="DesktopPreviewHint.Text" xml:space="preserve"><value>调整后立即预览，保存后应用到桌面</value></data>
+  <data name="DesktopEnableTitle.Text" xml:space="preserve"><value>是否开启</value></data>
+  <data name="DesktopEnable.Header" xml:space="preserve"><value>启用桌面歌词</value></data>
+  <data name="DesktopLock.Header" xml:space="preserve"><value>锁定位置并穿透鼠标</value></data>
+  <data name="DesktopPause.Header" xml:space="preserve"><value>暂停时隐藏</value></data>
+  <data name="DesktopTranslationTitle.Text" xml:space="preserve"><value>翻译</value></data>
+  <data name="DesktopTranslation.Header" xml:space="preserve"><value>非中文歌曲显示翻译</value></data>
+  <data name="DesktopTranslationHint.Text" xml:space="preserve"><value>有译文时只显示当前歌词和翻译，两句均使用已播放色；没有译文时使用所选排版</value></data>
+  <data name="DesktopLayoutTitle.Text" xml:space="preserve"><value>排版</value></data>
+  <data name="DesktopLineLabel.Text" xml:space="preserve"><value>显示行数</value></data>
+  <data name="DesktopSingle.Text" xml:space="preserve"><value>单行</value></data>
+  <data name="DesktopDouble.Text" xml:space="preserve"><value>双行</value></data>
+  <data name="DesktopDirectionLabel.Text" xml:space="preserve"><value>文字方向</value></data>
+  <data name="DesktopHorizontal.Text" xml:space="preserve"><value>横排</value></data>
+  <data name="DesktopVertical.Text" xml:space="preserve"><value>竖排</value></data>
+  <data name="DesktopAlignmentLabel.Text" xml:space="preserve"><value>对齐方式</value></data>
+  <data name="DesktopCenter.Text" xml:space="preserve"><value>居中</value></data>
+  <data name="DesktopSplit.Text" xml:space="preserve"><value>左右分离</value></data>
+  <data name="DesktopLeft.Text" xml:space="preserve"><value>左对齐</value></data>
+  <data name="DesktopRight.Text" xml:space="preserve"><value>右对齐</value></data>
+  <data name="DesktopLayoutHint.Text" xml:space="preserve"><value>翻译随文字方向上下或左右排列，左右分离在翻译模式和单行时按居中显示</value></data>
+  <data name="DesktopSizeHint.Text" xml:space="preserve"><value>可在桌面拖动歌词或边缘调整大小，重置位置立即生效</value></data>
+  <data name="DesktopBlue.Text" xml:space="preserve"><value>清蓝</value></data>
+  <data name="DesktopGold.Text" xml:space="preserve"><value>暖金</value></data>
+  <data name="DesktopPurple.Text" xml:space="preserve"><value>浅紫</value></data>
+  <data name="DesktopMint.Text" xml:space="preserve"><value>薄荷</value></data>
+  <data name="DesktopCustom.Text" xml:space="preserve"><value>自定义</value></data>
+  <data name="DesktopColorTitle.Text" xml:space="preserve"><value>配色</value></data>
+  <data name="DesktopPlayedColor.Text" xml:space="preserve"><value>已播放</value></data>
+  <data name="DesktopPlayedColorAction.AutomationProperties.Name" xml:space="preserve"><value>已播放</value></data>
+  <data name="DesktopUnplayedColor.Text" xml:space="preserve"><value>未播放</value></data>
+  <data name="DesktopUnplayedColorAction.AutomationProperties.Name" xml:space="preserve"><value>未播放</value></data>
+  <data name="DesktopKaraoke.Header" xml:space="preserve"><value>逐字显示</value></data>
+  <data name="DesktopKaraokeHint.Text" xml:space="preserve"><value>没有逐字时间时整句高亮</value></data>
+  <data name="DesktopBackgroundLabel.Text" xml:space="preserve"><value>背景不透明度</value></data>
+  <data name="DesktopBackgroundSlider.AutomationProperties.Name" xml:space="preserve"><value>背景不透明度</value></data>
+  <data name="DesktopTypographyTitle.Text" xml:space="preserve"><value>字样</value></data>
+  <data name="DesktopFontLabel.Text" xml:space="preserve"><value>字号</value></data>
+  <data name="DesktopFontSlider.AutomationProperties.Name" xml:space="preserve"><value>字号</value></data>
+  <data name="DesktopFontNumber.AutomationProperties.Name" xml:space="preserve"><value>字号</value></data>
+  <data name="DesktopWeightLabel.Text" xml:space="preserve"><value>字重</value></data>
+  <data name="DesktopWeightNormal.Content" xml:space="preserve"><value>常规</value></data>
+  <data name="DesktopWeightSemiBold.Content" xml:space="preserve"><value>半粗</value></data>
+  <data name="DesktopWeightBold.Content" xml:space="preserve"><value>粗体</value></data>
+  <data name="DesktopStrokeLabel.Text" xml:space="preserve"><value>描边粗细（0 为关闭）</value></data>
+  <data name="DesktopStrokeSlider.AutomationProperties.Name" xml:space="preserve"><value>描边粗细</value></data>
+  <data name="DesktopStrokeNumber.AutomationProperties.Name" xml:space="preserve"><value>描边粗细</value></data>
+  <data name="DesktopStrokeColor.Text" xml:space="preserve"><value>描边颜色</value></data>
+  <data name="DesktopStrokeColorAction.AutomationProperties.Name" xml:space="preserve"><value>描边颜色</value></data>
+  <data name="DesktopSceneGroup.AutomationProperties.Name" xml:space="preserve"><value>预览场景</value></data>
+  <data name="DesktopLineGroup.AutomationProperties.Name" xml:space="preserve"><value>显示行数</value></data>
+  <data name="DesktopDirectionGroup.AutomationProperties.Name" xml:space="preserve"><value>文字方向</value></data>
+  <data name="DesktopAlignmentGroup.AutomationProperties.Name" xml:space="preserve"><value>对齐方式</value></data>
+  <data name="DesktopPresetGroup.AutomationProperties.Name" xml:space="preserve"><value>配色方案</value></data>
+  <data name="DesktopWeightGroup.AutomationProperties.Name" xml:space="preserve"><value>字重</value></data>
 </root>
