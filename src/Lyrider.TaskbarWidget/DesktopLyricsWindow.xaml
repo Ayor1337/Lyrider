@@ -1,0 +1,100 @@
+<Window
+    x:Class="Lyrider.TaskbarWidget.DesktopLyricsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:Lyrider.TaskbarWidget"
+    Title="Lyrider Desktop Lyrics"
+    AllowsTransparency="True"
+    Background="Transparent"
+    WindowStyle="None"
+    ResizeMode="NoResize"
+    ShowInTaskbar="False"
+    ShowActivated="False"
+    Topmost="True"
+    SizeToContent="Height"
+    Width="960"
+    UseLayoutRounding="True">
+    <Window.Resources>
+        <Style x:Key="ToolbarButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Margin" Value="2" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="#40000000" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonSurface" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonSurface" Property="Background" Value="#30FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonSurface" Property="Background" Value="#50FFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <Grid x:Name="Surface" Background="#01000000" MouseLeftButtonDown="Surface_MouseLeftButtonDown"
+          MouseEnter="Surface_MouseEnter" MouseLeave="Surface_MouseLeave">
+        <Border x:Name="Backdrop" CornerRadius="8" IsHitTestVisible="False" />
+        <Grid Margin="12,4">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="32" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <StackPanel x:Name="Toolbar" Orientation="Horizontal" HorizontalAlignment="Right" Visibility="Hidden">
+                <Button x:Name="LockButton" Click="LockButton_Click" Style="{StaticResource ToolbarButtonStyle}">
+                    <TextBlock FontFamily="Segoe Fluent Icons" FontSize="16" Text="&#xE72E;" />
+                </Button>
+                <Button x:Name="SettingsButton" Click="SettingsButton_Click" Style="{StaticResource ToolbarButtonStyle}">
+                    <TextBlock FontFamily="Segoe Fluent Icons" FontSize="16" Text="&#xE713;" />
+                </Button>
+                <Button x:Name="CloseButton" Click="CloseButton_Click" Style="{StaticResource ToolbarButtonStyle}">
+                    <TextBlock FontFamily="Segoe Fluent Icons" FontSize="16" Text="&#xE711;" />
+                </Button>
+            </StackPanel>
+            <Grid x:Name="LyricsContent" Grid.RowSpan="2" VerticalAlignment="Center">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition x:Name="SecondaryRow" Height="Auto" />
+                </Grid.RowDefinitions>
+                <local:OutlinedLyricText x:Name="PrimaryText" Margin="4,2" VerticalAlignment="Center" />
+                <local:OutlinedLyricText x:Name="SecondaryText" Grid.Row="1" Margin="4,4,4,8" VerticalAlignment="Center" />
+            </Grid>
+        </Grid>
+        <Thumb x:Name="WidthHandle" Width="10" HorizontalAlignment="Right" Cursor="SizeWE"
+               Background="Transparent" DragDelta="WidthHandle_DragDelta" DragCompleted="WidthHandle_DragCompleted">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb">
+                    <Border Background="#01000000">
+                        <Border Width="3" Height="24" Background="#90FFFFFF" CornerRadius="1" />
+                    </Border>
+                </ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
+        <Thumb x:Name="HeightHandle" Height="10" VerticalAlignment="Bottom" Cursor="SizeNS"
+               Background="Transparent" DragDelta="HeightHandle_DragDelta" DragCompleted="ResizeHandle_DragCompleted">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb">
+                    <Border Background="#01000000" />
+                </ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
+        <Thumb x:Name="CornerHandle" Width="16" Height="16" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+               Cursor="SizeNWSE" Background="Transparent" DragDelta="CornerHandle_DragDelta" DragCompleted="ResizeHandle_DragCompleted">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb">
+                    <Border Background="#01000000">
+                        <Path Data="M 5,13 L 13,5 M 9,13 L 13,9" Stroke="#90FFFFFF" StrokeThickness="2" />
+                    </Border>
+                </ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
+    </Grid>
+</Window>

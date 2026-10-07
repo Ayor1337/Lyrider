@@ -10,6 +10,50 @@ namespace Lyrider.Tests;
 public sealed class LyricsServiceTests
 {
     [TestMethod]
+    public async Task ResolveAsync_KaraokeEnabled_PreservesCiderWordsAndMergesMatchingTranslation()
+    {
+        LyricLineInfo[] ciderLines = [new(1, 3, "Hello world", Words: [new(1, 2, "Hello"), new(2, 3, "world")])];
+        var netease = new FakeLyricsProvider(LyricsSource.Netease,
+            new([new(1, 3, "Hello world", "你好世界")], true, LyricsSource.Netease));
+        using var service = new LyricsService([netease]);
+        var result = await service.ResolveAsync(CreateTrack(), ciderLines,
+            new(LyricsSource.Auto, true, IncludeWordTiming: true));
+        Assert.AreEqual(LyricsSource.Cider, result.Source);
+        Assert.AreEqual("你好世界", result.Lines[0].Translation);
+        Assert.AreEqual(2, result.Lines[0].Words!.Count);
+        Assert.AreEqual(2, result.Lines[0].Words![1].StartTime);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_KaraokeEnabledWithoutWords_KeepsOrdinarySourceSelection()
+    {
+        var netease = new FakeLyricsProvider(LyricsSource.Netease,
+            new([new(1, 3, "Hello world")], true, LyricsSource.Netease));
+        using var service = new LyricsService([netease]);
+        var result = await service.ResolveAsync(CreateTrack(), [new(1, 3, "Hello world")],
+            new(LyricsSource.Auto, false, IncludeWordTiming: true));
+        Assert.AreEqual(LyricsSource.Netease, result.Source);
+        Assert.IsNull(result.Lines[0].Words);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_WordLyricsAlignedToCider_ShiftsEveryWord()
+    {
+        LyricLineInfo[] cider = [new(1, 3, "Hello"), new(4, 6, "World"), new(7, 9, "Again")];
+        var provider = new FakeLyricsProvider(LyricsSource.Netease,
+            new(cider.Select(line => line with
+            {
+                StartTime = line.StartTime + 2,
+                EndTime = line.EndTime + 2,
+                Words = [new(line.StartTime + 2, line.EndTime!.Value + 2, line.Text)]
+            }).ToArray(), true, LyricsSource.Netease));
+        using var service = new LyricsService([provider]);
+        var result = await service.ResolveAsync(CreateTrack(), cider, new(LyricsSource.Auto, false, IncludeWordTiming: true));
+        Assert.AreEqual(1, result.Lines[0].Words![0].StartTime);
+        Assert.AreEqual(6, result.Lines[1].Words![0].EndTime);
+    }
+
+    [TestMethod]
     public async Task ResolveAsync_LrclibSource_ReturnsSyncedLyricsAndClientIdentity()
     {
         var handler = new RouteHttpMessageHandler(request => Json(

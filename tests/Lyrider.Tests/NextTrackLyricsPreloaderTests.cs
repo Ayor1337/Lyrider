@@ -10,6 +10,25 @@ public sealed class NextTrackLyricsPreloaderTests
     private static readonly LyricsResolveOptions DefaultOptions = new(LyricsSource.Auto, false);
 
     [TestMethod]
+    public async Task Prepare_KaraokeOptionChanged_ReplacesCachedLineLyricsWithWordLyrics()
+    {
+        var requests = 0;
+        using var preloader = new NextTrackLyricsPreloader((_, options, _, _, _) =>
+        {
+            requests++;
+            return Task.FromResult(new LyricsSnapshot([new(1, 3, "Hello",
+                Words: options.IncludeWordTiming ? [new(1, 3, "Hello")] : null)], true, LyricsSource.Cider));
+        });
+        var next = CreateItem(1, "next", "Next");
+        preloader.Prepare(next, DefaultOptions, null);
+        var karaoke = DefaultOptions with { IncludeWordTiming = true };
+        preloader.Prepare(next, karaoke, null);
+        var result = await preloader.TakeAsync(CreateNowPlaying("next", hasTimeSyncedLyrics: true), karaoke, null, CancellationToken.None);
+        Assert.AreEqual(2, requests);
+        Assert.AreEqual(1, result!.Lines[0].Words!.Count);
+    }
+
+    [TestMethod]
     public void SelectNext_ReliableQueue_ReturnsFirstUpcomingItem()
     {
         var current = CreateItem(2, "current", "Current");

@@ -11,6 +11,51 @@ namespace Lyrider.Tests;
 public sealed class CiderServiceTests
 {
     [TestMethod]
+    public async Task GetLyricsAsync_WordTimingRequested_OptsInAndPreservesSeconds()
+    {
+        string? query = null;
+        using var handler = new StubHandler((request, _) =>
+        {
+            query = request.RequestUri!.Query;
+            return Task.FromResult(JsonResponse("""
+                {"data":{"lines":[{"start":1,"end":4,"text":"Hello world","words":[
+                {"start":1,"end":2,"text":"Hello"},{"start":3,"end":4,"text":"world"},
+                {"start":4,"end":3,"text":"invalid"}]}]}}
+                """));
+        });
+        using var service = new CiderService("http://example.test/", handler, TimeSpan.FromSeconds(3));
+        var lines = await service.GetLyricsAsync("1", null, includeWordTiming: true);
+        Assert.AreEqual("?words=true", query);
+        Assert.AreEqual("Hello world", lines.Single().Text);
+        Assert.AreEqual(2, lines[0].Words!.Count);
+        Assert.AreEqual(3, lines[0].Words![1].StartTime);
+        await service.GetLyricsAsync("1", null);
+        Assert.AreEqual(string.Empty, query);
+    }
+
+    [DataTestMethod]
+    [DataRow(HttpStatusCode.Unauthorized)]
+    [DataRow(HttpStatusCode.Forbidden)]
+    public async Task GetLyricsAsync_AuthenticationRejected_ReturnsEmptyWordLyrics(HttpStatusCode status)
+    {
+        using var handler = new StubHandler((_, _) => Task.FromResult(new HttpResponseMessage(status)));
+        using var service = new CiderService("http://example.test/", handler, TimeSpan.FromSeconds(3));
+        Assert.AreEqual(0, (await service.GetLyricsAsync("1", null, includeWordTiming: true)).Count);
+    }
+
+    [TestMethod]
+    public async Task GetLyricsAsync_MalformedWords_KeepsLineFallback()
+    {
+        using var handler = new StubHandler((_, _) => Task.FromResult(JsonResponse("""
+            {"lines":[{"start":1,"end":4,"text":"Hello","words":[null,"oops",{"text":"Hello","start":2}]}]}
+            """)));
+        using var service = new CiderService("http://example.test/", handler, TimeSpan.FromSeconds(3));
+        var line = (await service.GetLyricsAsync("1", null, includeWordTiming: true)).Single();
+        Assert.AreEqual("Hello", line.Text);
+        Assert.IsNull(line.Words);
+    }
+
+    [TestMethod]
     public async Task GetQueueAsync_NestedLyricsFlags_ParsesQueueMetadata()
     {
         using var handler = new StubHandler((_, _) => Task.FromResult(JsonResponse("""

@@ -20,6 +20,30 @@ public partial class TrayMenuWindow : Window
 
     private nint Handle => new WindowInteropHelper(this).Handle;
 
+    public event Action<DesktopLyricsCommand>? DesktopLyricsCommandRequested;
+
+    internal void SetDesktopLyricsState(bool enabled, bool locked)
+    {
+        DesktopLyricsToggleButton.Content = enabled
+            ? WidgetText.Get("关闭桌面歌词", "Hide desktop lyrics")
+            : WidgetText.Get("显示桌面歌词", "Show desktop lyrics");
+        DesktopLyricsLockButton.Content = locked
+            ? WidgetText.Get("解锁桌面歌词", "Unlock desktop lyrics")
+            : WidgetText.Get("锁定桌面歌词", "Lock desktop lyrics");
+        DesktopLyricsLockButton.IsEnabled = enabled;
+        DesktopLyricsSettingsButton.Content = WidgetText.Get("桌面歌词设置", "Desktop lyrics settings");
+        DesktopLyricsResetButton.Content = WidgetText.Get("重置歌词位置", "Reset lyrics position");
+        foreach (var button in new[] { DesktopLyricsToggleButton, DesktopLyricsLockButton, DesktopLyricsSettingsButton, DesktopLyricsResetButton })
+        {
+            AutomationProperties.SetName(button, button.Content.ToString()!);
+        }
+    }
+
+    private void DesktopLyricsToggleButton_Click(object sender, RoutedEventArgs e) => DesktopLyricsCommandRequested?.Invoke(DesktopLyricsCommand.ToggleEnabled);
+    private void DesktopLyricsLockButton_Click(object sender, RoutedEventArgs e) => DesktopLyricsCommandRequested?.Invoke(DesktopLyricsCommand.ToggleLocked);
+    private void DesktopLyricsSettingsButton_Click(object sender, RoutedEventArgs e) => DesktopLyricsCommandRequested?.Invoke(DesktopLyricsCommand.OpenSettings);
+    private void DesktopLyricsResetButton_Click(object sender, RoutedEventArgs e) => DesktopLyricsCommandRequested?.Invoke(DesktopLyricsCommand.ResetPosition);
+
     internal TrayMenuWindow(Action openWindow, Action exitApplication)
     {
         _openWindow = openWindow;

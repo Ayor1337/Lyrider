@@ -49,7 +49,7 @@
   <data name="Main_040.Text" xml:space="preserve"><value>Lyric font size</value></data>
   <data name="Main_041.Text" xml:space="preserve"><value>Adjust the timeline lyric text size</value></data>
   <data name="Main_042.Text" xml:space="preserve"><value>Convert Traditional Chinese lyrics</value></data>
-  <data name="Main_043.Text" xml:space="preserve"><value>Convert Traditional Chinese lyrics to Simplified Chinese in the lyrics view and taskbar</value></data>
+  <data name="Main_043.Text" xml:space="preserve"><value>Convert Traditional Chinese lyrics to Simplified Chinese in the lyrics panel, taskbar, and desktop overlay</value></data>
   <data name="Main_052.Text" xml:space="preserve"><value>Taskbar playback status</value></data>
   <data name="Main_053.Text" xml:space="preserve"><value>Show playback information beside Widgets on the Windows 11 taskbar</value></data>
   <data name="Main_054.Text" xml:space="preserve"><value>Show lyrics in taskbar</value></data>
@@ -102,4 +102,45 @@
   <data name="Main_098.Text" xml:space="preserve"><value>Right-aligned taskbar lyrics</value></data>
   <data name="Main_099.Text" xml:space="preserve"><value>Applies when taskbar icons are left-aligned: the lyrics align right beside the artwork, which moves to the right edge</value></data>
   <data name="Main_100.Text" xml:space="preserve"><value>Experimental</value></data>
+  <data name="Main_101.Text" xml:space="preserve"><value>Desktop lyrics</value></data>
+  <data name="Main_105.AutomationProperties.Name" xml:space="preserve"><value>Choose text color</value></data>
+  <data name="Main_106.Content" xml:space="preserve"><value>Reset position</value></data>
+  <data name="Main_107.Text" xml:space="preserve"><value>Enable desktop lyrics</value></data>
+  <data name="Main_108.Text" xml:space="preserve"><value>Show synced lyrics above apps, including when the main window is hidden</value></data>
+  <data name="Main_109.Text" xml:space="preserve"><value>Lock position and pass clicks through</value></data>
+  <data name="Main_110.Text" xml:space="preserve"><value>Hover over locked lyrics to show the unlock icon, or unlock from the tray menu</value></data>
+  <data name="Main_111.Text" xml:space="preserve"><value>Two-line lyrics</value></data>
+  <data name="Main_112.Text" xml:space="preserve"><value>Show a translation or the next line when on; show only the current line when off</value></data>
+  <data name="Main_113.Text" xml:space="preserve"><value>Desktop lyric font size</value></data>
+  <data name="Main_114.Text" xml:space="preserve"><value>Independent of the main window; 16–72 DIP</value></data>
+  <data name="Main_115.Text" xml:space="preserve"><value>Text color</value></data>
+  <data name="Main_116.Text" xml:space="preserve"><value>Black outlines keep the text readable on light backgrounds</value></data>
+  <data name="Main_117.Text" xml:space="preserve"><value>Background opacity</value></data>
+  <data name="Main_118.Text" xml:space="preserve"><value>Adjust the black background without fading the text</value></data>
+  <data name="Main_119.Text" xml:space="preserve"><value>Hide when paused</value></data>
+  <data name="Main_120.Text" xml:space="preserve"><value>When off, keep the current lyric or title while paused</value></data>
+  <data name="Main_121.Text" xml:space="preserve"><value>Reset position</value></data>
+  <data name="Main_122.Text" xml:space="preserve"><value>Immediately return to the bottom center of the primary screen with the default width and automatic height</value></data>
+  <data name="Main_123.AutomationProperties.Name" xml:space="preserve"><value>Enable desktop lyrics</value></data>
+  <data name="Main_124.AutomationProperties.Name" xml:space="preserve"><value>Lock position and pass clicks through</value></data>
+  <data name="Main_125.AutomationProperties.Name" xml:space="preserve"><value>Two-line lyrics</value></data>
+  <data name="Main_126.AutomationProperties.Name" xml:space="preserve"><value>Desktop lyric font size</value></data>
+  <data name="Main_127.AutomationProperties.Name" xml:space="preserve"><value>Desktop lyrics background opacity</value></data>
+  <data name="Main_128.AutomationProperties.Name" xml:space="preserve"><value>Hide desktop lyrics when paused</value></data>
+  <data name="Main_129.Text" xml:space="preserve"><value>Karaoke mode</value></data>
+  <data name="Main_130.Text" xml:space="preserve"><value>Highlight words in time with the vocals; highlight the whole line when word timing is unavailable</value></data>
+  <data name="Main_131.AutomationProperties.Name" xml:space="preserve"><value>Karaoke mode</value></data>
+  <data name="Main_132.Text" xml:space="preserve"><value>Current lyric highlight color</value></data>
+  <data name="Main_133.Text" xml:space="preserve"><value>Color the current line; in karaoke mode, color the sung portion</value></data>
+  <data name="Main_134.AutomationProperties.Name" xml:space="preserve"><value>Choose current lyric highlight color</value></data>
+  <data name="Main_135.Text" xml:space="preserve"><value>Show desktop lyrics translation</value></data>
+  <data name="Main_136.Text" xml:space="preserve"><value>In two-line view, show a translation when available, otherwise show the next line</value></data>
+  <data name="Main_137.AutomationProperties.Name" xml:space="preserve"><value>Show desktop lyrics translation</value></data>
+  <data name="Main_138.Text" xml:space="preserve"><value>Lyrics layout</value></data>
+  <data name="Main_139.Text" xml:space="preserve"><value>Center stacked lines or stagger them left and right; the staggered layout adds padding and keeps single lines at the top left</value></data>
+  <data name="Main_140.AutomationProperties.Name" xml:space="preserve"><value>Desktop lyrics layout</value></data>
+  <data name="Main_141.Content" xml:space="preserve"><value>Vertical</value></data>
+  <data name="Main_142.Content" xml:space="preserve"><value>Top left / bottom right</value></data>
+  <data name="Main_143.Text" xml:space="preserve"><value>Window size limits</value></data>
+  <data name="Main_144.Text" xml:space="preserve"><value>Width: 320 to 1200 DIP; height: 80 to 480 DIP. Maximum size fits the work area; minimum height fits the lyrics.</value></data>
 </root>

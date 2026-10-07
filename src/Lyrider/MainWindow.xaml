@@ -944,7 +944,7 @@
                                         </Border>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                             <TextBlock x:Uid="Main_042" FontWeight="SemiBold" Text="繁体歌词转简体" />
-                                            <TextBlock x:Uid="Main_043" Style="{StaticResource SettingsDescriptionStyle}" Text="自动将歌词页面和任务栏中的繁体歌词转换为简体" />
+                                            <TextBlock x:Uid="Main_043" Style="{StaticResource SettingsDescriptionStyle}" Text="自动将歌词页面、任务栏和桌面歌词中的繁体歌词转换为简体" />
                                         </StackPanel>
                                     </Grid>
                                     <Grid
@@ -1106,6 +1106,404 @@
                                             Style="{StaticResource SettingsToggleStyle}"
                                             HorizontalAlignment="Right"
                                             VerticalAlignment="Center" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel x:Name="DesktopLyricsSettingsSection" Spacing="8">
+                        <TextBlock x:Uid="Main_101" Style="{StaticResource BodyStrongTextBlockStyle}" Text="桌面歌词" />
+                        <StackPanel Spacing="2">
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="DesktopLyricsEnabledSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Uid="Main_107" FontWeight="SemiBold" Text="启用桌面歌词" />
+                                            <TextBlock x:Uid="Main_108" Style="{StaticResource SettingsDescriptionStyle}" Text="在普通应用上方显示同步歌词，隐藏主窗口后仍可使用" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Column="1" Style="{StaticResource SettingsControlHostStyle}" VerticalAlignment="Center">
+                                        <ToggleSwitch x:Name="DesktopLyricsEnabledToggle" x:Uid="Main_123" AutomationProperties.Name="启用桌面歌词" Style="{StaticResource SettingsToggleStyle}" HorizontalAlignment="Right" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="DesktopLyricsLockedSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Uid="Main_109" FontWeight="SemiBold" Text="锁定位置并穿透鼠标" />
+                                            <TextBlock x:Uid="Main_110" Style="{StaticResource SettingsDescriptionStyle}" Text="锁定后悬停显示解锁图标，也可从托盘菜单解锁" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Column="1" Style="{StaticResource SettingsControlHostStyle}" VerticalAlignment="Center">
+                                        <ToggleSwitch x:Name="DesktopLyricsLockedToggle" x:Uid="Main_124" AutomationProperties.Name="锁定位置并穿透鼠标" Style="{StaticResource SettingsToggleStyle}" HorizontalAlignment="Right" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="DesktopLyricsKaraokeSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Uid="Main_129" FontWeight="SemiBold" Text="卡拉 OK 模式" />
+                                            <TextBlock x:Uid="Main_130" Style="{StaticResource SettingsDescriptionStyle}" Text="按字词时间跟随演唱高亮；没有逐字时间时整句高亮" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Column="1" Style="{StaticResource SettingsControlHostStyle}" VerticalAlignment="Center">
+                                        <ToggleSwitch x:Name="DesktopLyricsKaraokeToggle" x:Uid="Main_131" AutomationProperties.Name="卡拉 OK 模式" Style="{StaticResource SettingsToggleStyle}" HorizontalAlignment="Right" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="DesktopLyricsHighlightColorSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Uid="Main_132" FontWeight="SemiBold" Text="当前歌词高亮颜色" />
+                                            <TextBlock x:Uid="Main_133" Style="{StaticResource SettingsDescriptionStyle}" Text="当前句使用此颜色；卡拉 OK 模式中用于已唱部分" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Column="1" Style="{StaticResource SettingsControlHostStyle}" VerticalAlignment="Center">
+                                        <Button x:Uid="Main_134" AutomationProperties.Name="选择当前歌词高亮颜色" HorizontalAlignment="Right">
+                                            <Button.Content>
+                                                <Border x:Name="DesktopLyricsHighlightColorPreview" Width="64" Height="20"
+                                                        Background="#4FDFFF" BorderBrush="Gray" BorderThickness="1" />
+                                            </Button.Content>
+                                            <Button.Flyout>
+                                                <Flyout>
+                                                    <ColorPicker x:Name="DesktopLyricsHighlightColorPicker" IsAlphaEnabled="False" Color="#4FDFFF"
+                                                                 ColorChanged="DesktopLyricsHighlightColorPicker_ColorChanged" />
+                                                </Flyout>
+                                            </Button.Flyout>
+                                        </Button>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="DesktopLyricsDoubleLineSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Uid="Main_111" FontWeight="SemiBold" Text="双行歌词" />
+                                            <TextBlock x:Uid="Main_112" Style="{StaticResource SettingsDescriptionStyle}" Text="开启时显示翻译或下一句，关闭时只显示当前句" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Column="1" Style="{StaticResource SettingsControlHostStyle}" VerticalAlignment="Center">
+                                        <ToggleSwitch x:Name="DesktopLyricsDoubleLineToggle" x:Uid="Main_125" AutomationProperties.Name="双行歌词" Style="{StaticResource SettingsToggleStyle}" HorizontalAlignment="Right" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="DesktopLyricsTranslationSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Uid="Main_135" FontWeight="SemiBold" Text="显示桌面歌词翻译" />
+                                            <TextBlock x:Uid="Main_136" Style="{StaticResource SettingsDescriptionStyle}" Text="双行显示时优先显示译文，没有译文时显示下一句" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Column="1" Style="{StaticResource SettingsControlHostStyle}" VerticalAlignment="Center">
+                                        <ToggleSwitch x:Name="DesktopLyricsTranslationToggle" x:Uid="Main_137" AutomationProperties.Name="显示桌面歌词翻译" Style="{StaticResource SettingsToggleStyle}" HorizontalAlignment="Right" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="DesktopLyricsLayoutSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Uid="Main_138" FontWeight="SemiBold" Text="歌词布局" />
+                                            <TextBlock x:Uid="Main_139" Style="{StaticResource SettingsDescriptionStyle}" Text="可上下居中或左右错位排列；错位布局保留边距，单句保持左上对齐" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Column="1" Style="{StaticResource SettingsControlHostStyle}" VerticalAlignment="Center">
+                                        <ComboBox x:Name="DesktopLyricsLayoutComboBox" x:Uid="Main_140" AutomationProperties.Name="桌面歌词布局" HorizontalAlignment="Stretch">
+                                            <ComboBoxItem x:Uid="Main_141" Tag="Vertical" Content="上下排列" />
+                                            <ComboBoxItem x:Uid="Main_142" Tag="Horizontal" Content="左上右下" />
+                                        </ComboBox>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="DesktopLyricsFontSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Uid="Main_113" FontWeight="SemiBold" Text="桌面歌词字号" />
+                                            <TextBlock x:Uid="Main_114" Style="{StaticResource SettingsDescriptionStyle}" Text="独立于主窗口字号，范围为 16～72 DIP" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Column="1" Style="{StaticResource SettingsControlHostStyle}" VerticalAlignment="Center">
+                                        <Grid ColumnSpacing="12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="DesktopLyricsFontSlider" x:Uid="Main_126" AutomationProperties.Name="桌面歌词字号" Minimum="16" Maximum="72" Value="32" StepFrequency="1" ValueChanged="DesktopLyricsFontSlider_ValueChanged" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="DesktopLyricsFontValueText" Grid.Column="1" Width="64" VerticalAlignment="Center"
+                                                       FontSize="13" Foreground="{StaticResource MutedTextBrush}" TextAlignment="Right" />
+                                        </Grid>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="DesktopLyricsSizeRangeSettingsRow" ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource SettingsIconStyle}">
+                                        <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock x:Uid="Main_143" FontWeight="SemiBold" Text="窗口缩放范围" />
+                                        <TextBlock x:Uid="Main_144" Style="{StaticResource SettingsDescriptionStyle}" Text="宽度 320～1200 DIP，高度 80～480 DIP；最大尺寸受工作区限制，最小高度随歌词内容调整" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="DesktopLyricsColorSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Uid="Main_115" FontWeight="SemiBold" Text="文字颜色" />
+                                            <TextBlock x:Uid="Main_116" Style="{StaticResource SettingsDescriptionStyle}" Text="固定黑色描边，方便在浅色背景上阅读" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Column="1" Style="{StaticResource SettingsControlHostStyle}" VerticalAlignment="Center">
+                                        <Button x:Uid="Main_105" AutomationProperties.Name="选择文字颜色" HorizontalAlignment="Right">
+                                            <Button.Content>
+                                                <Border x:Name="DesktopLyricsColorPreview" Width="64" Height="20"
+                                                        Background="White" BorderBrush="Gray" BorderThickness="1" />
+                                            </Button.Content>
+                                            <Button.Flyout>
+                                                <Flyout>
+                                                    <ColorPicker x:Name="DesktopLyricsColorPicker" IsAlphaEnabled="False" Color="White"
+                                                                 ColorChanged="DesktopLyricsColorPicker_ColorChanged" />
+                                                </Flyout>
+                                            </Button.Flyout>
+                                        </Button>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="DesktopLyricsBackgroundSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Uid="Main_117" FontWeight="SemiBold" Text="背景不透明度" />
+                                            <TextBlock x:Uid="Main_118" Style="{StaticResource SettingsDescriptionStyle}" Text="只调整黑色背景，不影响文字透明度" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Column="1" Style="{StaticResource SettingsControlHostStyle}" VerticalAlignment="Center">
+                                        <Grid ColumnSpacing="12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Slider x:Name="DesktopLyricsBackgroundSlider" x:Uid="Main_127" AutomationProperties.Name="桌面歌词背景不透明度" Minimum="0" Maximum="100" StepFrequency="1" ValueChanged="DesktopLyricsBackgroundSlider_ValueChanged" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="DesktopLyricsBackgroundValueText" Grid.Column="1" Width="64" VerticalAlignment="Center"
+                                                       FontSize="13" Foreground="{StaticResource MutedTextBrush}" TextAlignment="Right" />
+                                        </Grid>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="DesktopLyricsPauseSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Uid="Main_119" FontWeight="SemiBold" Text="暂停时隐藏" />
+                                            <TextBlock x:Uid="Main_120" Style="{StaticResource SettingsDescriptionStyle}" Text="关闭后暂停时保留当前歌词或歌名" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Column="1" Style="{StaticResource SettingsControlHostStyle}" VerticalAlignment="Center">
+                                        <ToggleSwitch x:Name="DesktopLyricsPauseToggle" x:Uid="Main_128" AutomationProperties.Name="暂停时隐藏桌面歌词" Style="{StaticResource SettingsToggleStyle}" HorizontalAlignment="Right" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="DesktopLyricsResetSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8D2;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Uid="Main_121" FontWeight="SemiBold" Text="重置位置" />
+                                            <TextBlock x:Uid="Main_122" Style="{StaticResource SettingsDescriptionStyle}" Text="立即回到主屏底部居中，并恢复默认宽度和自动高度" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Grid.Column="1" Style="{StaticResource SettingsControlHostStyle}" VerticalAlignment="Center">
+                                        <Button x:Name="DesktopLyricsResetButton" x:Uid="Main_106" Content="重置位置" Click="DesktopLyricsResetButton_Click" HorizontalAlignment="Right" />
                                     </Grid>
                                 </Grid>
                             </Border>

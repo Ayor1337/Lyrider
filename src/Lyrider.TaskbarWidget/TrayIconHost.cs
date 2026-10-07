@@ -12,6 +12,17 @@ public sealed class TrayIconHost : IDisposable
     private TrayMenuWindow? _menuWindow;
     private bool _isLightTheme = true;
     private bool _isDisposed;
+    private bool _desktopLyricsEnabled;
+    private bool _desktopLyricsLocked;
+
+    public event Action<DesktopLyricsCommand>? DesktopLyricsCommandRequested;
+
+    public void SetDesktopLyricsState(bool enabled, bool locked)
+    {
+        _desktopLyricsEnabled = enabled;
+        _desktopLyricsLocked = locked;
+        _menuWindow?.SetDesktopLyricsState(enabled, locked);
+    }
 
     public TrayIconHost(string iconPath, Action showWindow, Action exitApplication)
     {
@@ -45,6 +56,12 @@ public sealed class TrayIconHost : IDisposable
 
         _menuWindow?.Close();
         _menuWindow = new TrayMenuWindow(OpenWindow, ExitApplication);
+        _menuWindow.SetDesktopLyricsState(_desktopLyricsEnabled, _desktopLyricsLocked);
+        _menuWindow.DesktopLyricsCommandRequested += command =>
+        {
+            _menuWindow?.Close();
+            DesktopLyricsCommandRequested?.Invoke(command);
+        };
         _menuWindow.ApplyTheme(_isLightTheme);
         _menuWindow.Closed += MenuWindow_Closed;
         _menuWindow.ShowAt(Cursor.Position);

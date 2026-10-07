@@ -163,13 +163,37 @@ public sealed class SettingsLayoutTests
         Assert.AreEqual("实验", heading.Attribute("Text")?.Value);
         Assert.AreEqual("Main_100", heading.Attribute(XamlNamespace + "Uid")?.Value);
 
-        // That section sits between "歌词与播放" and the Cider connection.
+        // 实验设置位于桌面歌词和 Cider 连接之间。
         Assert.AreEqual(
-            "歌词与播放",
+            "桌面歌词",
             section.ElementsBeforeSelf().Last().Elements().First().Attribute("Text")?.Value);
         Assert.AreEqual(
             "Cider 连接",
             section.ElementsAfterSelf().First().Elements().First().Attribute("Text")?.Value);
+    }
+
+    [TestMethod]
+    public void SettingsPage_DesktopLyrics_ProvidesIndependentControlsInResponsiveRows()
+    {
+        var document = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "MainWindow.xaml"));
+        var section = FindNamedElement(document, "DesktopLyricsSettingsSection");
+        Assert.IsNotNull(section);
+        foreach (var name in new[] { "DesktopLyricsEnabledToggle", "DesktopLyricsLockedToggle", "DesktopLyricsDoubleLineToggle", "DesktopLyricsTranslationToggle",
+            "DesktopLyricsKaraokeToggle", "DesktopLyricsHighlightColorPicker",
+            "DesktopLyricsLayoutComboBox", "DesktopLyricsSizeRangeSettingsRow",
+            "DesktopLyricsFontSlider", "DesktopLyricsColorPicker", "DesktopLyricsBackgroundSlider", "DesktopLyricsPauseToggle", "DesktopLyricsResetButton" })
+        {
+            Assert.IsTrue(FindNamedElement(document, name)!.Ancestors().Contains(section));
+        }
+        Assert.AreEqual("ToggleSwitch", FindNamedElement(document, "DesktopLyricsDoubleLineToggle")!.Name.LocalName);
+        Assert.AreEqual("ToggleSwitch", FindNamedElement(document, "DesktopLyricsTranslationToggle")!.Name.LocalName);
+        CollectionAssert.AreEqual(new[] { "Vertical", "Horizontal" },
+            FindNamedElement(document, "DesktopLyricsLayoutComboBox")!.Elements().Select(element => element.Attribute("Tag")?.Value).ToArray());
+        var slider = FindNamedElement(document, "DesktopLyricsFontSlider")!;
+        Assert.AreEqual("16", slider.Attribute("Minimum")?.Value);
+        Assert.AreEqual("72", slider.Attribute("Maximum")?.Value);
+        Assert.AreEqual("False", FindNamedElement(document, "DesktopLyricsColorPicker")!.Attribute("IsAlphaEnabled")?.Value);
+        Assert.AreEqual("False", FindNamedElement(document, "DesktopLyricsHighlightColorPicker")!.Attribute("IsAlphaEnabled")?.Value);
     }
 
     private static XElement? FindNamedElement(XDocument document, string name) =>
