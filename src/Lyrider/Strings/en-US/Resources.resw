@@ -13,7 +13,6 @@
   <data name="Main_092.Text" xml:space="preserve"><value>About Lyrider</value></data>
   <data name="Main_006.Text" xml:space="preserve"><value>Exit Lyrider</value></data>
   <data name="Main_007.Text" xml:space="preserve"><value>Not Playing</value></data>
-  <data name="Main_008.ToolTipService.ToolTip" xml:space="preserve"><value>More</value></data>
   <data name="Main_009.AutomationProperties.Name" xml:space="preserve"><value>Playback position</value></data>
   <data name="Main_010.ToolTipService.ToolTip" xml:space="preserve"><value>Shuffle</value></data>
   <data name="Main_011.ToolTipService.ToolTip" xml:space="preserve"><value>Previous</value></data>

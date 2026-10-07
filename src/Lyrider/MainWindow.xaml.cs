@@ -410,6 +410,7 @@ public sealed partial class MainWindow : Window
                 {
                     _lyrics = [];
                     _lyricsAreTimeSynced = false;
+                    UpdateLyricsSource(LyricsSnapshot.Empty);
                     RenderLyrics();
                     UpdatePlaybackSurfaces(track, playbackStatus);
                 }
@@ -458,6 +459,7 @@ public sealed partial class MainWindow : Window
 
             _lyrics = snapshot.Lines;
             _lyricsAreTimeSynced = snapshot.IsTimeSynced;
+            UpdateLyricsSource(snapshot);
             var rebuilt = RenderLyrics();
             RefreshLyricPlayback(forceScroll: rebuilt);
             UpdatePlaybackSurfaces(_latestTrack, _latestPlaybackStatus);
@@ -551,6 +553,26 @@ public sealed partial class MainWindow : Window
         _musixmatchApiKey,
         _settings.DesktopLyrics.Enabled && _settings.DesktopLyrics.KaraokeEnabled);
 
+    private void UpdateLyricsSource(LyricsSnapshot snapshot)
+    {
+        var sourceName = snapshot.Lines.Any(line => !string.IsNullOrWhiteSpace(line.Text))
+            ? snapshot.Source switch
+            {
+                LyricsSource.Cider => "Cider",
+                LyricsSource.Netease => AppText.Get("网易云音乐", "NetEase"),
+                LyricsSource.QqMusic => AppText.Get("QQ 音乐", "QQ Music"),
+                LyricsSource.Musixmatch => "Musixmatch",
+                LyricsSource.Lrclib => "LRCLIB",
+                _ => string.Empty
+            }
+            : string.Empty;
+        LyricsSourceText.Text = sourceName;
+        LyricsSourceText.Visibility = sourceName.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        AutomationProperties.SetName(LyricsSourceText, sourceName.Length > 0
+            ? AppText.Format("歌词来源：{0}", "Lyrics source: {0}", sourceName)
+            : string.Empty);
+    }
+
     private void PrepareNextLyrics() =>
         _nextTrackLyricsPreloader.Prepare(_nextQueueItem, CurrentLyricsOptions(), _appToken);
 
@@ -608,6 +630,7 @@ public sealed partial class MainWindow : Window
             _artworkPresenter.Show(null);
             ApplyQueue(new QueueSnapshot([], -1));
             _lyrics = [];
+            UpdateLyricsSource(LyricsSnapshot.Empty);
             _lastPlaybackTime = 0;
             RenderLyrics();
             return;
