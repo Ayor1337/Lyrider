@@ -14,9 +14,13 @@
   <data name="Main_006.Text" xml:space="preserve"><value>Exit Lyrider</value></data>
   <data name="Main_007.Text" xml:space="preserve"><value>Not Playing</value></data>
   <data name="Main_009.AutomationProperties.Name" xml:space="preserve"><value>Playback position</value></data>
+  <data name="Main_010.AutomationProperties.Name" xml:space="preserve"><value>Shuffle</value></data>
   <data name="Main_010.ToolTipService.ToolTip" xml:space="preserve"><value>Shuffle</value></data>
+  <data name="Main_011.AutomationProperties.Name" xml:space="preserve"><value>Previous</value></data>
   <data name="Main_011.ToolTipService.ToolTip" xml:space="preserve"><value>Previous</value></data>
+  <data name="Main_012.AutomationProperties.Name" xml:space="preserve"><value>Play or pause</value></data>
   <data name="Main_012.ToolTipService.ToolTip" xml:space="preserve"><value>Play or pause</value></data>
+  <data name="Main_013.AutomationProperties.Name" xml:space="preserve"><value>Next</value></data>
   <data name="Main_013.ToolTipService.ToolTip" xml:space="preserve"><value>Next</value></data>
   <data name="Main_014.ToolTipService.ToolTip" xml:space="preserve"><value>Repeat: Off</value></data>
   <data name="Main_015.Text" xml:space="preserve"><value>Play Queue</value></data>
@@ -24,37 +28,39 @@
   <data name="Main_017.Text" xml:space="preserve"><value>Now Playing</value></data>
   <data name="Main_018.Text" xml:space="preserve"><value>Not Playing</value></data>
   <data name="Main_019.Text" xml:space="preserve"><value>Up Next</value></data>
-  <data name="Main_020.Text" xml:space="preserve"><value>From the current Cider queue</value></data>
-  <data name="Main_021.Text" xml:space="preserve"><value>The play queue is empty</value></data>
-  <data name="Main_022.Text" xml:space="preserve"><value>No lyrics are available for this song</value></data>
+  <data name="Main_020.Text" xml:space="preserve"><value>Synced with your Cider queue</value></data>
+  <data name="Main_021.Text" xml:space="preserve"><value>Nothing in the queue yet</value></data>
+  <data name="Main_022.Text" xml:space="preserve"><value>No lyrics for this song yet</value></data>
+  <data name="Main_023.AutomationProperties.Name" xml:space="preserve"><value>Play Queue</value></data>
   <data name="Main_023.ToolTipService.ToolTip" xml:space="preserve"><value>Play Queue</value></data>
+  <data name="Main_024.AutomationProperties.Name" xml:space="preserve"><value>Lyrics</value></data>
   <data name="Main_024.ToolTipService.ToolTip" xml:space="preserve"><value>Lyrics</value></data>
   <data name="Main_025.AutomationProperties.Name" xml:space="preserve"><value>Back to player</value></data>
   <data name="Main_025.ToolTipService.ToolTip" xml:space="preserve"><value>Back to player</value></data>
   <data name="Main_026.Text" xml:space="preserve"><value>Settings</value></data>
-  <data name="Main_027.Text" xml:space="preserve"><value>Customize Lyrider's appearance, playback, and Cider connection</value></data>
+  <data name="Main_027.Text" xml:space="preserve"><value>Customize the look, lyrics, and Cider connection</value></data>
   <data name="Main_028.Content" xml:space="preserve"><value>Save Settings</value></data>
   <data name="Main_029.Text" xml:space="preserve"><value>Appearance</value></data>
   <data name="Main_030.Text" xml:space="preserve"><value>Theme</value></data>
-  <data name="Main_031.Text" xml:space="preserve"><value>Choose the app's light or dark appearance</value></data>
+  <data name="Main_031.Text" xml:space="preserve"><value>Light, dark, or match Windows</value></data>
   <data name="Main_032.Content" xml:space="preserve"><value>Use system setting</value></data>
   <data name="Main_033.Content" xml:space="preserve"><value>Light</value></data>
   <data name="Main_034.Content" xml:space="preserve"><value>Dark</value></data>
   <data name="Main_035.Text" xml:space="preserve"><value>Background artwork intensity</value></data>
-  <data name="Main_036.Text" xml:space="preserve"><value>Adjust how visible the artwork is in the player background</value></data>
+  <data name="Main_036.Text" xml:space="preserve"><value>How strongly the artwork shows behind the player</value></data>
   <data name="Main_037.Text" xml:space="preserve"><value>Background artwork blur</value></data>
-  <data name="Main_038.Text" xml:space="preserve"><value>Adjust the Gaussian blur radius; 0% keeps the artwork sharp</value></data>
+  <data name="Main_038.Text" xml:space="preserve"><value>Higher values soften the background; 0% keeps it sharp</value></data>
   <data name="Main_039.Text" xml:space="preserve"><value>Lyrics and Playback</value></data>
   <data name="Main_040.Text" xml:space="preserve"><value>Lyric font size</value></data>
-  <data name="Main_041.Text" xml:space="preserve"><value>Adjust the timeline lyric text size</value></data>
+  <data name="Main_041.Text" xml:space="preserve"><value>Text size on the lyrics page</value></data>
   <data name="Main_042.Text" xml:space="preserve"><value>Convert Traditional Chinese lyrics</value></data>
-  <data name="Main_043.Text" xml:space="preserve"><value>Convert Traditional Chinese lyrics to Simplified Chinese in the lyrics panel, taskbar, and desktop overlay</value></data>
+  <data name="Main_043.Text" xml:space="preserve"><value>Show Traditional Chinese lyrics as Simplified on the lyrics page, taskbar, and desktop</value></data>
   <data name="Main_052.Text" xml:space="preserve"><value>Taskbar playback status</value></data>
   <data name="Main_053.Text" xml:space="preserve"><value>Show playback information beside Widgets on the Windows 11 taskbar</value></data>
   <data name="Main_054.Text" xml:space="preserve"><value>Show lyrics in taskbar</value></data>
-  <data name="Main_055.Text" xml:space="preserve"><value>When off, show the song and artist instead</value></data>
+  <data name="Main_055.Text" xml:space="preserve"><value>When off, show the song title and artist instead</value></data>
   <data name="Main_056.Text" xml:space="preserve"><value>Minimize to tray on close</value></data>
-  <data name="Main_057.Text" xml:space="preserve"><value>Hide in the system tray when the close button is clicked; Exit in the app menu still quits</value></data>
+  <data name="Main_057.Text" xml:space="preserve"><value>Closing the window hides it in the system tray; choose Exit from the app menu to quit</value></data>
   <data name="Main_058.Text" xml:space="preserve"><value>Cider Connection</value></data>
   <data name="Main_059.Text" xml:space="preserve"><value>Local API</value></data>
   <data name="Main_060.Text" xml:space="preserve"><value>Read Cider's playback status and send playback commands</value></data>
@@ -66,7 +72,7 @@
   <data name="Main_063.SecondaryButtonText" xml:space="preserve"><value>Test Connection</value></data>
   <data name="Main_063.CloseButtonText" xml:space="preserve"><value>Cancel</value></data>
   <data name="Main_064.Text" xml:space="preserve"><value>Connect Cider to get started with Lyrider</value></data>
-  <data name="Main_065.Text" xml:space="preserve"><value>Follow these steps to configure an App Token. It is encrypted locally using your current Windows credentials.</value></data>
+  <data name="Main_065.Text" xml:space="preserve"><value>Get an App Token in three steps. It's encrypted with your Windows account and stays on this PC.</value></data>
   <data name="Main_066.Text" xml:space="preserve"><value>Open Cider's connection settings</value></data>
   <data name="Main_067.Text" xml:space="preserve"><value>Open Settings in Cider, then go to Connectivity.</value></data>
   <data name="Main_068.Text" xml:space="preserve"><value>Open external app access</value></data>
@@ -79,17 +85,17 @@
   <data name="Main_075.Content" xml:space="preserve"><value>Confirm and Continue</value></data>
   <data name="Main_076.Text" xml:space="preserve"><value>Writing the melody into this moment…</value></data>
   <data name="Main_077.Text" xml:space="preserve"><value>Language</value></data>
-  <data name="Main_078.Text" xml:space="preserve"><value>Choose Lyrider's display language; restart to apply</value></data>
+  <data name="Main_078.Text" xml:space="preserve"><value>Change the display language; takes effect after restarting Lyrider</value></data>
   <data name="Main_079.Content" xml:space="preserve"><value>Use system setting</value></data>
   <data name="Main_080.Content" xml:space="preserve"><value>Simplified Chinese</value></data>
   <data name="Main_081.Content" xml:space="preserve"><value>English</value></data>
   <data name="Main_082.Text" xml:space="preserve"><value>Preferred lyrics source</value></data>
-  <data name="Main_083.Text" xml:space="preserve"><value>Auto tries NetEase first. If the preferred source has no suitable lyrics, try other sources</value></data>
+  <data name="Main_083.Text" xml:space="preserve"><value>Automatic tries NetEase first. If the chosen source has no match, other sources are tried</value></data>
   <data name="Main_084.Content" xml:space="preserve"><value>Automatic</value></data>
   <data name="Main_085.Content" xml:space="preserve"><value>NetEase Cloud Music</value></data>
   <data name="Main_086.Content" xml:space="preserve"><value>QQ Music</value></data>
   <data name="Main_087.Text" xml:space="preserve"><value>Show lyrics translation</value></data>
-  <data name="Main_088.Text" xml:space="preserve"><value>Prefer lyrics with Chinese translations and show them below the original lyrics</value></data>
+  <data name="Main_088.Text" xml:space="preserve"><value>Prefer lyrics with Chinese translations and show them under each line</value></data>
   <data name="Main_089.Text" xml:space="preserve"><value>Musixmatch API Key</value></data>
   <data name="Main_090.Text" xml:space="preserve"><value>Only required for Musixmatch and encrypted for the current Windows user</value></data>
   <data name="Main_091.PlaceholderText" xml:space="preserve"><value>Enter API Key</value></data>
@@ -97,7 +103,7 @@
   <data name="Main_094.Text" xml:space="preserve"><value>Create a token in Cider Settings → Connectivity → External applications. Tokens are encrypted and stored only on this device.</value></data>
   <data name="Main_095.Content" xml:space="preserve"><value>Configure connection</value></data>
   <data name="Main_096.Text" xml:space="preserve"><value>Silent startup</value></data>
-  <data name="Main_097.Text" xml:space="preserve"><value>Start in the system tray with the main window hidden. Applies on the next launch.</value></data>
+  <data name="Main_097.Text" xml:space="preserve"><value>Start hidden in the system tray. Takes effect on the next launch</value></data>
   <data name="Main_098.Text" xml:space="preserve"><value>Right-aligned taskbar lyrics</value></data>
   <data name="Main_099.Text" xml:space="preserve"><value>Applies when taskbar icons are left-aligned: the lyrics align right beside the artwork, which moves to the right edge</value></data>
   <data name="Main_100.Text" xml:space="preserve"><value>Experimental</value></data>
@@ -107,14 +113,14 @@
   <data name="DesktopSceneLyrics.Content" xml:space="preserve"><value>Lyrics</value></data>
   <data name="DesktopSceneTranslation.Content" xml:space="preserve"><value>With translation</value></data>
   <data name="DesktopPreviewImage.AutomationProperties.Name" xml:space="preserve"><value>Desktop lyrics preview</value></data>
-  <data name="DesktopPreviewHint.Text" xml:space="preserve"><value>Preview changes here, then save to apply them to the desktop</value></data>
-  <data name="DesktopEnableTitle.Text" xml:space="preserve"><value>Enable</value></data>
+  <data name="DesktopPreviewHint.Text" xml:space="preserve"><value>Changes preview here instantly and apply to the desktop when saved</value></data>
+  <data name="DesktopEnableTitle.Text" xml:space="preserve"><value>Display</value></data>
   <data name="DesktopEnable.Header" xml:space="preserve"><value>Enable desktop lyrics</value></data>
   <data name="DesktopLock.Header" xml:space="preserve"><value>Lock position and pass clicks through</value></data>
   <data name="DesktopPause.Header" xml:space="preserve"><value>Hide when paused</value></data>
   <data name="DesktopTranslationTitle.Text" xml:space="preserve"><value>Translation</value></data>
   <data name="DesktopTranslation.Header" xml:space="preserve"><value>Show translations for non-Chinese songs</value></data>
-  <data name="DesktopTranslationHint.Text" xml:space="preserve"><value>Show the current lyric and its translation in the sung color when available; otherwise use the selected layout</value></data>
+  <data name="DesktopTranslationHint.Text" xml:space="preserve"><value>With a translation, show the current line and its translation in the sung color; otherwise use the selected layout</value></data>
   <data name="DesktopLayoutTitle.Text" xml:space="preserve"><value>Layout</value></data>
   <data name="DesktopLineLabel.Text" xml:space="preserve"><value>Lyric lines</value></data>
   <data name="DesktopSingle.Text" xml:space="preserve"><value>Single line</value></data>
@@ -127,7 +133,7 @@
   <data name="DesktopSplit.Text" xml:space="preserve"><value>Split</value></data>
   <data name="DesktopLeft.Text" xml:space="preserve"><value>Left</value></data>
   <data name="DesktopRight.Text" xml:space="preserve"><value>Right</value></data>
-  <data name="DesktopLayoutHint.Text" xml:space="preserve"><value>Translations follow the text direction; split alignment becomes centered for translations and single lines</value></data>
+  <data name="DesktopLayoutHint.Text" xml:space="preserve"><value>Translations follow the text direction. Split alignment is centered for translations and single lines</value></data>
   <data name="DesktopSizeHint.Text" xml:space="preserve"><value>Drag lyrics or their edges on the desktop to move or resize them. Reset position takes effect immediately.</value></data>
   <data name="DesktopBlue.Text" xml:space="preserve"><value>Blue</value></data>
   <data name="DesktopGold.Text" xml:space="preserve"><value>Gold</value></data>
@@ -140,7 +146,7 @@
   <data name="DesktopUnplayedColor.Text" xml:space="preserve"><value>Unsung</value></data>
   <data name="DesktopUnplayedColorAction.AutomationProperties.Name" xml:space="preserve"><value>Unsung</value></data>
   <data name="DesktopKaraoke.Header" xml:space="preserve"><value>Word-by-word display</value></data>
-  <data name="DesktopKaraokeHint.Text" xml:space="preserve"><value>Highlight the whole line when word timing is unavailable</value></data>
+  <data name="DesktopKaraokeHint.Text" xml:space="preserve"><value>Lines without word timing highlight all at once</value></data>
   <data name="DesktopBackgroundLabel.Text" xml:space="preserve"><value>Background opacity</value></data>
   <data name="DesktopBackgroundSlider.AutomationProperties.Name" xml:space="preserve"><value>Background opacity</value></data>
   <data name="DesktopTypographyTitle.Text" xml:space="preserve"><value>Typography</value></data>

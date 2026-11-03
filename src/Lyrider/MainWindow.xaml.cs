@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Numerics;
 using Lyrider.Models;
 using Lyrider.Services;
 using Lyrider.TaskbarWidget;
@@ -52,6 +53,8 @@ public sealed partial class MainWindow : Window
     private string? _validatedOnboardingApiBaseUrl;
     private string? _validatedOnboardingToken;
     private string? _currentTrackKey;
+    private string? _presentedTrackKey;
+    private string? _visiblePanel;
     private QueueItemInfo? _nextQueueItem;
     private NowPlayingInfo? _latestTrack;
     private PlaybackStatus? _latestPlaybackStatus;
@@ -139,8 +142,16 @@ public sealed partial class MainWindow : Window
             Math.Min((int)(820 * scale), Math.Max(1, workArea.Height - (int)(64 * scale)))));
 
         QueueListView.ItemsSource = _queueItems;
+        foreach (var button in PlaybackControlsPanel.Children)
+        {
+            UiMotion.AttachPointerScale(button);
+        }
+        UiMotion.AttachPointerScale(QueueViewButton, 1.04f, 0.94f);
+        UiMotion.AttachPointerScale(LyricsViewButton, 1.04f, 0.94f);
+        UiMotion.AttachPointerScale(AppMenuButton, 1.04f, 0.94f);
         _taskbarWidgetHost.CommandRequested += TaskbarWidgetHost_CommandRequested;
         LoadSavedSecrets();
+        ApplyToggleSwitchLabels();
         LoadSettingsControls();
         InitializeOnboarding();
         ApplySettings();
@@ -286,6 +297,28 @@ public sealed partial class MainWindow : Window
             {
                 _refreshTimer.Start();
             }
+            else
+            {
+                UiMotion.Stagger(OnboardingContentPanel.Children, new Vector2(0, 18), 60);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The built-in On/Off text follows the WinUI runtime's resources rather than the app
+    /// language, so set it explicitly to match the rest of the localized settings page.
+    /// </summary>
+    private void ApplyToggleSwitchLabels()
+    {
+        var on = AppText.Get("开", "On");
+        var off = AppText.Get("关", "Off");
+        foreach (var toggle in new[] { LyricsTranslationToggle, ChineseLyricsToggle, TaskbarWidgetToggle,
+            TaskbarLyricsToggle, SilentStartupToggle, MinimizeToTrayToggle, DesktopLyricsEnabledToggle,
+            DesktopLyricsLockedToggle, DesktopLyricsPauseToggle, DesktopLyricsTranslationToggle,
+            DesktopLyricsKaraokeToggle, TaskbarLyricsAlignmentToggle })
+        {
+            toggle.OnContent = on;
+            toggle.OffContent = off;
         }
     }
 
@@ -566,8 +599,13 @@ public sealed partial class MainWindow : Window
                 _ => string.Empty
             }
             : string.Empty;
+        var wasVisible = LyricsSourceBadge.Visibility == Visibility.Visible;
         LyricsSourceText.Text = sourceName;
-        LyricsSourceText.Visibility = sourceName.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        LyricsSourceBadge.Visibility = sourceName.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (!wasVisible && sourceName.Length > 0)
+        {
+            _ = UiMotion.EnterAsync(LyricsSourceBadge, new Vector2(8, 0), 280, fromScale: 0.9f);
+        }
         AutomationProperties.SetName(LyricsSourceText, sourceName.Length > 0
             ? AppText.Format("歌词来源：{0}", "Lyrics source: {0}", sourceName)
             : string.Empty);
@@ -594,7 +632,12 @@ public sealed partial class MainWindow : Window
         }
 
         _latestPlaybackStatus = status;
-        PlayPauseIcon.Glyph = status.IsPlaying ? "\uE769" : "\uE768";
+        var glyph = status.IsPlaying ? "\uE769" : "\uE768";
+        if (!string.Equals(PlayPauseIcon.Glyph, glyph, StringComparison.Ordinal))
+        {
+            PlayPauseIcon.Glyph = glyph;
+            UiMotion.Pop(PlayPauseIcon, 0.7f);
+        }
     }
 
     private void SynchronizePlaybackTimeline(NowPlayingInfo track)
@@ -616,6 +659,7 @@ public sealed partial class MainWindow : Window
             _playbackTimeline.Reset();
             _latestTrack = null;
             _currentTrackKey = null;
+            _presentedTrackKey = null;
             _nextQueueItem = null;
             _nextTrackLyricsPreloader.Clear();
             SongNameText.Text = AppText.Get("未在播放", "Not Playing");
@@ -644,6 +688,13 @@ public sealed partial class MainWindow : Window
         }
 
         _lastPlaybackTime = currentSeconds;
+        var trackKey = TrackIdentity.For(track);
+        if (!string.Equals(trackKey, _presentedTrackKey, StringComparison.Ordinal))
+        {
+            _presentedTrackKey = trackKey;
+            AnimateTrackChange();
+        }
+
         var songName = ValueOrFallback(track.Name);
         var artistName = ValueOrFallback(track.ArtistName);
         var albumName = ValueOrFallback(track.AlbumName);
@@ -657,6 +708,13 @@ public sealed partial class MainWindow : Window
         ShuffleButton.Opacity = track.ShuffleMode > 0 ? 1 : 0.55;
         UpdateRepeatButton(track.RepeatMode);
         _artworkPresenter.Show(NormalizeArtworkUrl(track.Artwork?.Url));
+    }
+
+    private void AnimateTrackChange()
+    {
+        _ = UiMotion.EnterAsync(ArtworkBorder, Vector2.Zero, 420, fromOpacity: 0.35f, fromScale: 0.94f);
+        _ = UiMotion.EnterAsync(NowPlayingTextPanel, new Vector2(0, 10), 360, 60);
+        _ = UiMotion.EnterAsync(CurrentQueueItemBorder, new Vector2(0, 8), 360, 90);
     }
 
     private void UpdateRepeatButton(int repeatMode)
@@ -1263,7 +1321,8 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            await AnimateSettingsPageAsync(0, 1, 16, 0, 220);
+            UiMotion.Stagger(SettingsSectionsPanel.Children, new Vector2(0, 24), 45, 225, 420);
+            await UiMotion.EnterAsync(SettingsPageGrid, new Vector2(0, 16), 280);
         }
         finally
         {
@@ -1380,16 +1439,17 @@ public sealed partial class MainWindow : Window
 
             try
             {
-                await AnimateSettingsPageAsync(1, 0, 0, 10, 160);
+                await UiMotion.ExitAsync(SettingsPageGrid, new Vector2(0, 12), 160);
             }
             finally
             {
                 SettingsPageGrid.Visibility = Visibility.Collapsed;
-                SettingsPageGrid.Opacity = 1;
-                SettingsPageTranslateTransform.Y = 0;
+                UiMotion.Reset(SettingsPageGrid);
                 SettingsPageGrid.IsHitTestVisible = true;
                 _isSettingsTransitioning = false;
             }
+
+            _ = UiMotion.EnterAsync(PlayerPageGrid, new Vector2(0, -12), 320);
         }
 
         PlayerBackdropLayer.Visibility = Visibility.Visible;
@@ -1400,64 +1460,23 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async Task AnimateSettingsPageAsync(
-        double fromOpacity,
-        double toOpacity,
-        double fromOffset,
-        double toOffset,
-        int durationMilliseconds)
-    {
-        SettingsPageGrid.Opacity = fromOpacity;
-        SettingsPageTranslateTransform.Y = fromOffset;
-
-        var duration = new Duration(TimeSpan.FromMilliseconds(durationMilliseconds));
-        var opacityAnimation = new DoubleAnimation
-        {
-            From = fromOpacity,
-            To = toOpacity,
-            Duration = duration,
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
-            EnableDependentAnimation = true
-        };
-        Storyboard.SetTarget(opacityAnimation, SettingsPageGrid);
-        Storyboard.SetTargetProperty(opacityAnimation, nameof(UIElement.Opacity));
-
-        var offsetAnimation = new DoubleAnimation
-        {
-            From = fromOffset,
-            To = toOffset,
-            Duration = duration,
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
-            EnableDependentAnimation = true
-        };
-        Storyboard.SetTarget(offsetAnimation, SettingsPageTranslateTransform);
-        Storyboard.SetTargetProperty(offsetAnimation, nameof(TranslateTransform.Y));
-
-        var storyboard = new Storyboard();
-        storyboard.Children.Add(opacityAnimation);
-        storyboard.Children.Add(offsetAnimation);
-
-        var completion = new TaskCompletionSource<bool>();
-        storyboard.Completed += (_, _) => completion.TrySetResult(true);
-        storyboard.Begin();
-        await completion.Task;
-        storyboard.Stop();
-
-        SettingsPageGrid.Opacity = toOpacity;
-        SettingsPageTranslateTransform.Y = toOffset;
-    }
-
     private void ShowPanel(string panel)
     {
         var showLyrics = string.Equals(panel, "Lyrics", StringComparison.OrdinalIgnoreCase);
+        var target = showLyrics ? "Lyrics" : "Queue";
+        var changed = _visiblePanel is not null && _visiblePanel != target;
+        _visiblePanel = target;
         QueuePanel.Visibility = showLyrics ? Visibility.Collapsed : Visibility.Visible;
         LyricsPanel.Visibility = showLyrics ? Visibility.Visible : Visibility.Collapsed;
-        QueueViewButton.Background = showLyrics
-            ? new SolidColorBrush(Colors.Transparent)
-            : CreateSelectedPanelBrush();
-        LyricsViewButton.Background = showLyrics
-            ? CreateSelectedPanelBrush()
-            : new SolidColorBrush(Colors.Transparent);
+        // Both switcher buttons have the indicator's width, so the lyrics slot starts one width in.
+        UiMotion.SlideTo(
+            PanelSwitcherIndicator,
+            showLyrics ? (float)PanelSwitcherIndicator.Width : 0,
+            changed);
+        if (changed)
+        {
+            _ = UiMotion.EnterAsync(showLyrics ? LyricsPanel : QueuePanel, new Vector2(0, 18), 360);
+        }
 
         if (showLyrics)
         {
@@ -1853,7 +1872,12 @@ public sealed partial class MainWindow : Window
     private async Task FinishOnboardingAsync()
     {
         OnboardingStatusInfoBar.IsOpen = false;
+        OnboardingPageGrid.IsHitTestVisible = false;
+        await UiMotion.ExitAsync(OnboardingPageGrid, new Vector2(0, -16), 220);
         OnboardingPageGrid.Visibility = Visibility.Collapsed;
+        UiMotion.Reset(OnboardingPageGrid);
+        OnboardingPageGrid.IsHitTestVisible = true;
+        _ = UiMotion.EnterAsync(PlayerPageGrid, new Vector2(0, 16), 360);
         await RefreshAsync(forceDetails: true);
         _refreshTimer.Start();
     }
@@ -2408,11 +2432,6 @@ public sealed partial class MainWindow : Window
 
     private static string SelectedTag(ComboBox comboBox, string fallback) =>
         (comboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? fallback;
-
-    private SolidColorBrush CreateSelectedPanelBrush() =>
-        new(RootGrid.ActualTheme == ElementTheme.Light
-            ? ColorHelper.FromArgb(0x19, 0, 0, 0)
-            : ColorHelper.FromArgb(0x2A, 255, 255, 255));
 
     private static string? NormalizeToken(string? token) =>
         string.IsNullOrWhiteSpace(token) ? null : token.Trim();
