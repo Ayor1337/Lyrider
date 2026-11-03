@@ -75,4 +75,25 @@ public static class TaskbarPresentation
 
         return currentIndex > previousIndex ? 1 : -1;
     }
+
+    /// <summary>
+    /// Direction for sliding the displayed text: lyric lines move with the song position, and any
+    /// other change of visible text (a new track, lyrics appearing or disappearing) moves up.
+    /// Returns 0 when nothing visible changed or the widget was not shown before.
+    /// </summary>
+    public static int GetTextTransitionDirection(
+        TaskbarPlaybackState previous,
+        TaskbarPlaybackState current)
+    {
+        var lyricDirection = GetLyricTransitionDirection(previous, current);
+        if (lyricDirection != 0)
+        {
+            return lyricDirection;
+        }
+
+        return ShouldShow(previous) && ShouldShow(current) &&
+            GetDisplayText(previous) != GetDisplayText(current)
+                ? 1
+                : 0;
+    }
 }

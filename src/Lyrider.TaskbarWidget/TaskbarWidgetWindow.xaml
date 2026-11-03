@@ -110,13 +110,20 @@
                 VerticalAlignment="Center"
                 Background="#18FFFFFF"
                 CornerRadius="5">
-                <TextBlock
-                    x:Name="ArtworkPlaceholder"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    FontFamily="Segoe Fluent Icons"
-                    FontSize="20"
-                    Text="&#xE8D6;" />
+                <Grid>
+                    <TextBlock
+                        x:Name="ArtworkPlaceholder"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontFamily="Segoe Fluent Icons"
+                        FontSize="20"
+                        Text="&#xE8D6;" />
+                    <!-- Holds the previous cover while it fades out over the new one. -->
+                    <Border
+                        x:Name="ArtworkOutgoingLayer"
+                        CornerRadius="5"
+                        IsHitTestVisible="False" />
+                </Grid>
             </Border>
 
             <Grid
@@ -124,6 +131,8 @@
                 Grid.Column="1"
                 Margin="6,0,2,0"
                 ClipToBounds="True">
+                <!-- Dimmed as a whole while playback is paused. -->
+                <Grid x:Name="TextLayer">
                 <StackPanel
                     x:Name="OutgoingInfoPanel"
                     VerticalAlignment="Center"
@@ -165,7 +174,7 @@
                             <RowDefinition Height="19" />
                             <RowDefinition Height="16" />
                         </Grid.RowDefinitions>
-                        <Grid ClipToBounds="True">
+                        <Grid x:Name="PrimaryMarqueeViewport" ClipToBounds="True">
                             <Canvas>
                                 <StackPanel
                                     x:Name="PrimaryMarqueePanel"
@@ -187,6 +196,7 @@
                             </Canvas>
                         </Grid>
                         <Grid
+                            x:Name="SecondaryMarqueeViewport"
                             Grid.Row="1"
                             Height="16"
                             Margin="0,-2,0,0"
@@ -222,6 +232,7 @@
                         </Grid>
                     </Grid>
                 </StackPanel>
+                </Grid>
 
                 <StackPanel
                     x:Name="ControlsPanel"
