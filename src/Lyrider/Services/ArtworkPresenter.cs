@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Foundation;
 
 namespace Lyrider.Services;
 
@@ -14,23 +15,31 @@ namespace Lyrider.Services;
 /// Owns the foreground artwork and blurred composition backdrop, including one preloaded next
 /// artwork. Keeping both image pipelines here lets a track transition promote the exact decoded
 /// resources that were prepared from the queue instead of starting two new URI loads.
+/// The backdrop alternates between two layers so a track change cross-fades instead of cutting.
 /// </summary>
 public sealed class ArtworkPresenter : IDisposable
 {
     private const string SourceParameter = "Backdrop";
     private const string BlurEffectName = "Blur";
     private const string BlurAmountProperty = BlurEffectName + ".BlurAmount";
-    private const float MaximumBlurAmount = 16;
+    private const float MaximumBlurAmount = 64;
+    private const int CrossFadeMilliseconds = 600;
+    // The backdrop is stretched across the window and blurred, so a small decode looks the same
+    // and keeps the blur input cheap.
+    private static readonly Size BackdropDecodeSize = new(128, 128);
     private static readonly HttpClient ArtworkClient = new() { Timeout = TimeSpan.FromSeconds(15) };
 
     private readonly FrameworkElement _host;
     private readonly Image _artworkImage;
     private readonly Image _queueArtworkImage;
-    private readonly CompositionSurfaceBrush _surfaceBrush;
-    private readonly CompositionEffectBrush _effectBrush;
-    private readonly SpriteVisual _visual;
+    private readonly ContainerVisual _backdrop;
+    private BackdropLayer _frontLayer;
+    private BackdropLayer _backLayer;
 
     private LoadedImageSurface? _surface;
+    // The previous cover, still shown by the back layer while it fades out.
+    private LoadedImageSurface? _fadingSurface;
+    private int _backdropVersion;
     private CancellationTokenSource? _bitmapLoadCancellation;
     private string? _artworkUrl;
     private BitmapImage? _nextBitmap;
@@ -57,16 +66,15 @@ public sealed class ArtworkPresenter : IDisposable
             BorderMode = EffectBorderMode.Hard,
             Source = new CompositionEffectSourceParameter(SourceParameter)
         };
-        _surfaceBrush = compositor.CreateSurfaceBrush();
-        _surfaceBrush.Stretch = CompositionStretch.UniformToFill;
-        _surfaceBrush.AnchorPoint = new Vector2(0.5f);
-        _effectBrush = compositor.CreateEffectFactory(blur, [BlurAmountProperty]).CreateBrush();
-        _effectBrush.SetSourceParameter(SourceParameter, _surfaceBrush);
+        var effectFactory = compositor.CreateEffectFactory(blur, [BlurAmountProperty]);
+        _backLayer = new BackdropLayer(compositor, effectFactory) { Opacity = 0 };
+        _frontLayer = new BackdropLayer(compositor, effectFactory);
 
-        _visual = compositor.CreateSpriteVisual();
-        _visual.Brush = _effectBrush;
-        _visual.RelativeSizeAdjustment = Vector2.One;
-        ElementCompositionPreview.SetElementChildVisual(host, _visual);
+        _backdrop = compositor.CreateContainerVisual();
+        _backdrop.RelativeSizeAdjustment = Vector2.One;
+        _backdrop.Children.InsertAtTop(_backLayer.Visual);
+        _backdrop.Children.InsertAtTop(_frontLayer.Visual);
+        ElementCompositionPreview.SetElementChildVisual(host, _backdrop);
 
         host.SizeChanged += Host_SizeChanged;
         UpdateSurfaceAlignment();
@@ -109,7 +117,7 @@ public sealed class ArtworkPresenter : IDisposable
         _nextBitmapLoadCancellation = new CancellationTokenSource();
         _ = LoadNextBitmapAsync(bitmap, artworkUri, _nextBitmapLoadCancellation.Token);
 
-        var surface = LoadedImageSurface.StartLoadFromUri(artworkUri);
+        var surface = LoadedImageSurface.StartLoadFromUri(artworkUri, BackdropDecodeSize);
         surface.LoadCompleted += (_, args) =>
         {
             if (ReferenceEquals(_nextSurface, surface) &&
@@ -171,7 +179,7 @@ public sealed class ArtworkPresenter : IDisposable
                 : new BitmapImage(artworkUri);
             surface = promoted && !_nextSurfaceFailed
                 ? _nextSurface
-                : LoadedImageSurface.StartLoadFromUri(artworkUri);
+                : LoadedImageSurface.StartLoadFromUri(artworkUri, BackdropDecodeSize);
             if (promoted && !_nextBitmapFailed)
             {
                 _bitmapLoadCancellation = _nextBitmapLoadCancellation;
@@ -184,10 +192,9 @@ public sealed class ArtworkPresenter : IDisposable
 
         var previous = _surface;
         _surface = surface;
-        _surfaceBrush.Surface = surface;
         if (!ReferenceEquals(previous, surface))
         {
-            previous?.Dispose();
+            ShowBackdrop(surface, previous);
         }
 
         if (promoted)
@@ -212,10 +219,68 @@ public sealed class ArtworkPresenter : IDisposable
 
     public void Apply(double opacity, double blurPercentage)
     {
-        _visual.Opacity = (float)Math.Clamp(opacity, 0, 1);
-        _effectBrush.Properties.InsertScalar(
-            BlurAmountProperty,
-            (float)(Math.Clamp(blurPercentage, 0, 100) / 100 * MaximumBlurAmount));
+        _backdrop.Opacity = (float)Math.Clamp(opacity, 0, 1);
+        var blurAmount = (float)(Math.Clamp(blurPercentage, 0, 100) / 100 * MaximumBlurAmount);
+        _frontLayer.SetBlurAmount(blurAmount);
+        _backLayer.SetBlurAmount(blurAmount);
+    }
+
+    private void ShowBackdrop(LoadedImageSurface? surface, LoadedImageSurface? previous)
+    {
+        (_frontLayer, _backLayer) = (_backLayer, _frontLayer);
+        _frontLayer.Visual.StopAnimation(nameof(Visual.Opacity));
+        _frontLayer.Opacity = 0;
+        _frontLayer.Surface = surface;
+        _backdrop.Children.Remove(_frontLayer.Visual);
+        _backdrop.Children.InsertAtTop(_frontLayer.Visual);
+
+        // The back layer no longer shows the cover it faded out before this swap.
+        if (!ReferenceEquals(_fadingSurface, surface))
+        {
+            _fadingSurface?.Dispose();
+        }
+
+        _fadingSurface = previous;
+        var version = ++_backdropVersion;
+        if (surface is null || surface.DecodedPhysicalSize.Width > 0)
+        {
+            CrossFade();
+            return;
+        }
+
+        // Keep the previous backdrop until the new cover can actually be drawn.
+        surface.LoadCompleted += (_, _) =>
+        {
+            if (!_disposed && version == _backdropVersion)
+            {
+                CrossFade();
+            }
+        };
+    }
+
+    private void CrossFade()
+    {
+        if (!UiMotion.IsEnabled)
+        {
+            _backLayer.Visual.StopAnimation(nameof(Visual.Opacity));
+            _frontLayer.Opacity = 1;
+            _backLayer.Opacity = 0;
+            return;
+        }
+
+        // The incoming layer rises quickly while the outgoing one lingers, so the two never
+        // both sit near half opacity and let the backdrop dip in the middle of the fade.
+        FadeTo(_frontLayer.Visual, 1, new Vector2(0.1f, 0.9f), new Vector2(0.2f, 1));
+        FadeTo(_backLayer.Visual, 0, new Vector2(0.7f, 0), new Vector2(0.84f, 0));
+    }
+
+    private static void FadeTo(Visual visual, float opacity, Vector2 controlPoint1, Vector2 controlPoint2)
+    {
+        var compositor = visual.Compositor;
+        var animation = compositor.CreateScalarKeyFrameAnimation();
+        animation.InsertKeyFrame(1, opacity, compositor.CreateCubicBezierEasingFunction(controlPoint1, controlPoint2));
+        animation.Duration = TimeSpan.FromMilliseconds(CrossFadeMilliseconds);
+        visual.StartAnimation(nameof(Visual.Opacity), animation);
     }
 
     private void Host_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateSurfaceAlignment();
@@ -228,8 +293,8 @@ public sealed class ArtworkPresenter : IDisposable
             return;
         }
 
-        _surfaceBrush.CenterPoint = size / 2;
-        _surfaceBrush.Offset = size / 2;
+        _frontLayer.Align(size);
+        _backLayer.Align(size);
     }
 
     private void ClearNext()
@@ -265,9 +330,58 @@ public sealed class ArtworkPresenter : IDisposable
         _queueArtworkImage.Source = null;
         _surface?.Dispose();
         _surface = null;
+        _fadingSurface?.Dispose();
+        _fadingSurface = null;
         ClearNext();
-        _surfaceBrush.Dispose();
-        _effectBrush.Dispose();
-        _visual.Dispose();
+        _frontLayer.Dispose();
+        _backLayer.Dispose();
+        _backdrop.Dispose();
+    }
+
+    private sealed class BackdropLayer : IDisposable
+    {
+        private readonly CompositionSurfaceBrush _surfaceBrush;
+        private readonly CompositionEffectBrush _effectBrush;
+
+        public BackdropLayer(Compositor compositor, CompositionEffectFactory effectFactory)
+        {
+            _surfaceBrush = compositor.CreateSurfaceBrush();
+            _surfaceBrush.Stretch = CompositionStretch.UniformToFill;
+            _surfaceBrush.AnchorPoint = new Vector2(0.5f);
+            _effectBrush = effectFactory.CreateBrush();
+            _effectBrush.SetSourceParameter(SourceParameter, _surfaceBrush);
+
+            Visual = compositor.CreateSpriteVisual();
+            Visual.Brush = _effectBrush;
+            Visual.RelativeSizeAdjustment = Vector2.One;
+        }
+
+        public SpriteVisual Visual { get; }
+
+        public float Opacity
+        {
+            set => Visual.Opacity = value;
+        }
+
+        public LoadedImageSurface? Surface
+        {
+            set => _surfaceBrush.Surface = value;
+        }
+
+        public void SetBlurAmount(float blurAmount) =>
+            _effectBrush.Properties.InsertScalar(BlurAmountProperty, blurAmount);
+
+        public void Align(Vector2 size)
+        {
+            _surfaceBrush.CenterPoint = size / 2;
+            _surfaceBrush.Offset = size / 2;
+        }
+
+        public void Dispose()
+        {
+            _surfaceBrush.Dispose();
+            _effectBrush.Dispose();
+            Visual.Dispose();
+        }
     }
 }
