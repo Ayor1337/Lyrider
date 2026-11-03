@@ -370,6 +370,42 @@ public sealed class TaskbarWidgetTests
         Assert.AreEqual(0, TaskbarPresentation.GetLyricTransitionDirection(previous, current));
     }
 
+    [TestMethod]
+    public void GetTextTransitionDirection_SeekingBackward_FollowsLyricDirection()
+    {
+        var previous = CreateLyricState("Later", "Latest", 8);
+        var current = CreateLyricState("Earlier", "Current", 3);
+
+        Assert.AreEqual(-1, TaskbarPresentation.GetTextTransitionDirection(previous, current));
+    }
+
+    [TestMethod]
+    public void GetTextTransitionDirection_TrackChanged_MovesUp()
+    {
+        var previous = new TaskbarPlaybackState("Song", "Artist", null, true, true);
+        var current = previous with { Title = "Another song", Artist = "Another artist" };
+
+        Assert.AreEqual(1, TaskbarPresentation.GetTextTransitionDirection(previous, current));
+    }
+
+    [TestMethod]
+    public void GetTextTransitionDirection_LyricsAppear_MovesUp()
+    {
+        var previous = new TaskbarPlaybackState("Song", "Artist", null, true, true);
+        var current = CreateLyricState("First line", "Second line", 0);
+
+        Assert.AreEqual(1, TaskbarPresentation.GetTextTransitionDirection(previous, current));
+    }
+
+    [TestMethod]
+    public void GetTextTransitionDirection_SameTextOrFirstShow_DoesNotAnimate()
+    {
+        var state = new TaskbarPlaybackState("Song", "Artist", null, true, true);
+
+        Assert.AreEqual(0, TaskbarPresentation.GetTextTransitionDirection(state, state with { IsPlaying = false }));
+        Assert.AreEqual(0, TaskbarPresentation.GetTextTransitionDirection(TaskbarPlaybackState.Unavailable, state));
+    }
+
     private static TaskbarPlaybackState CreateLyricState(
         string currentLyric,
         string nextLyric,

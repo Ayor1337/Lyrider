@@ -19,6 +19,9 @@ public partial class TaskbarWidgetWindow : Window
     private const double MarqueeSpeed = 30;
     private const double MarqueeGap = 24;
     private static readonly TimeSpan MarqueeStartDelay = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan MarqueeEdgeFadeDuration = TimeSpan.FromMilliseconds(200);
+    private const double MarqueeEdgeFadeWidth = 12;
+    private const double PausedContentOpacity = 0.55;
     private const double LyricTransitionOffset = 12;
     private static readonly TimeSpan LyricTransitionDuration = TimeSpan.FromMilliseconds(220);
     private const string TaskbarClassName = "Shell_TrayWnd";
@@ -51,6 +54,8 @@ public partial class TaskbarWidgetWindow : Window
     private string _primaryText = string.Empty;
     private string _secondaryText = string.Empty;
     private int _lyricTransitionGeneration;
+    private bool? _isLightTheme;
+    private bool? _isShowingPaused;
     private Color _idleBackgroundColor = Color.FromArgb(0x01, 0xFF, 0xFF, 0xFF);
     private Color _hoverBackgroundColor = Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF);
     private readonly SolidColorBrush _rootBackgroundBrush = new();
@@ -70,7 +75,7 @@ public partial class TaskbarWidgetWindow : Window
     public TaskbarWidgetWindow()
     {
         InitializeComponent();
-        _artworkPresenter = new TaskbarArtworkPresenter(ArtworkBorder, ArtworkPlaceholder);
+        _artworkPresenter = new TaskbarArtworkPresenter(ArtworkBorder, ArtworkPlaceholder, ArtworkOutgoingLayer);
         PreviousButton.ToolTip = WidgetText.Get("上一首", "Previous");
         PlayPauseButton.ToolTip = WidgetText.Get("播放/暂停", "Play/Pause");
         NextButton.ToolTip = WidgetText.Get("下一首", "Next");
@@ -122,11 +127,11 @@ public partial class TaskbarWidgetWindow : Window
         var marqueeModeChanged =
             TaskbarPresentation.ShouldSynchronizeMarquee(previousState) !=
             TaskbarPresentation.ShouldSynchronizeMarquee(state);
-        var lyricTransitionDirection = TaskbarPresentation.GetLyricTransitionDirection(previousState, state);
+        var textTransitionDirection = TaskbarPresentation.GetTextTransitionDirection(previousState, state);
         var previousDisplayText = TaskbarPresentation.GetDisplayText(previousState);
         _primaryText = displayText.Primary;
         _secondaryText = displayText.Secondary;
-        if (displayTextChanged || marqueeModeChanged || lyricTransitionDirection != 0)
+        if (displayTextChanged || marqueeModeChanged || textTransitionDirection != 0)
         {
             StopMarquee();
         }
@@ -136,15 +141,16 @@ public partial class TaskbarWidgetWindow : Window
         ScrollingArtistText.Text = displayText.Secondary;
         MarqueeArtistText.Text = displayText.Secondary;
         PlayPauseIcon.Text = TaskbarPresentation.GetPlayPauseGlyph(state.IsPlaying);
+        UpdatePausedAppearance(!state.IsPlaying);
         SetArtwork(state.ArtworkUrl);
         UpdateVisibility();
-        if (displayTextChanged || marqueeModeChanged || lyricTransitionDirection != 0)
+        if (displayTextChanged || marqueeModeChanged || textTransitionDirection != 0)
         {
             PrepareMarquee();
         }
-        if (lyricTransitionDirection != 0 && !_isPointerOver)
+        if (textTransitionDirection != 0 && !_isPointerOver)
         {
-            AnimateLyricTransition(previousDisplayText, lyricTransitionDirection);
+            AnimateLyricTransition(previousDisplayText, textTransitionDirection);
         }
         else if ((displayTextChanged || marqueeModeChanged) && !_isPointerOver)
         {
@@ -606,6 +612,14 @@ public partial class TaskbarWidgetWindow : Window
             // Keep the dark taskbar defaults when the preference cannot be read.
         }
 
+        // Called on every host refresh; rebuilding the brushes each time would redraw all text
+        // and cut short a running hover animation.
+        if (_isLightTheme == isLight)
+        {
+            return;
+        }
+
+        _isLightTheme = isLight;
         Foreground = new SolidColorBrush(isLight
             ? Color.FromRgb(0x1C, 0x1C, 0x1C)
             : Colors.White);
@@ -634,6 +648,28 @@ public partial class TaskbarWidgetWindow : Window
 
         Opacity = 1;
         NativeMethods.ShowWindow(Handle, NativeMethods.SwShowNoActivate);
+    }
+
+    /// <summary>Dims the cover and text while paused so the state reads without hovering.</summary>
+    private void UpdatePausedAppearance(bool paused)
+    {
+        if (_isShowingPaused == paused)
+        {
+            return;
+        }
+
+        var opacity = paused ? PausedContentOpacity : 1;
+        if (_isShowingPaused is null)
+        {
+            TextLayer.Opacity = opacity;
+            ArtworkBorder.Opacity = opacity;
+        }
+        else
+        {
+            AnimatePanel(TextLayer, opacity, 0, 200);
+            AnimatePanel(ArtworkBorder, opacity, 0, 200);
+        }
+        _isShowingPaused = paused;
     }
 
     private void DetachAndHide()
@@ -716,12 +752,50 @@ public partial class TaskbarWidgetWindow : Window
         ((TranslateTransform)PrimaryMarqueePanel.RenderTransform).BeginAnimation(
             TranslateTransform.XProperty,
             CreateMarqueeAnimation(cycleDistance, cycleDuration));
+        ApplyMarqueeEdgeFade(PrimaryMarqueeViewport, cycleDuration);
         if (TaskbarPresentation.ShouldSynchronizeMarquee(_state))
         {
             ((TranslateTransform)SecondaryMarqueePanel.RenderTransform).BeginAnimation(
                 TranslateTransform.XProperty,
                 CreateMarqueeAnimation(cycleDistance, cycleDuration));
+            ApplyMarqueeEdgeFade(SecondaryMarqueeViewport, cycleDuration);
         }
+    }
+
+    /// <summary>
+    /// Softens the edges of scrolling text instead of cutting it off. The leading edge only
+    /// fades while the text is moving, so the first glyphs stay crisp during the start delay.
+    /// </summary>
+    private static void ApplyMarqueeEdgeFade(FrameworkElement viewport, TimeSpan cycleDuration)
+    {
+        if (viewport.ActualWidth <= 0)
+        {
+            return;
+        }
+
+        var edge = Math.Min(0.25, MarqueeEdgeFadeWidth / viewport.ActualWidth);
+        var leadingStop = new GradientStop(Colors.Black, 0);
+        var mask = new LinearGradientBrush
+        {
+            StartPoint = new System.Windows.Point(0, 0.5),
+            EndPoint = new System.Windows.Point(1, 0.5)
+        };
+        mask.GradientStops.Add(leadingStop);
+        mask.GradientStops.Add(new GradientStop(Colors.Black, edge));
+        mask.GradientStops.Add(new GradientStop(Colors.Black, 1 - edge));
+        mask.GradientStops.Add(new GradientStop(Colors.Transparent, 1));
+
+        // Same length as the marquee cycle, so both loops stay in step.
+        var leadingFade = new ColorAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever };
+        leadingFade.KeyFrames.Add(new DiscreteColorKeyFrame(Colors.Black, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        leadingFade.KeyFrames.Add(new DiscreteColorKeyFrame(Colors.Black, KeyTime.FromTimeSpan(MarqueeStartDelay)));
+        leadingFade.KeyFrames.Add(new LinearColorKeyFrame(
+            Colors.Transparent, KeyTime.FromTimeSpan(MarqueeStartDelay + MarqueeEdgeFadeDuration)));
+        leadingFade.KeyFrames.Add(new LinearColorKeyFrame(
+            Colors.Transparent, KeyTime.FromTimeSpan(cycleDuration - MarqueeEdgeFadeDuration)));
+        leadingFade.KeyFrames.Add(new LinearColorKeyFrame(Colors.Black, KeyTime.FromTimeSpan(cycleDuration)));
+        viewport.OpacityMask = mask;
+        leadingStop.BeginAnimation(GradientStop.ColorProperty, leadingFade);
     }
 
     // Apply text widths and alignment before the incoming lyric becomes visible.
@@ -791,6 +865,8 @@ public partial class TaskbarWidgetWindow : Window
         var secondaryTransform = (TranslateTransform)SecondaryMarqueePanel.RenderTransform;
         secondaryTransform.BeginAnimation(TranslateTransform.XProperty, null);
         secondaryTransform.X = 0;
+        PrimaryMarqueeViewport.OpacityMask = null;
+        SecondaryMarqueeViewport.OpacityMask = null;
         MarqueeTitleText.Visibility = Visibility.Collapsed;
         ArtistText.Visibility = Visibility.Visible;
         SynchronizedSecondaryMarquee.Visibility = Visibility.Collapsed;

@@ -3,14 +3,16 @@ using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using Color = System.Windows.Media.Color;
 
 namespace Lyrider.TaskbarWidget;
 
-internal sealed class TaskbarArtworkPresenter(Border border, TextBlock placeholder) : IDisposable
+internal sealed class TaskbarArtworkPresenter(Border border, TextBlock placeholder, Border outgoingLayer) : IDisposable
 {
     private static readonly HttpClient ArtworkClient = new() { Timeout = TimeSpan.FromSeconds(15) };
+    private static readonly TimeSpan CrossfadeDuration = TimeSpan.FromMilliseconds(240);
     private Entry? _current;
     private Entry? _next;
     private bool _disposed;
@@ -119,14 +121,46 @@ internal sealed class TaskbarArtworkPresenter(Border border, TextBlock placehold
 
     private void ShowBitmap(BitmapImage bitmap)
     {
+        FadeOutPreviousCover();
         border.Background = new ImageBrush(bitmap) { Stretch = Stretch.UniformToFill };
         placeholder.Visibility = Visibility.Collapsed;
     }
 
     private void ShowPlaceholder()
     {
+        FadeOutPreviousCover();
         border.Background = new SolidColorBrush(Color.FromArgb(0x18, 0xFF, 0xFF, 0xFF));
         placeholder.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>
+    /// The new cover is applied underneath right away; the old one is copied onto a layer
+    /// above it and faded out, so the swap reads as a crossfade instead of a hard cut.
+    /// </summary>
+    private void FadeOutPreviousCover()
+    {
+        outgoingLayer.BeginAnimation(UIElement.OpacityProperty, null);
+        if (border.Background is not ImageBrush previous)
+        {
+            outgoingLayer.Background = null;
+            return;
+        }
+
+        outgoingLayer.Background = previous;
+        var fade = new DoubleAnimation(1, 0, CrossfadeDuration)
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        fade.Completed += (_, _) =>
+        {
+            // A newer swap has already replaced this layer's content.
+            if (ReferenceEquals(outgoingLayer.Background, previous))
+            {
+                outgoingLayer.BeginAnimation(UIElement.OpacityProperty, null);
+                outgoingLayer.Background = null;
+            }
+        };
+        outgoingLayer.BeginAnimation(UIElement.OpacityProperty, fade);
     }
 
     private static bool TryGetUri(string? url, out Uri? uri) =>
