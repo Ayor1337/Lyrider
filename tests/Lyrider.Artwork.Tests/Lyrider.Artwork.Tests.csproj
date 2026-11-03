@@ -16,6 +16,7 @@
     <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.4.0" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
     <Compile Include="../../src/Lyrider/Services/ArtworkPresenter.cs" Link="ArtworkPresenter.cs" />
+    <Compile Include="../../src/Lyrider/Services/UiMotion.cs" Link="UiMotion.cs" />
     <Content Include="../../src/Lyrider/Assets/Lyrider.png" Link="fixture.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
