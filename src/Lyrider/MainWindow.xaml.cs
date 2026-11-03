@@ -38,6 +38,7 @@ public sealed partial class MainWindow : Window
     private readonly TaskbarWidgetHost _taskbarWidgetHost = new();
     private readonly DesktopLyricsHost _desktopLyricsHost = new();
     private readonly LyricsService _lyricsService = new();
+    private readonly ConnectionStatusTracker _connectionStatus = new();
     private readonly CiderService _ciderService;
     private readonly NextTrackLyricsPreloader _nextTrackLyricsPreloader;
     private readonly ArtworkPresenter _artworkPresenter;
@@ -72,6 +73,7 @@ public sealed partial class MainWindow : Window
     private bool _showAboutAfterMenuCloses;
     private DateTimeOffset? _startupLoadingStartedAt;
     private int _currentLyricIndex = -1;
+    private int _commandFeedbackVersion;
     private int _refreshCount;
     private int _renderedLyricsSignature;
     private double _lastPlaybackTime;
@@ -89,6 +91,7 @@ public sealed partial class MainWindow : Window
     private const int AutoScrollSettleMilliseconds = 700;
     private const int StartupLoadingMinimumMilliseconds = 450;
     private const int StartupLoadingExitMilliseconds = 220;
+    private const int CommandFeedbackMilliseconds = 3000;
     private const double OptimisticSeekSeconds = 2.5;
     private const double OptimisticSeekToleranceSeconds = 1.5;
 
@@ -420,7 +423,13 @@ public sealed partial class MainWindow : Window
             var result = await nowPlayingTask;
             var playbackStatus = await playbackStatusTask;
 
-            UpdateConnectionState(result);
+            if (!_connectionStatus.Report(result.State, result.Message))
+            {
+                // Keep the last good state through a transient failure.
+                return;
+            }
+
+            UpdateConnectionState();
             UpdatePlaybackStatus(playbackStatus);
 
             if (result.State != CiderConnectionState.Connected || result.Track is null)
@@ -614,14 +623,27 @@ public sealed partial class MainWindow : Window
     private void PrepareNextLyrics() =>
         _nextTrackLyricsPreloader.Prepare(_nextQueueItem, CurrentLyricsOptions(), _appToken);
 
-    private void UpdateConnectionState(CiderResult result)
+    private void UpdateConnectionState()
     {
-        ConnectionStatusMenuItem.Text = result.Message;
-        ConnectionStatusIcon.Foreground = result.State == CiderConnectionState.Connected
-            ? (Brush)RootGrid.Resources["ConnectedBrush"]
-            : (Brush)RootGrid.Resources["DisconnectedBrush"];
-        SettingsConnectionStatusText.Text = result.Message;
+        var display = ConnectionStatusPresentation.For(_connectionStatus.State);
+        var message = _connectionStatus.State is null
+            ? AppText.Get("正在连接…", "Connecting…")
+            : _connectionStatus.Message;
+        ConnectionStatusMenuItem.Text = message;
+        ConnectionStatusIcon.Foreground = (Brush)RootGrid.Resources[display.BrushKey];
+        SettingsConnectionStatusText.Text = message;
         SettingsConnectionStatusIcon.Foreground = ConnectionStatusIcon.Foreground;
+    }
+
+    private void ShowIdlePlayerText()
+    {
+        var display = ConnectionStatusPresentation.For(_connectionStatus.State);
+        SongNameText.Text = display.IssueTitle ?? AppText.Get("未在播放", "Not Playing");
+        ArtistAlbumText.Text = display.IssueTitle is null ? "—" : _connectionStatus.Message;
+        ConnectionActionButton.Content = ConnectionStatusPresentation.ActionLabel(display.Action);
+        ConnectionActionButton.Visibility = display.Action == ConnectionAction.None
+            ? Visibility.Collapsed
+            : Visibility.Visible;
     }
 
     private void UpdatePlaybackStatus(PlaybackStatus? status)
@@ -662,8 +684,7 @@ public sealed partial class MainWindow : Window
             _presentedTrackKey = null;
             _nextQueueItem = null;
             _nextTrackLyricsPreloader.Clear();
-            SongNameText.Text = AppText.Get("未在播放", "Not Playing");
-            ArtistAlbumText.Text = "—";
+            ShowIdlePlayerText();
             CurrentQueueSongText.Text = AppText.Get("未在播放", "Not Playing");
             CurrentQueueArtistText.Text = "—";
             CurrentTimeText.Text = "0:00";
@@ -701,6 +722,7 @@ public sealed partial class MainWindow : Window
 
         SongNameText.Text = songName;
         ArtistAlbumText.Text = $"{albumName} — {artistName}";
+        ConnectionActionButton.Visibility = Visibility.Collapsed;
         CurrentQueueSongText.Text = songName;
         CurrentQueueArtistText.Text = $"{artistName} — {albumName}";
         var displayedSeconds = ResolveDisplayedPlaybackPosition(currentSeconds, durationSeconds);
@@ -1528,12 +1550,28 @@ public sealed partial class MainWindow : Window
         await RefreshAsync(forceDetails: true);
     }
 
-    private void ReportCommandRejected(string? message = null)
-    {
-        ConnectionStatusMenuItem.Text = message ?? AppText.Get(
+    private void ReportCommandRejected(string? message = null) =>
+        _ = ShowCommandFeedbackAsync(message ?? AppText.Get(
             "Cider 未接受播放指令",
-            "Cider did not accept the playback command");
-        ConnectionStatusIcon.Foreground = (Brush)RootGrid.Resources["DisconnectedBrush"];
+            "Cider did not accept the playback command"));
+
+    private async Task ShowCommandFeedbackAsync(string message)
+    {
+        var version = ++_commandFeedbackVersion;
+        CommandFeedbackText.Text = message;
+        CommandFeedbackBorder.Visibility = Visibility.Visible;
+        await UiMotion.EnterAsync(CommandFeedbackBorder, new Vector2(0, 8), 240);
+        await Task.Delay(CommandFeedbackMilliseconds);
+        if (version != _commandFeedbackVersion)
+        {
+            return;
+        }
+
+        await UiMotion.ExitAsync(CommandFeedbackBorder, new Vector2(0, 8));
+        if (version == _commandFeedbackVersion)
+        {
+            CommandFeedbackBorder.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void TaskbarWidgetHost_CommandRequested(TaskbarPlaybackCommand command)
@@ -1589,7 +1627,29 @@ public sealed partial class MainWindow : Window
         await ShowPlayerPanelAsync(null);
     }
 
-    private async void ConfigureConnectionButton_Click(object sender, RoutedEventArgs e)
+    private async void ConfigureConnectionButton_Click(object sender, RoutedEventArgs e) =>
+        await ShowConnectionDialogAsync();
+
+    private async void ConnectionActionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_connectionStatus.State == CiderConnectionState.Unauthorized)
+        {
+            await ShowConnectionDialogAsync();
+            return;
+        }
+
+        ConnectionActionButton.IsEnabled = false;
+        try
+        {
+            await RefreshAsync(forceDetails: true);
+        }
+        finally
+        {
+            ConnectionActionButton.IsEnabled = true;
+        }
+    }
+
+    private async Task ShowConnectionDialogAsync()
     {
         if (!BeginSettingsAction())
         {
@@ -2108,6 +2168,8 @@ public sealed partial class MainWindow : Window
 
         _ciderService.TryUpdateBaseAddress(apiBaseUrl);
         _appToken = token;
+        _connectionStatus.Reset();
+        UpdateConnectionState();
         _nextTrackLyricsPreloader.Clear();
         _nextQueueItem = null;
         _artworkPresenter.PrepareNext(null);
