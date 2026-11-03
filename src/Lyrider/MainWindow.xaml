@@ -21,6 +21,8 @@
             <ResourceDictionary>
                 <SolidColorBrush x:Key="ConnectedBrush" Color="#FF68D391" />
                 <SolidColorBrush x:Key="DisconnectedBrush" Color="#FFFF746C" />
+                <SolidColorBrush x:Key="WarningBrush" Color="#FFF5B041" />
+                <SolidColorBrush x:Key="ConnectingBrush" Color="#FF9AA0A6" />
                 <Style x:Key="IconButtonStyle" TargetType="Button">
                     <Setter Property="MinWidth" Value="44" />
                     <Setter Property="MinHeight" Value="40" />
@@ -149,7 +151,7 @@
                                 <FontIcon
                                     x:Name="ConnectionStatusIcon"
                                     FontSize="10"
-                                    Foreground="{StaticResource DisconnectedBrush}"
+                                    Foreground="{StaticResource ConnectingBrush}"
                                     Glyph="&#xE91F;" />
                             </MenuFlyoutItem.Icon>
                         </MenuFlyoutItem>
@@ -231,6 +233,31 @@
                     </Grid>
                 </Border>
 
+                <Border
+                    x:Name="CommandFeedbackBorder"
+                    Margin="0,0,0,12"
+                    Padding="14,8"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Bottom"
+                    Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="16"
+                    IsHitTestVisible="False"
+                    Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon
+                            VerticalAlignment="Center"
+                            FontSize="14"
+                            Foreground="{StaticResource DisconnectedBrush}"
+                            Glyph="&#xE783;" />
+                        <TextBlock
+                            x:Name="CommandFeedbackText"
+                            VerticalAlignment="Center"
+                            FontSize="13" />
+                    </StackPanel>
+                </Border>
+
                 <Grid Grid.Row="1" ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -266,6 +293,13 @@
                             Foreground="{ThemeResource SubtleTextBrush}"
                             TextTrimming="CharacterEllipsis" />
                     </Border>
+                    <Button
+                        x:Name="ConnectionActionButton"
+                        Grid.Column="1"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Click="ConnectionActionButton_Click"
+                        Visibility="Collapsed" />
                 </Grid>
 
                 <Grid Grid.Row="2" ColumnSpacing="12">
