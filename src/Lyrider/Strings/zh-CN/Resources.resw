@@ -14,9 +14,13 @@
   <data name="Main_006.Text" xml:space="preserve"><value>退出 Lyrider</value></data>
   <data name="Main_007.Text" xml:space="preserve"><value>未在播放</value></data>
   <data name="Main_009.AutomationProperties.Name" xml:space="preserve"><value>播放进度</value></data>
+  <data name="Main_010.AutomationProperties.Name" xml:space="preserve"><value>随机播放</value></data>
   <data name="Main_010.ToolTipService.ToolTip" xml:space="preserve"><value>随机播放</value></data>
+  <data name="Main_011.AutomationProperties.Name" xml:space="preserve"><value>上一首</value></data>
   <data name="Main_011.ToolTipService.ToolTip" xml:space="preserve"><value>上一首</value></data>
+  <data name="Main_012.AutomationProperties.Name" xml:space="preserve"><value>播放或暂停</value></data>
   <data name="Main_012.ToolTipService.ToolTip" xml:space="preserve"><value>播放或暂停</value></data>
+  <data name="Main_013.AutomationProperties.Name" xml:space="preserve"><value>下一首</value></data>
   <data name="Main_013.ToolTipService.ToolTip" xml:space="preserve"><value>下一首</value></data>
   <data name="Main_014.ToolTipService.ToolTip" xml:space="preserve"><value>循环：关闭</value></data>
   <data name="Main_015.Text" xml:space="preserve"><value>播放队列</value></data>
@@ -24,40 +28,42 @@
   <data name="Main_017.Text" xml:space="preserve"><value>正在播放</value></data>
   <data name="Main_018.Text" xml:space="preserve"><value>未在播放</value></data>
   <data name="Main_019.Text" xml:space="preserve"><value>接下来播放</value></data>
-  <data name="Main_020.Text" xml:space="preserve"><value>来自 Cider 当前播放队列</value></data>
-  <data name="Main_021.Text" xml:space="preserve"><value>播放队列为空</value></data>
+  <data name="Main_020.Text" xml:space="preserve"><value>与 Cider 播放队列同步</value></data>
+  <data name="Main_021.Text" xml:space="preserve"><value>队列里还没有歌曲</value></data>
   <data name="Main_022.Text" xml:space="preserve"><value>这首歌暂时没有歌词</value></data>
+  <data name="Main_023.AutomationProperties.Name" xml:space="preserve"><value>播放队列</value></data>
   <data name="Main_023.ToolTipService.ToolTip" xml:space="preserve"><value>播放队列</value></data>
+  <data name="Main_024.AutomationProperties.Name" xml:space="preserve"><value>歌词</value></data>
   <data name="Main_024.ToolTipService.ToolTip" xml:space="preserve"><value>歌词</value></data>
   <data name="Main_025.AutomationProperties.Name" xml:space="preserve"><value>返回播放器</value></data>
   <data name="Main_025.ToolTipService.ToolTip" xml:space="preserve"><value>返回播放器</value></data>
   <data name="Main_026.Text" xml:space="preserve"><value>设置</value></data>
-  <data name="Main_027.Text" xml:space="preserve"><value>调整 Lyrider 的外观、播放体验与 Cider 连接</value></data>
+  <data name="Main_027.Text" xml:space="preserve"><value>自定义外观、歌词显示与 Cider 连接</value></data>
   <data name="Main_028.Content" xml:space="preserve"><value>保存设置</value></data>
   <data name="Main_029.Text" xml:space="preserve"><value>外观</value></data>
   <data name="Main_030.Text" xml:space="preserve"><value>主题</value></data>
-  <data name="Main_031.Text" xml:space="preserve"><value>选择应用的明暗外观</value></data>
+  <data name="Main_031.Text" xml:space="preserve"><value>浅色、深色或跟随系统</value></data>
   <data name="Main_032.Content" xml:space="preserve"><value>跟随系统</value></data>
   <data name="Main_033.Content" xml:space="preserve"><value>浅色</value></data>
   <data name="Main_034.Content" xml:space="preserve"><value>深色</value></data>
   <data name="Main_035.Text" xml:space="preserve"><value>背景封面强度</value></data>
-  <data name="Main_036.Text" xml:space="preserve"><value>调节封面在播放器背景中的可见程度</value></data>
+  <data name="Main_036.Text" xml:space="preserve"><value>封面在播放器背景中的显示强度</value></data>
   <data name="Main_037.Text" xml:space="preserve"><value>背景封面模糊</value></data>
-  <data name="Main_038.Text" xml:space="preserve"><value>调节背景封面的高斯模糊半径，0% 保持原图清晰</value></data>
+  <data name="Main_038.Text" xml:space="preserve"><value>数值越高背景越柔和，0% 保持原图清晰</value></data>
   <data name="Main_039.Text" xml:space="preserve"><value>歌词与播放</value></data>
   <data name="Main_040.Text" xml:space="preserve"><value>歌词字号</value></data>
-  <data name="Main_041.Text" xml:space="preserve"><value>调整时间轴歌词的显示大小</value></data>
+  <data name="Main_041.Text" xml:space="preserve"><value>歌词页面中的文字大小</value></data>
   <data name="Main_042.Text" xml:space="preserve"><value>繁体歌词转简体</value></data>
-  <data name="Main_043.Text" xml:space="preserve"><value>自动将歌词页面、任务栏和桌面歌词中的繁体歌词转换为简体</value></data>
+  <data name="Main_043.Text" xml:space="preserve"><value>在歌词页、任务栏和桌面歌词中以简体显示繁体歌词</value></data>
   <data name="Main_052.Text" xml:space="preserve"><value>任务栏播放状态</value></data>
   <data name="Main_053.Text" xml:space="preserve"><value>在 Windows 11 主任务栏的小组件旁显示播放信息</value></data>
   <data name="Main_054.Text" xml:space="preserve"><value>任务栏显示歌词</value></data>
-  <data name="Main_055.Text" xml:space="preserve"><value>关闭后显示歌曲名和作者名</value></data>
+  <data name="Main_055.Text" xml:space="preserve"><value>关闭后改为显示歌曲名和歌手</value></data>
   <data name="Main_056.Text" xml:space="preserve"><value>关闭时最小化到托盘</value></data>
-  <data name="Main_057.Text" xml:space="preserve"><value>点击关闭按钮时隐藏到系统托盘；应用菜单中的退出仍会直接关闭</value></data>
+  <data name="Main_057.Text" xml:space="preserve"><value>点击窗口关闭按钮时隐藏到托盘；在应用菜单中选择“退出”会直接关闭</value></data>
   <data name="Main_058.Text" xml:space="preserve"><value>Cider 连接</value></data>
   <data name="Main_059.Text" xml:space="preserve"><value>本地 API</value></data>
-  <data name="Main_060.Text" xml:space="preserve"><value>用于读取 Cider 的播放状态并发送播放控制命令</value></data>
+  <data name="Main_060.Text" xml:space="preserve"><value>读取 Cider 的播放状态并发送播放控制</value></data>
   <data name="Main_061.Header" xml:space="preserve"><value>API 地址</value></data>
   <data name="Main_062.Header" xml:space="preserve"><value>App Token（可选）</value></data>
   <data name="Main_062.PlaceholderText" xml:space="preserve"><value>粘贴从 Cider 复制的 Token</value></data>
@@ -66,7 +72,7 @@
   <data name="Main_063.SecondaryButtonText" xml:space="preserve"><value>测试连接</value></data>
   <data name="Main_063.CloseButtonText" xml:space="preserve"><value>取消</value></data>
   <data name="Main_064.Text" xml:space="preserve"><value>连接 Cider，开始使用 Lyrider</value></data>
-  <data name="Main_065.Text" xml:space="preserve"><value>跟随下面的步骤配置 App Token。Token 只会使用 Windows 当前用户的凭据加密保存在本机。</value></data>
+  <data name="Main_065.Text" xml:space="preserve"><value>按下面三步获取 App Token。Token 会用当前 Windows 账户加密，只保存在这台电脑上。</value></data>
   <data name="Main_066.Text" xml:space="preserve"><value>进入 Cider 的连接设置</value></data>
   <data name="Main_067.Text" xml:space="preserve"><value>打开 Cider“设置”，进入“连接”。</value></data>
   <data name="Main_068.Text" xml:space="preserve"><value>打开外部应用访问管理</value></data>
@@ -79,17 +85,17 @@
   <data name="Main_075.Content" xml:space="preserve"><value>确认并进入</value></data>
   <data name="Main_076.Text" xml:space="preserve"><value>正在把旋律写进此刻…</value></data>
   <data name="Main_077.Text" xml:space="preserve"><value>语言</value></data>
-  <data name="Main_078.Text" xml:space="preserve"><value>选择 Lyrider 的界面语言，重启后生效</value></data>
+  <data name="Main_078.Text" xml:space="preserve"><value>切换界面语言，重启 Lyrider 后生效</value></data>
   <data name="Main_079.Content" xml:space="preserve"><value>跟随系统</value></data>
   <data name="Main_080.Content" xml:space="preserve"><value>简体中文</value></data>
   <data name="Main_081.Content" xml:space="preserve"><value>英语</value></data>
   <data name="Main_082.Text" xml:space="preserve"><value>优先歌词源</value></data>
-  <data name="Main_083.Text" xml:space="preserve"><value>自动时优先网易云；所选来源无合适歌词时继续查找其他来源</value></data>
+  <data name="Main_083.Text" xml:space="preserve"><value>选“自动”时优先网易云音乐；所选来源没有合适歌词时会自动尝试其他来源</value></data>
   <data name="Main_084.Content" xml:space="preserve"><value>自动</value></data>
   <data name="Main_085.Content" xml:space="preserve"><value>网易云音乐</value></data>
   <data name="Main_086.Content" xml:space="preserve"><value>QQ 音乐</value></data>
   <data name="Main_087.Text" xml:space="preserve"><value>显示歌词翻译</value></data>
-  <data name="Main_088.Text" xml:space="preserve"><value>开启后优先查找带中文译文的歌词，找到后在原文下方显示</value></data>
+  <data name="Main_088.Text" xml:space="preserve"><value>优先查找带中文译文的歌词，并在原文下方显示译文</value></data>
   <data name="Main_089.Text" xml:space="preserve"><value>Musixmatch 接口密钥</value></data>
   <data name="Main_090.Text" xml:space="preserve"><value>仅在使用 Musixmatch 时需要，并通过当前 Windows 用户加密保存</value></data>
   <data name="Main_091.PlaceholderText" xml:space="preserve"><value>输入 API Key</value></data>
@@ -97,7 +103,7 @@
   <data name="Main_094.Text" xml:space="preserve"><value>在 Cider 设置 → 连接 → 外部应用中创建 Token。Token 仅在本机加密保存。</value></data>
   <data name="Main_095.Content" xml:space="preserve"><value>配置连接</value></data>
   <data name="Main_096.Text" xml:space="preserve"><value>静默启动</value></data>
-  <data name="Main_097.Text" xml:space="preserve"><value>启动时隐藏主窗口，在系统托盘中运行，下次启动生效</value></data>
+  <data name="Main_097.Text" xml:space="preserve"><value>启动时不显示主窗口，仅在托盘中运行；下次启动生效</value></data>
   <data name="Main_098.Text" xml:space="preserve"><value>任务栏歌词右对齐</value></data>
   <data name="Main_099.Text" xml:space="preserve"><value>任务栏图标靠左时生效：歌词在封面左侧右对齐，封面移到最右侧</value></data>
   <data name="Main_100.Text" xml:space="preserve"><value>实验</value></data>
@@ -107,14 +113,14 @@
   <data name="DesktopSceneLyrics.Content" xml:space="preserve"><value>普通歌词</value></data>
   <data name="DesktopSceneTranslation.Content" xml:space="preserve"><value>带翻译</value></data>
   <data name="DesktopPreviewImage.AutomationProperties.Name" xml:space="preserve"><value>桌面歌词效果预览</value></data>
-  <data name="DesktopPreviewHint.Text" xml:space="preserve"><value>调整后立即预览，保存后应用到桌面</value></data>
-  <data name="DesktopEnableTitle.Text" xml:space="preserve"><value>是否开启</value></data>
+  <data name="DesktopPreviewHint.Text" xml:space="preserve"><value>调整后在这里实时预览，保存后应用到桌面</value></data>
+  <data name="DesktopEnableTitle.Text" xml:space="preserve"><value>显示</value></data>
   <data name="DesktopEnable.Header" xml:space="preserve"><value>启用桌面歌词</value></data>
   <data name="DesktopLock.Header" xml:space="preserve"><value>锁定位置并穿透鼠标</value></data>
   <data name="DesktopPause.Header" xml:space="preserve"><value>暂停时隐藏</value></data>
   <data name="DesktopTranslationTitle.Text" xml:space="preserve"><value>翻译</value></data>
   <data name="DesktopTranslation.Header" xml:space="preserve"><value>非中文歌曲显示翻译</value></data>
-  <data name="DesktopTranslationHint.Text" xml:space="preserve"><value>有译文时只显示当前歌词和翻译，两句均使用已播放色；没有译文时使用所选排版</value></data>
+  <data name="DesktopTranslationHint.Text" xml:space="preserve"><value>有译文时显示当前歌词及其翻译，两行都使用已播放颜色；没有译文时按所选排版显示</value></data>
   <data name="DesktopLayoutTitle.Text" xml:space="preserve"><value>排版</value></data>
   <data name="DesktopLineLabel.Text" xml:space="preserve"><value>显示行数</value></data>
   <data name="DesktopSingle.Text" xml:space="preserve"><value>单行</value></data>
@@ -127,8 +133,8 @@
   <data name="DesktopSplit.Text" xml:space="preserve"><value>左右分离</value></data>
   <data name="DesktopLeft.Text" xml:space="preserve"><value>左对齐</value></data>
   <data name="DesktopRight.Text" xml:space="preserve"><value>右对齐</value></data>
-  <data name="DesktopLayoutHint.Text" xml:space="preserve"><value>翻译随文字方向上下或左右排列，左右分离在翻译模式和单行时按居中显示</value></data>
-  <data name="DesktopSizeHint.Text" xml:space="preserve"><value>可在桌面拖动歌词或边缘调整大小，重置位置立即生效</value></data>
+  <data name="DesktopLayoutHint.Text" xml:space="preserve"><value>翻译随文字方向排在下方或侧边；翻译模式或单行时，“左右分离”按居中显示</value></data>
+  <data name="DesktopSizeHint.Text" xml:space="preserve"><value>在桌面上拖动歌词可移动位置，拖动边缘可调整大小；重置位置会立即生效</value></data>
   <data name="DesktopBlue.Text" xml:space="preserve"><value>清蓝</value></data>
   <data name="DesktopGold.Text" xml:space="preserve"><value>暖金</value></data>
   <data name="DesktopPurple.Text" xml:space="preserve"><value>浅紫</value></data>
@@ -140,7 +146,7 @@
   <data name="DesktopUnplayedColor.Text" xml:space="preserve"><value>未播放</value></data>
   <data name="DesktopUnplayedColorAction.AutomationProperties.Name" xml:space="preserve"><value>未播放</value></data>
   <data name="DesktopKaraoke.Header" xml:space="preserve"><value>逐字显示</value></data>
-  <data name="DesktopKaraokeHint.Text" xml:space="preserve"><value>没有逐字时间时整句高亮</value></data>
+  <data name="DesktopKaraokeHint.Text" xml:space="preserve"><value>歌词没有逐字时间时，整句一起高亮</value></data>
   <data name="DesktopBackgroundLabel.Text" xml:space="preserve"><value>背景不透明度</value></data>
   <data name="DesktopBackgroundSlider.AutomationProperties.Name" xml:space="preserve"><value>背景不透明度</value></data>
   <data name="DesktopTypographyTitle.Text" xml:space="preserve"><value>字样</value></data>
