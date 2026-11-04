@@ -67,6 +67,7 @@ public sealed class CiderServiceTests
                   "artistName": "Artist",
                   "albumName": "Album",
                   "durationInMillis": 180000,
+                  "isrc": "JPE301201741",
                   "hasLyrics": true,
                   "hasTimeSyncedLyrics": true
                 }
@@ -96,6 +97,8 @@ public sealed class CiderServiceTests
         Assert.IsTrue(queue.Items[0].HasLyrics);
         Assert.IsTrue(queue.Items[0].HasTimeSyncedLyrics);
         Assert.IsFalse(queue.Items[1].HasLyrics);
+        Assert.AreEqual("JPE301201741", queue.Items[0].Isrc);
+        Assert.IsNull(queue.Items[1].Isrc);
     }
 
     [TestMethod]

@@ -28,6 +28,9 @@ public sealed class NowPlayingInfo
     [JsonPropertyName("durationInMillis")]
     public double DurationInMillis { get; init; }
 
+    [JsonPropertyName("isrc")]
+    public string? Isrc { get; init; }
+
     [JsonPropertyName("artwork")]
     public ArtworkInfo? Artwork { get; init; }
 

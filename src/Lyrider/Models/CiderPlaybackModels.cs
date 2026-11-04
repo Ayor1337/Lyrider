@@ -15,9 +15,12 @@ public sealed class QueueItemInfo(
     double durationInMillis,
     string? artworkUrl,
     bool hasLyrics = false,
-    bool hasTimeSyncedLyrics = false)
+    bool hasTimeSyncedLyrics = false,
+    string? isrc = null)
 {
     public int Index { get; set; } = index;
+
+    public string? Isrc { get; } = isrc;
 
     public string? Id { get; } = id;
 

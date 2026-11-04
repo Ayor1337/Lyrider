@@ -52,37 +52,172 @@ internal interface ILyricsTrackResolver
         CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// 为外部歌词源补充搜索别名：用 ISRC 查原文标题（Deezer，失败再查 MusicBrainz），
+/// 以及用 Apple 曲目 ID 查日区商店名称。两路并行，各自限时，任一失败不影响另一路。
+/// </summary>
 internal sealed class AppleMusicTrackResolver(HttpClient httpClient) : ILyricsTrackResolver
 {
+    // 比 LyricsService 给解析器的总预算（2 秒）短，超时的一路被丢弃，已完成的一路仍然可用。
+    private static readonly TimeSpan LookupTimeout = TimeSpan.FromSeconds(1.5);
+
     public async Task<IReadOnlyList<LyricsSearchTrack>> ResolveAsync(
         NowPlayingInfo track,
         CancellationToken cancellationToken)
     {
         var original = LyricsSearchTrack.From(track);
-        var trackId = track.PlayParameters?.Id;
-        if (!long.TryParse(trackId, NumberStyles.None, CultureInfo.InvariantCulture, out _))
+        var aliases = await Task.WhenAll(
+            LookupSafelyAsync(token => ResolveIsrcAsync(track.Isrc, token), cancellationToken),
+            LookupSafelyAsync(token => ResolveStorefrontAsync(track, token), cancellationToken));
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var tracks = new List<LyricsSearchTrack> { original };
+        foreach (var alias in aliases)
         {
-            return [original];
+            if (alias is not null && !tracks.Any(existing => LyricsMatching.IsSameIdentity(existing, alias)))
+            {
+                tracks.Add(alias);
+            }
         }
 
-        using var request = new HttpRequestMessage(
-            HttpMethod.Get,
-            $"https://itunes.apple.com/lookup?id={Uri.EscapeDataString(trackId)}&country=jp&entity=song");
-        using var response = await httpClient.SendAsync(
-            request,
-            HttpCompletionOption.ResponseHeadersRead,
+        return tracks;
+    }
+
+    private static async Task<LyricsSearchTrack?> LookupSafelyAsync(
+        Func<CancellationToken, Task<LyricsSearchTrack?>> lookup,
+        CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(LookupTimeout);
+        try
+        {
+            return await lookup(timeout.Token);
+        }
+        catch (Exception)
+        {
+            // 调用方取消由 ResolveAsync 统一抛出；超时与远程错误只表示少一个别名。
+            return null;
+        }
+    }
+
+    private async Task<LyricsSearchTrack?> ResolveIsrcAsync(string? isrc, CancellationToken cancellationToken)
+    {
+        isrc = isrc?.Trim().ToUpperInvariant();
+        if (!IsValidIsrc(isrc))
+        {
+            return null;
+        }
+
+        return await ResolveDeezerAsync(isrc!, cancellationToken) ??
+            await ResolveMusicBrainzAsync(isrc!, cancellationToken);
+    }
+
+    private async Task<LyricsSearchTrack?> ResolveDeezerAsync(string isrc, CancellationToken cancellationToken)
+    {
+        using var document = await GetJsonAsync($"https://api.deezer.com/track/isrc:{isrc}", cancellationToken);
+        if (document is null)
+        {
+            return null;
+        }
+
+        // 查不到时 Deezer 仍回 200，body 为 {"error":{...}}。
+        var root = document.RootElement;
+        var name = LyricsParsing.GetString(root, "title_short") ?? LyricsParsing.GetString(root, "title");
+        var artist = LyricsParsing.TryGetPath(root, out var artistElement, "artist")
+            ? LyricsParsing.GetString(artistElement, "name")
+            : null;
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(artist))
+        {
+            return null;
+        }
+
+        return new LyricsSearchTrack(
+            name.Trim(),
+            artist.Trim(),
+            LyricsParsing.TryGetPath(root, out var album, "album") ? LyricsParsing.GetString(album, "title") : null,
+            LyricsParsing.GetNumber(root, "duration") * 1000);
+    }
+
+    private async Task<LyricsSearchTrack?> ResolveMusicBrainzAsync(string isrc, CancellationToken cancellationToken)
+    {
+        using var document = await GetJsonAsync(
+            $"https://musicbrainz.org/ws/2/isrc/{isrc}?inc=artist-credits&fmt=json",
             cancellationToken);
+        if (document is null ||
+            !LyricsParsing.TryGetPath(document.RootElement, out var recordings, "recordings") ||
+            recordings.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        foreach (var recording in recordings.EnumerateArray())
+        {
+            var name = LyricsParsing.GetString(recording, "title");
+            var artist = JoinArtistCredit(recording);
+            if (!string.IsNullOrWhiteSpace(name) && artist.Length > 0)
+            {
+                return new LyricsSearchTrack(name.Trim(), artist, null, LyricsParsing.GetNumber(recording, "length"));
+            }
+        }
+
+        return null;
+    }
+
+    private static string JoinArtistCredit(JsonElement recording)
+    {
+        if (!LyricsParsing.TryGetPath(recording, out var credits, "artist-credit") ||
+            credits.ValueKind != JsonValueKind.Array)
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        foreach (var credit in credits.EnumerateArray())
+        {
+            builder.Append(LyricsParsing.GetString(credit, "name"));
+            builder.Append(LyricsParsing.GetString(credit, "joinphrase"));
+        }
+
+        return builder.ToString().Trim();
+    }
+
+    private async Task<JsonDocument?> GetJsonAsync(string uri, CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            return [original];
+            return null;
         }
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-        if (!LyricsParsing.TryGetPath(document.RootElement, out var results, "results") ||
+        return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+    }
+
+    // ISRC 固定 12 位：2 位国家码 + 3 位登记者码 + 2 位年份 + 5 位编号。
+    private static bool IsValidIsrc(string? isrc) =>
+        isrc is { Length: 12 } &&
+        isrc.Take(2).All(char.IsAsciiLetterUpper) &&
+        isrc.Skip(2).Take(3).All(char.IsAsciiLetterOrDigit) &&
+        isrc.Skip(5).All(char.IsAsciiDigit);
+
+    private async Task<LyricsSearchTrack?> ResolveStorefrontAsync(
+        NowPlayingInfo track,
+        CancellationToken cancellationToken)
+    {
+        var trackId = track.PlayParameters?.Id;
+        if (!long.TryParse(trackId, NumberStyles.None, CultureInfo.InvariantCulture, out _))
+        {
+            return null;
+        }
+
+        using var document = await GetJsonAsync(
+            $"https://itunes.apple.com/lookup?id={Uri.EscapeDataString(trackId!)}&country=jp&entity=song",
+            cancellationToken);
+        if (document is null ||
+            !LyricsParsing.TryGetPath(document.RootElement, out var results, "results") ||
             results.ValueKind != JsonValueKind.Array)
         {
-            return [original];
+            return null;
         }
 
         foreach (var result in results.EnumerateArray())
@@ -100,17 +235,14 @@ internal sealed class AppleMusicTrackResolver(HttpClient httpClient) : ILyricsTr
                 continue;
             }
 
-            var resolved = new LyricsSearchTrack(
+            return new LyricsSearchTrack(
                 name,
                 artist,
                 LyricsParsing.GetString(result, "collectionName"),
                 LyricsParsing.GetNumber(result, "trackTimeMillis"));
-            return LyricsMatching.IsSameIdentity(original, resolved)
-                ? [original]
-                : [original, resolved];
         }
 
-        return [original];
+        return null;
     }
 }
 

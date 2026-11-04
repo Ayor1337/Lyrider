@@ -919,6 +919,89 @@ public sealed class LyricsServiceTests
     }
 
     [TestMethod]
+    public async Task ResolveAsync_Isrc_UsesDeezerOriginalTitleForProviderSearch()
+    {
+        var handler = IsrcHandler(
+            """{"id":1,"title":"夜に駆ける","title_short":"夜に駆ける","duration":261,"artist":{"name":"YOASOBI"},"album":{"title":"夜に駆ける"}}""",
+            null);
+        using var service = new LyricsService(handler);
+
+        var result = await service.ResolveAsync(
+            IsrcTrack("JPP301900716"), [], new LyricsResolveOptions(LyricsSource.Netease, true));
+
+        Assert.AreEqual(LyricsSource.Netease, result.Source);
+        Assert.AreEqual("奔向夜晚", result.Lines.Single().Translation);
+        Assert.IsTrue(handler.Requests.Any(request => request.Uri.AbsoluteUri == "https://api.deezer.com/track/isrc:JPP301900716"));
+        Assert.IsFalse(handler.Requests.Any(request => request.Uri.Host == "musicbrainz.org"));
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_IsrcUnknownToDeezer_FallsBackToMusicBrainz()
+    {
+        var handler = IsrcHandler(
+            """{"error":{"type":"DataException","message":"no data","code":800}}""",
+            """{"isrc":"JPP301900716","recordings":[{"title":"夜に駆ける","length":258839,"artist-credit":[{"name":"YOASOBI","joinphrase":""}]}]}""");
+        using var service = new LyricsService(handler);
+
+        var result = await service.ResolveAsync(
+            IsrcTrack("jpp301900716"), [], new LyricsResolveOptions(LyricsSource.Netease, true));
+
+        Assert.AreEqual(LyricsSource.Netease, result.Source);
+        Assert.IsTrue(handler.Requests.Any(request =>
+            request.Uri.AbsoluteUri.StartsWith("https://musicbrainz.org/ws/2/isrc/JPP301900716?", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_MalformedIsrc_SkipsIsrcLookup()
+    {
+        var handler = IsrcHandler("""{"title":"夜に駆ける","artist":{"name":"YOASOBI"}}""", null);
+        using var service = new LyricsService(handler);
+
+        var result = await service.ResolveAsync(
+            IsrcTrack("not-an-isrc"), [], new LyricsResolveOptions(LyricsSource.Netease, true));
+
+        Assert.AreEqual(0, result.Lines.Count);
+        Assert.IsFalse(handler.Requests.Any(request =>
+            request.Uri.Host is "api.deezer.com" or "musicbrainz.org"));
+    }
+
+    private static NowPlayingInfo IsrcTrack(string isrc) => new()
+    {
+        Name = "Racing Into The Night",
+        ArtistName = "YOASOBI",
+        DurationInMillis = 261_013,
+        Isrc = isrc,
+        HasTimeSyncedLyrics = true
+    };
+
+    // 网易云只认原文标题；Deezer 与 MusicBrainz 按给定 body 响应（null 表示 404），其余主机一律 404。
+    private static RouteHttpMessageHandler IsrcHandler(string? deezerBody, string? musicBrainzBody) =>
+        new(request =>
+        {
+            var host = request.Uri.Host;
+            if (host == "api.deezer.com" || host == "musicbrainz.org")
+            {
+                var body = host == "api.deezer.com" ? deezerBody : musicBrainzBody;
+                return body is null ? new HttpResponseMessage(HttpStatusCode.NotFound) : Json(body);
+            }
+
+            if (host != "music.163.com")
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            if (request.Uri.AbsolutePath.Contains("search", StringComparison.Ordinal))
+            {
+                var query = Uri.UnescapeDataString(request.Body?.Replace('+', ' ') ?? string.Empty);
+                return Json(query.Contains("s=夜に駆ける YOASOBI", StringComparison.Ordinal)
+                    ? """{"result":{"songs":[{"id":42,"name":"夜に駆ける","duration":261013,"artists":[{"name":"YOASOBI"}]}]}}"""
+                    : """{"result":{"songs":[]}}""");
+            }
+
+            return Json("""{"lrc":{"lyric":"[00:01.00]夜に駆ける"},"tlyric":{"lyric":"[00:01.00]奔向夜晚"}}""");
+        });
+
+    [TestMethod]
     public async Task ResolveAsync_TitleMatchContentDiffersFromCider_StillSearchesByLyrics()
     {
         var handler = LyricSearchHandler(

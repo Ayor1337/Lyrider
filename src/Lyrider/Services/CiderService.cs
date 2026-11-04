@@ -173,7 +173,8 @@ public sealed class CiderService : IDisposable
                     TryFindDouble(element, "durationInMillis", "duration") ?? 0,
                     TryFindArtworkUrl(element),
                     TryFindNestedBoolean(element, "hasLyrics") ?? false,
-                    TryFindNestedBoolean(element, "hasTimeSyncedLyrics") ?? false));
+                    TryFindNestedBoolean(element, "hasTimeSyncedLyrics") ?? false,
+                    TryFindString(element, "isrc")));
                 sourceIndex++;
             }
 
