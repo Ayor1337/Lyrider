@@ -19,12 +19,16 @@ public sealed class LyricsService : IDisposable
         LyricsSource.Lrclib
     ];
 
+    private static readonly TimeSpan ProviderTimeout = TimeSpan.FromSeconds(4);
+
     private readonly HttpClient? _httpClient;
     private readonly IReadOnlyDictionary<LyricsSource, ILyricsProvider> _providers;
     private readonly ILyricsTrackResolver? _trackResolver;
+    private readonly LyricsResultCache _cache;
 
     public LyricsService(HttpMessageHandler? handler = null)
     {
+        _cache = new LyricsResultCache(TimeProvider.System);
         _httpClient = handler is null ? new HttpClient() : new HttpClient(handler);
         _httpClient.Timeout = Timeout.InfiniteTimeSpan;
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
@@ -42,10 +46,12 @@ public sealed class LyricsService : IDisposable
 
     internal LyricsService(
         IEnumerable<ILyricsProvider> providers,
-        ILyricsTrackResolver? trackResolver = null)
+        ILyricsTrackResolver? trackResolver = null,
+        TimeProvider? timeProvider = null)
     {
         _providers = providers.ToDictionary(provider => provider.Source);
         _trackResolver = trackResolver;
+        _cache = new LyricsResultCache(timeProvider ?? TimeProvider.System);
     }
 
     public async Task<LyricsSnapshot> ResolveAsync(
@@ -54,6 +60,24 @@ public sealed class LyricsService : IDisposable
         LyricsResolveOptions options,
         CancellationToken cancellationToken = default,
         Action<LyricsSnapshot>? onProgress = null)
+    {
+        var cacheKey = LyricsResultCache.Key(track, ciderLyrics, options);
+        if (_cache.TryGet(cacheKey, out var cached))
+        {
+            return cached;
+        }
+
+        var result = await ResolveUncachedAsync(track, ciderLyrics, options, cancellationToken, onProgress);
+        _cache.Store(cacheKey, result, LyricsSelection.IsSatisfactory(result, options.IncludeTranslation));
+        return result;
+    }
+
+    private async Task<LyricsSnapshot> ResolveUncachedAsync(
+        NowPlayingInfo track,
+        IReadOnlyList<LyricLineInfo> ciderLyrics,
+        LyricsResolveOptions options,
+        CancellationToken cancellationToken,
+        Action<LyricsSnapshot>? onProgress)
     {
         var requestedSource = Enum.IsDefined(options.Source) ? options.Source : LyricsSource.Auto;
         var sources = requestedSource == LyricsSource.Auto
@@ -67,9 +91,23 @@ public sealed class LyricsService : IDisposable
                 null)
             : null;
 
+        // 外部源与 Cider 歌词内容明显不符时视为错歌，不参与选优，也不借用它的翻译。
+        bool AgreesWithCider(LyricsSnapshot snapshot) =>
+            snapshot.Source == LyricsSource.Cider ||
+            ciderSnapshot is null ||
+            !LyricsMatching.ContradictsReference(ciderSnapshot.Lines, snapshot.Lines);
+
+        bool IsAcceptedAndSatisfactory(LyricsSnapshot snapshot) =>
+            LyricsSelection.IsSatisfactory(snapshot, options.IncludeTranslation) && AgreesWithCider(snapshot);
+
         void ConsiderCandidate(LyricsSnapshot snapshot)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (!AgreesWithCider(snapshot))
+            {
+                return;
+            }
+
             var prepared = PrepareSnapshot(snapshot, ciderSnapshot);
             if (options.IncludeWordTiming && options.IncludeTranslation && best is not null)
                 prepared = MergeMatchingTranslations(prepared, best);
@@ -130,39 +168,77 @@ public sealed class LyricsService : IDisposable
                 continue;
             }
 
-            try
-            {
-                searchTracks ??= await ResolveSearchTracksAsync(track, cancellationToken);
-                using var providerTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                providerTimeout.CancelAfter(TimeSpan.FromSeconds(4));
-                var result = await provider.FetchAsync(
-                    searchTracks,
+            searchTracks ??= await ResolveSearchTracksAsync(track, cancellationToken);
+            var tracks = searchTracks;
+            var result = await FetchWithTimeoutAsync(
+                token => provider.FetchAsync(
+                    tracks,
                     options.IncludeTranslation,
                     options.MusixmatchApiKey,
-                    providerTimeout.Token,
-                    ConsiderCandidate);
+                    token,
+                    ConsiderCandidate),
+                cancellationToken);
+            if (result is not null)
+            {
                 ConsiderCandidate(result);
-                if (LyricsSelection.IsSatisfactory(result, options.IncludeTranslation))
+                if (IsAcceptedAndSatisfactory(result))
                 {
                     return best!;
                 }
             }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+
+            // 标题搜索没找到、或找到的内容与 Cider 歌词对不上时（常见于 Apple Music 英文名
+            // 对应其他平台的日文名），用 Cider 歌词内容反查，单独计时，不占用标题搜索的预算。
+            if (ciderSnapshot is not null &&
+                provider is ILyricsContentSearchProvider contentProvider &&
+                (result is not { Lines.Count: > 0 } ||
+                    LyricsMatching.ContentCoverage(ciderSnapshot.Lines, result.Lines) < LyricsMatching.MinimumContentCoverage))
             {
-                // 该源超时后继续查下一源，已找到的候选仍然保留。
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception)
-            {
-                // 远程源失败后继续回退。
+                var byContent = await FetchWithTimeoutAsync(
+                    token => contentProvider.SearchByLyricsAsync(
+                        tracks,
+                        ciderSnapshot.Lines,
+                        options.IncludeTranslation,
+                        token,
+                        ConsiderCandidate),
+                    cancellationToken);
+                if (byContent is not null)
+                {
+                    ConsiderCandidate(byContent);
+                    if (IsAcceptedAndSatisfactory(byContent))
+                    {
+                        return best!;
+                    }
+                }
             }
         }
 
         cancellationToken.ThrowIfCancellationRequested();
         return best ?? LyricsSnapshot.Empty;
+    }
+
+    /// <summary>
+    /// 单次远程查询限时 4 秒；超时或失败返回 null 以便回退到下一步，已上报的候选仍然保留。
+    /// 调用方取消照常抛出。
+    /// </summary>
+    private static async Task<LyricsSnapshot?> FetchWithTimeoutAsync(
+        Func<CancellationToken, Task<LyricsSnapshot>> fetch,
+        CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(ProviderTimeout);
+        try
+        {
+            return await fetch(timeout.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return null;
+        }
     }
 
     private static LyricsSnapshot MergeMatchingTranslations(LyricsSnapshot target, LyricsSnapshot source)
@@ -274,6 +350,63 @@ public sealed class LyricsService : IDisposable
             : LyricsSource.Auto;
 
     public void Dispose() => _httpClient?.Dispose();
+}
+
+/// <summary>
+/// 解析结果的内存缓存，避免重播、上一首或单曲循环时整套重查。
+/// 满意的结果在本次运行内一直有效；不满意或空的结果可能来自超时或限流，只保留 5 分钟。
+/// </summary>
+internal sealed class LyricsResultCache(TimeProvider timeProvider)
+{
+    private const int Capacity = 64;
+    private static readonly TimeSpan UnsatisfactoryLifetime = TimeSpan.FromMinutes(5);
+
+    private readonly Dictionary<string, Entry> _entries = new(StringComparer.Ordinal);
+    private readonly Lock _lock = new();
+    private long _sequence;
+
+    // 结果取决于歌曲、选项以及有没有拿到 Cider 歌词（用于对齐与内容核对）；不把 API Key 放进键里。
+    public static string Key(NowPlayingInfo track, IReadOnlyList<LyricLineInfo> ciderLyrics, LyricsResolveOptions options) =>
+        string.Join("|",
+            TrackIdentity.For(track),
+            options.Source,
+            options.IncludeTranslation,
+            options.IncludeWordTiming,
+            !string.IsNullOrWhiteSpace(options.MusixmatchApiKey),
+            ciderLyrics.Count > 0);
+
+    public bool TryGet(string key, out LyricsSnapshot snapshot)
+    {
+        lock (_lock)
+        {
+            if (_entries.TryGetValue(key, out var entry) &&
+                (entry.ExpiresAt is null || timeProvider.GetUtcNow() < entry.ExpiresAt))
+            {
+                _entries[key] = entry with { LastUsed = ++_sequence };
+                snapshot = entry.Snapshot;
+                return true;
+            }
+
+            _entries.Remove(key);
+            snapshot = LyricsSnapshot.Empty;
+            return false;
+        }
+    }
+
+    public void Store(string key, LyricsSnapshot snapshot, bool satisfactory)
+    {
+        lock (_lock)
+        {
+            DateTimeOffset? expiresAt = satisfactory ? null : timeProvider.GetUtcNow() + UnsatisfactoryLifetime;
+            _entries[key] = new Entry(snapshot, expiresAt, ++_sequence);
+            if (_entries.Count > Capacity)
+            {
+                _entries.Remove(_entries.MinBy(pair => pair.Value.LastUsed).Key);
+            }
+        }
+    }
+
+    private sealed record Entry(LyricsSnapshot Snapshot, DateTimeOffset? ExpiresAt, long LastUsed);
 }
 
 internal static class LyricsSelection

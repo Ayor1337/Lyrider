@@ -899,6 +899,361 @@ public sealed class LyricsServiceTests
         Assert.AreEqual(4, handler.Requests.Count);
     }
 
+    [TestMethod]
+    public async Task ResolveAsync_EnglishTitleWithJapaneseCiderLyrics_FindsNeteaseByLyricSearch()
+    {
+        var handler = LyricSearchHandler(
+            """{"result":{"songs":[{"id":99,"duration":200000},{"id":7,"duration":181000}]}}""",
+            id => id == 7 ? JapaneseNeteaseLyrics : "[00:01.00]まったく別の歌です");
+        using var service = new LyricsService(handler);
+
+        var result = await service.ResolveAsync(
+            EnglishTitledTrack(),
+            JapaneseCiderLyrics,
+            new LyricsResolveOptions(LyricsSource.Auto, true));
+
+        Assert.AreEqual(LyricsSource.Netease, result.Source);
+        Assert.AreEqual("在遥远的夜空下", result.Lines[0].Translation);
+        Assert.IsTrue(handler.Requests.Any(request => request.Body?.Contains("type=1006", StringComparison.Ordinal) == true));
+        Assert.IsFalse(handler.Requests.Any(request => request.Uri.Query.Contains("id=99", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_Isrc_UsesDeezerOriginalTitleForProviderSearch()
+    {
+        var handler = IsrcHandler(
+            """{"id":1,"title":"夜に駆ける","title_short":"夜に駆ける","duration":261,"artist":{"name":"YOASOBI"},"album":{"title":"夜に駆ける"}}""",
+            null);
+        using var service = new LyricsService(handler);
+
+        var result = await service.ResolveAsync(
+            IsrcTrack("JPP301900716"), [], new LyricsResolveOptions(LyricsSource.Netease, true));
+
+        Assert.AreEqual(LyricsSource.Netease, result.Source);
+        Assert.AreEqual("奔向夜晚", result.Lines.Single().Translation);
+        Assert.IsTrue(handler.Requests.Any(request => request.Uri.AbsoluteUri == "https://api.deezer.com/track/isrc:JPP301900716"));
+        Assert.IsFalse(handler.Requests.Any(request => request.Uri.Host == "musicbrainz.org"));
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_IsrcUnknownToDeezer_FallsBackToMusicBrainz()
+    {
+        var handler = IsrcHandler(
+            """{"error":{"type":"DataException","message":"no data","code":800}}""",
+            """{"isrc":"JPP301900716","recordings":[{"title":"夜に駆ける","length":258839,"artist-credit":[{"name":"YOASOBI","joinphrase":""}]}]}""");
+        using var service = new LyricsService(handler);
+
+        var result = await service.ResolveAsync(
+            IsrcTrack("jpp301900716"), [], new LyricsResolveOptions(LyricsSource.Netease, true));
+
+        Assert.AreEqual(LyricsSource.Netease, result.Source);
+        Assert.IsTrue(handler.Requests.Any(request =>
+            request.Uri.AbsoluteUri.StartsWith("https://musicbrainz.org/ws/2/isrc/JPP301900716?", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_MalformedIsrc_SkipsIsrcLookup()
+    {
+        var handler = IsrcHandler("""{"title":"夜に駆ける","artist":{"name":"YOASOBI"}}""", null);
+        using var service = new LyricsService(handler);
+
+        var result = await service.ResolveAsync(
+            IsrcTrack("not-an-isrc"), [], new LyricsResolveOptions(LyricsSource.Netease, true));
+
+        Assert.AreEqual(0, result.Lines.Count);
+        Assert.IsFalse(handler.Requests.Any(request =>
+            request.Uri.Host is "api.deezer.com" or "musicbrainz.org"));
+    }
+
+    private static NowPlayingInfo IsrcTrack(string isrc) => new()
+    {
+        Name = "Racing Into The Night",
+        ArtistName = "YOASOBI",
+        DurationInMillis = 261_013,
+        Isrc = isrc,
+        HasTimeSyncedLyrics = true
+    };
+
+    // 网易云只认原文标题；Deezer 与 MusicBrainz 按给定 body 响应（null 表示 404），其余主机一律 404。
+    private static RouteHttpMessageHandler IsrcHandler(string? deezerBody, string? musicBrainzBody) =>
+        new(request =>
+        {
+            var host = request.Uri.Host;
+            if (host == "api.deezer.com" || host == "musicbrainz.org")
+            {
+                var body = host == "api.deezer.com" ? deezerBody : musicBrainzBody;
+                return body is null ? new HttpResponseMessage(HttpStatusCode.NotFound) : Json(body);
+            }
+
+            if (host != "music.163.com")
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            if (request.Uri.AbsolutePath.Contains("search", StringComparison.Ordinal))
+            {
+                var query = Uri.UnescapeDataString(request.Body?.Replace('+', ' ') ?? string.Empty);
+                return Json(query.Contains("s=夜に駆ける YOASOBI", StringComparison.Ordinal)
+                    ? """{"result":{"songs":[{"id":42,"name":"夜に駆ける","duration":261013,"artists":[{"name":"YOASOBI"}]}]}}"""
+                    : """{"result":{"songs":[]}}""");
+            }
+
+            return Json("""{"lrc":{"lyric":"[00:01.00]夜に駆ける"},"tlyric":{"lyric":"[00:01.00]奔向夜晚"}}""");
+        });
+
+    [TestMethod]
+    public async Task ResolveAsync_TitleMatchContentDiffersFromCider_StillSearchesByLyrics()
+    {
+        var handler = LyricSearchHandler(
+            """{"result":{"songs":[{"id":7,"duration":181000}]}}""",
+            id => id == 7 ? JapaneseNeteaseLyrics : "[00:01.00]まったく別の歌です\n[00:05.00]歌詞が違います",
+            """{"result":{"songs":[{"id":5,"name":"Under The Far Night Sky","duration":180000,"artists":[{"name":"Example Band"}]}]}}""");
+        using var service = new LyricsService(handler);
+
+        var result = await service.ResolveAsync(
+            EnglishTitledTrack(),
+            JapaneseCiderLyrics,
+            new LyricsResolveOptions(LyricsSource.Auto, true));
+
+        Assert.AreEqual(LyricsSource.Netease, result.Source);
+        Assert.AreEqual("在遥远的夜空下", result.Lines[0].Translation);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_LyricSearchCandidateWithDifferentContent_KeepsCiderLyrics()
+    {
+        var handler = LyricSearchHandler(
+            """{"result":{"songs":[{"id":7,"duration":181000}]}}""",
+            _ => "[00:01.00]まったく別の歌です\n[00:05.00]歌詞が違います\n[00:09.00]これは別の曲");
+        using var service = new LyricsService(handler);
+
+        var result = await service.ResolveAsync(
+            EnglishTitledTrack(),
+            JapaneseCiderLyrics,
+            new LyricsResolveOptions(LyricsSource.Auto, true));
+
+        Assert.AreEqual(LyricsSource.Cider, result.Source);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_WithoutCiderLyrics_SkipsLyricSearch()
+    {
+        var handler = LyricSearchHandler(
+            """{"result":{"songs":[{"id":7,"duration":181000}]}}""",
+            _ => JapaneseNeteaseLyrics);
+        using var service = new LyricsService(handler);
+
+        await service.ResolveAsync(EnglishTitledTrack(), [], new LyricsResolveOptions(LyricsSource.Auto, true));
+
+        Assert.IsFalse(handler.Requests.Any(request => request.Body?.Contains("type=1006", StringComparison.Ordinal) == true));
+    }
+
+    [TestMethod]
+    public void ContentCoverage_SplitLinesAndTraditionalCharacters_StillMatch()
+    {
+        LyricLineInfo[] reference =
+        [
+            new(1, null, "遠い夜空の下で 君を待つ"),
+            new(2, null, "風が運ぶ記憶")
+        ];
+        LyricLineInfo[] candidate =
+        [
+            new(1, null, "远い夜空の下で"),
+            new(1.5, null, "君を待つ"),
+            new(2, null, "风が运ぶ记忆")
+        ];
+
+        Assert.AreEqual(1.0, LyricsMatching.ContentCoverage(reference, candidate), 0.001);
+    }
+
+    [TestMethod]
+    public void SelectLyricQueries_RepeatedAndShortLines_AreSkipped()
+    {
+        LyricLineInfo[] reference =
+        [
+            new(1, null, "繰り返すサビの一行です"),
+            new(2, null, "ああ"),
+            new(3, null, "一度だけ歌われる長い行です"),
+            new(4, null, "繰り返すサビの一行です")
+        ];
+
+        CollectionAssert.AreEqual(
+            new[] { "一度だけ歌われる長い行です" },
+            LyricsMatching.SelectLyricQueries(reference, 2).ToArray());
+    }
+
+    private const string JapaneseNeteaseLyrics =
+        """
+        [00:01.00]遠い夜空の下で
+        [00:05.00]風が運ぶ記憶を
+        [00:09.00]ひとりで数えている
+        """;
+
+    private static readonly LyricLineInfo[] JapaneseCiderLyrics =
+    [
+        new(1.2, 5.2, "遠い夜空の下で"),
+        new(5.2, 9.2, "風が運ぶ記憶を"),
+        new(9.2, 13, "ひとりで数えている")
+    ];
+
+    private static NowPlayingInfo EnglishTitledTrack() => new()
+    {
+        Name = "Under The Far Night Sky",
+        ArtistName = "Example Band",
+        DurationInMillis = 180_000,
+        HasTimeSyncedLyrics = true
+    };
+
+    // 标题搜索（type=1）找不到，歌词搜索（type=1006）返回 lyricSearchBody；其余源一律 404。
+    private static RouteHttpMessageHandler LyricSearchHandler(
+        string lyricSearchBody,
+        Func<long, string> lrcForId,
+        string titleSearchBody = """{"result":{"songs":[]}}""") =>
+        new(request =>
+        {
+            if (!request.Uri.Host.Equals("music.163.com", StringComparison.OrdinalIgnoreCase))
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            if (request.Uri.AbsolutePath.Contains("search", StringComparison.Ordinal))
+            {
+                return Json(request.Body?.Contains("type=1006", StringComparison.Ordinal) == true
+                    ? lyricSearchBody
+                    : titleSearchBody);
+            }
+
+            var id = long.Parse(request.Uri.Query.Split("id=")[1].Split('&')[0]);
+            var translation = id == 7
+                ? "[00:01.00]在遥远的夜空下\n[00:05.00]风带来的记忆\n[00:09.00]独自数着"
+                : "";
+            return Json(System.Text.Json.JsonSerializer.Serialize(new
+            {
+                lrc = new { lyric = lrcForId(id) },
+                tlyric = new { lyric = translation }
+            }));
+        });
+
+    [TestMethod]
+    public async Task ResolveAsync_RemoteLyricsContradictCider_KeepsCiderLyrics()
+    {
+        LyricLineInfo[] cider =
+        [
+            new(1, 4, "Walking down the empty road"),
+            new(4, 8, "Counting every passing light"),
+            new(8, 12, "Waiting for the morning sun")
+        ];
+        var netease = new FakeLyricsProvider(LyricsSource.Netease, new(
+        [
+            new(1, 4, "A different song entirely", "完全不同的歌"),
+            new(4, 8, "Nothing here is the same", "这里什么都不一样"),
+            new(8, 12, "Wrong lyrics with translation", "带翻译的错误歌词")
+        ], true, LyricsSource.Netease));
+        using var service = new LyricsService([netease]);
+
+        var result = await service.ResolveAsync(CreateTrack(), cider, new LyricsResolveOptions(LyricsSource.Auto, true));
+
+        Assert.AreEqual(LyricsSource.Cider, result.Source);
+    }
+
+    [TestMethod]
+    public void IsConfidentMatch_NeutralTagsAndTraditionalCharacters_Match()
+    {
+        Assert.IsTrue(LyricsMatching.IsConfidentMatch(
+            new LyricsSearchTrack("Song (feat. Guest)", "Main", null, 120_000), "Song", "Main / Guest", 121));
+        Assert.IsTrue(LyricsMatching.IsConfidentMatch(
+            new LyricsSearchTrack("Song - Remastered 2011", "Main", null, 120_000), "Song", "Main", 120));
+        Assert.IsTrue(LyricsMatching.IsConfidentMatch(
+            new LyricsSearchTrack("七里香", "周杰倫", null, 299_000), "七里香", "周杰伦", 299));
+        Assert.IsTrue(LyricsMatching.IsConfidentMatch(
+            new LyricsSearchTrack("Song", "A & B", null, 120_000), "Song", "B / A", 120));
+    }
+
+    [TestMethod]
+    public void IsConfidentMatch_StrippedTitleWithoutDuration_ReturnsFalse()
+    {
+        Assert.IsFalse(LyricsMatching.IsConfidentMatch(
+            new LyricsSearchTrack("Song (feat. Guest)", "Main", null, 0), "Song", "Main", 120));
+        Assert.IsFalse(LyricsMatching.IsConfidentMatch(
+            new LyricsSearchTrack("Song (Acoustic)", "Main", null, 120_000), "Song", "Main", 120));
+    }
+
+    [TestMethod]
+    public void SearchTitleAndPrimaryArtist_StripNeutralTagsAndCollaborators()
+    {
+        Assert.AreEqual("Song", LyricsMatching.SearchTitle("Song (feat. Guest) - Remastered 2011"));
+        Assert.AreEqual("Song", LyricsMatching.SearchTitle("Song ft. Guest"));
+        Assert.AreEqual("残響散歌 (TV Size)", LyricsMatching.SearchTitle("残響散歌 (TV Size)"));
+        Assert.AreEqual("Main", LyricsMatching.PrimaryArtist("Main & Guest"));
+        Assert.AreEqual("Featherweight", LyricsMatching.PrimaryArtist("Featherweight"));
+    }
+
+    [TestMethod]
+    public async Task FetchAsync_Netease_SearchesWithCleanedTitleAndPrimaryArtist()
+    {
+        var handler = new RouteHttpMessageHandler(_ => Json("""{"result":{"songs":[]}}"""));
+        using var client = new HttpClient(handler);
+
+        await new NeteaseLyricsProvider(client).FetchAsync(
+            [new LyricsSearchTrack("Song (feat. Guest)", "Main & Guest", null, 120_000)], false, null, CancellationToken.None);
+
+        Assert.AreEqual("s=Song+Main&type=1&offset=0&limit=10", handler.Requests.Single().Body);
+    }
+
+    [TestMethod]
+    public async Task FetchAsync_NeteaseCode406_CoolsDownWithoutFurtherRequests()
+    {
+        var handler = new RouteHttpMessageHandler(_ => Json("""{"code":406,"msg":"操作频繁，请稍候再试"}"""));
+        using var client = new HttpClient(handler);
+        var provider = new NeteaseLyricsProvider(client);
+        var track = LyricsSearchTrack.From(CreateTrack());
+
+        await provider.FetchAsync([track], false, null, CancellationToken.None);
+        await provider.FetchAsync([track], false, null, CancellationToken.None);
+
+        Assert.AreEqual(1, handler.Requests.Count);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_SameTrackTwice_ReusesSatisfactoryResult()
+    {
+        var netease = new FakeLyricsProvider(LyricsSource.Netease, TranslatedSnapshot(LyricsSource.Netease, 5));
+        using var service = new LyricsService([netease]);
+        var options = new LyricsResolveOptions(LyricsSource.Auto, true);
+
+        await service.ResolveAsync(CreateTrack(), [], options);
+        var second = await service.ResolveAsync(CreateTrack(), [], options);
+        await service.ResolveAsync(CreateTrack(), [], options with { IncludeTranslation = false });
+
+        Assert.AreEqual(LyricsSource.Netease, second.Source);
+        Assert.AreEqual(2, netease.RequestCount);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_UnsatisfactoryResult_ExpiresAfterFiveMinutes()
+    {
+        var clock = new ManualTimeProvider();
+        var netease = new FakeLyricsProvider(LyricsSource.Netease, LyricsSnapshot.Empty);
+        using var service = new LyricsService([netease], timeProvider: clock);
+        var options = new LyricsResolveOptions(LyricsSource.Auto, false);
+
+        await service.ResolveAsync(CreateTrack(), [], options);
+        clock.Now += TimeSpan.FromMinutes(4);
+        await service.ResolveAsync(CreateTrack(), [], options);
+        Assert.AreEqual(1, netease.RequestCount);
+
+        clock.Now += TimeSpan.FromMinutes(2);
+        await service.ResolveAsync(CreateTrack(), [], options);
+        Assert.AreEqual(2, netease.RequestCount);
+    }
+
+    private sealed class ManualTimeProvider : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = DateTimeOffset.UnixEpoch;
+
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+
     private static ILyricsProvider CreateProvider(LyricsSource source, HttpClient client) => source switch
     {
         LyricsSource.Netease => new NeteaseLyricsProvider(client),

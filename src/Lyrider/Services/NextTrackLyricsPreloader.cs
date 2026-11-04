@@ -221,6 +221,7 @@ internal sealed class NextTrackLyricsPreloader : IDisposable
         ArtistName = item.ArtistName,
         AlbumName = item.AlbumName,
         DurationInMillis = item.DurationInMillis,
+        Isrc = item.Isrc,
         Artwork = new ArtworkInfo { Url = item.ArtworkUrl },
         PlayParameters = new PlayParameters { Id = item.Id, Kind = "song" },
         HasLyrics = item.HasLyrics,
