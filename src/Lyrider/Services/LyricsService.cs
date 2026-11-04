@@ -69,9 +69,23 @@ public sealed class LyricsService : IDisposable
                 null)
             : null;
 
+        // 外部源与 Cider 歌词内容明显不符时视为错歌，不参与选优，也不借用它的翻译。
+        bool AgreesWithCider(LyricsSnapshot snapshot) =>
+            snapshot.Source == LyricsSource.Cider ||
+            ciderSnapshot is null ||
+            !LyricsMatching.ContradictsReference(ciderSnapshot.Lines, snapshot.Lines);
+
+        bool IsAcceptedAndSatisfactory(LyricsSnapshot snapshot) =>
+            LyricsSelection.IsSatisfactory(snapshot, options.IncludeTranslation) && AgreesWithCider(snapshot);
+
         void ConsiderCandidate(LyricsSnapshot snapshot)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (!AgreesWithCider(snapshot))
+            {
+                return;
+            }
+
             var prepared = PrepareSnapshot(snapshot, ciderSnapshot);
             if (options.IncludeWordTiming && options.IncludeTranslation && best is not null)
                 prepared = MergeMatchingTranslations(prepared, best);
@@ -145,7 +159,7 @@ public sealed class LyricsService : IDisposable
             if (result is not null)
             {
                 ConsiderCandidate(result);
-                if (LyricsSelection.IsSatisfactory(result, options.IncludeTranslation))
+                if (IsAcceptedAndSatisfactory(result))
                 {
                     return best!;
                 }
@@ -169,7 +183,7 @@ public sealed class LyricsService : IDisposable
                 if (byContent is not null)
                 {
                     ConsiderCandidate(byContent);
-                    if (LyricsSelection.IsSatisfactory(byContent, options.IncludeTranslation))
+                    if (IsAcceptedAndSatisfactory(byContent))
                     {
                         return best!;
                     }

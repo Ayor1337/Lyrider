@@ -1135,6 +1135,28 @@ public sealed class LyricsServiceTests
         });
 
     [TestMethod]
+    public async Task ResolveAsync_RemoteLyricsContradictCider_KeepsCiderLyrics()
+    {
+        LyricLineInfo[] cider =
+        [
+            new(1, 4, "Walking down the empty road"),
+            new(4, 8, "Counting every passing light"),
+            new(8, 12, "Waiting for the morning sun")
+        ];
+        var netease = new FakeLyricsProvider(LyricsSource.Netease, new(
+        [
+            new(1, 4, "A different song entirely", "完全不同的歌"),
+            new(4, 8, "Nothing here is the same", "这里什么都不一样"),
+            new(8, 12, "Wrong lyrics with translation", "带翻译的错误歌词")
+        ], true, LyricsSource.Netease));
+        using var service = new LyricsService([netease]);
+
+        var result = await service.ResolveAsync(CreateTrack(), cider, new LyricsResolveOptions(LyricsSource.Auto, true));
+
+        Assert.AreEqual(LyricsSource.Cider, result.Source);
+    }
+
+    [TestMethod]
     public void IsConfidentMatch_NeutralTagsAndTraditionalCharacters_Match()
     {
         Assert.IsTrue(LyricsMatching.IsConfidentMatch(

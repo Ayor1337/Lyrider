@@ -1065,13 +1065,32 @@ internal static class LyricsMatching
     /// 参考歌词中有多少比例的行出现在候选歌词里。候选按顺序拼接后再查找，
     /// 因此两边断行方式不同（一行拆成两行或两行合成一行）也能命中。
     /// </summary>
-    public static double ContentCoverage(IReadOnlyList<LyricLineInfo> reference, IReadOnlyList<LyricLineInfo> candidate)
+    public static double ContentCoverage(IReadOnlyList<LyricLineInfo> reference, IReadOnlyList<LyricLineInfo> candidate) =>
+        ContentCoverage(ContentKeys(reference), candidate);
+
+    /// <summary>
+    /// 候选与参考歌词明显不是同一首：参考至少有 3 行可比对，且命中不足 30%。
+    /// 门槛比反查宽松，只拦截错歌，容忍两边写法、断行和部分缺行的差异。
+    /// </summary>
+    public static bool ContradictsReference(IReadOnlyList<LyricLineInfo> reference, IReadOnlyList<LyricLineInfo> candidate)
     {
-        var keys = reference
+        var keys = ContentKeys(reference);
+        return keys.Length >= MinimumContentEvidence &&
+            ContentCoverage(keys, candidate) < MinimumReferenceAgreement;
+    }
+
+    private const int MinimumContentEvidence = 3;
+    private const double MinimumReferenceAgreement = 0.3;
+
+    private static string[] ContentKeys(IReadOnlyList<LyricLineInfo> reference) =>
+        reference
             .Select(line => MatchKey(line.Text))
             .Where(key => key.Length >= MinimumContentLineLength)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+
+    private static double ContentCoverage(string[] keys, IReadOnlyList<LyricLineInfo> candidate)
+    {
         if (keys.Length == 0 || candidate.Count == 0)
         {
             return 0;
