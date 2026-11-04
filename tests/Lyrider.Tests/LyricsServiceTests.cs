@@ -1200,6 +1200,60 @@ public sealed class LyricsServiceTests
         Assert.AreEqual("s=Song+Main&type=1&offset=0&limit=10", handler.Requests.Single().Body);
     }
 
+    [TestMethod]
+    public async Task FetchAsync_NeteaseCode406_CoolsDownWithoutFurtherRequests()
+    {
+        var handler = new RouteHttpMessageHandler(_ => Json("""{"code":406,"msg":"操作频繁，请稍候再试"}"""));
+        using var client = new HttpClient(handler);
+        var provider = new NeteaseLyricsProvider(client);
+        var track = LyricsSearchTrack.From(CreateTrack());
+
+        await provider.FetchAsync([track], false, null, CancellationToken.None);
+        await provider.FetchAsync([track], false, null, CancellationToken.None);
+
+        Assert.AreEqual(1, handler.Requests.Count);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_SameTrackTwice_ReusesSatisfactoryResult()
+    {
+        var netease = new FakeLyricsProvider(LyricsSource.Netease, TranslatedSnapshot(LyricsSource.Netease, 5));
+        using var service = new LyricsService([netease]);
+        var options = new LyricsResolveOptions(LyricsSource.Auto, true);
+
+        await service.ResolveAsync(CreateTrack(), [], options);
+        var second = await service.ResolveAsync(CreateTrack(), [], options);
+        await service.ResolveAsync(CreateTrack(), [], options with { IncludeTranslation = false });
+
+        Assert.AreEqual(LyricsSource.Netease, second.Source);
+        Assert.AreEqual(2, netease.RequestCount);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_UnsatisfactoryResult_ExpiresAfterFiveMinutes()
+    {
+        var clock = new ManualTimeProvider();
+        var netease = new FakeLyricsProvider(LyricsSource.Netease, LyricsSnapshot.Empty);
+        using var service = new LyricsService([netease], timeProvider: clock);
+        var options = new LyricsResolveOptions(LyricsSource.Auto, false);
+
+        await service.ResolveAsync(CreateTrack(), [], options);
+        clock.Now += TimeSpan.FromMinutes(4);
+        await service.ResolveAsync(CreateTrack(), [], options);
+        Assert.AreEqual(1, netease.RequestCount);
+
+        clock.Now += TimeSpan.FromMinutes(2);
+        await service.ResolveAsync(CreateTrack(), [], options);
+        Assert.AreEqual(2, netease.RequestCount);
+    }
+
+    private sealed class ManualTimeProvider : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = DateTimeOffset.UnixEpoch;
+
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+
     private static ILyricsProvider CreateProvider(LyricsSource source, HttpClient client) => source switch
     {
         LyricsSource.Netease => new NeteaseLyricsProvider(client),

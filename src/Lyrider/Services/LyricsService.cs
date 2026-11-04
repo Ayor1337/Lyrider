@@ -24,9 +24,11 @@ public sealed class LyricsService : IDisposable
     private readonly HttpClient? _httpClient;
     private readonly IReadOnlyDictionary<LyricsSource, ILyricsProvider> _providers;
     private readonly ILyricsTrackResolver? _trackResolver;
+    private readonly LyricsResultCache _cache;
 
     public LyricsService(HttpMessageHandler? handler = null)
     {
+        _cache = new LyricsResultCache(TimeProvider.System);
         _httpClient = handler is null ? new HttpClient() : new HttpClient(handler);
         _httpClient.Timeout = Timeout.InfiniteTimeSpan;
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
@@ -44,10 +46,12 @@ public sealed class LyricsService : IDisposable
 
     internal LyricsService(
         IEnumerable<ILyricsProvider> providers,
-        ILyricsTrackResolver? trackResolver = null)
+        ILyricsTrackResolver? trackResolver = null,
+        TimeProvider? timeProvider = null)
     {
         _providers = providers.ToDictionary(provider => provider.Source);
         _trackResolver = trackResolver;
+        _cache = new LyricsResultCache(timeProvider ?? TimeProvider.System);
     }
 
     public async Task<LyricsSnapshot> ResolveAsync(
@@ -56,6 +60,24 @@ public sealed class LyricsService : IDisposable
         LyricsResolveOptions options,
         CancellationToken cancellationToken = default,
         Action<LyricsSnapshot>? onProgress = null)
+    {
+        var cacheKey = LyricsResultCache.Key(track, ciderLyrics, options);
+        if (_cache.TryGet(cacheKey, out var cached))
+        {
+            return cached;
+        }
+
+        var result = await ResolveUncachedAsync(track, ciderLyrics, options, cancellationToken, onProgress);
+        _cache.Store(cacheKey, result, LyricsSelection.IsSatisfactory(result, options.IncludeTranslation));
+        return result;
+    }
+
+    private async Task<LyricsSnapshot> ResolveUncachedAsync(
+        NowPlayingInfo track,
+        IReadOnlyList<LyricLineInfo> ciderLyrics,
+        LyricsResolveOptions options,
+        CancellationToken cancellationToken,
+        Action<LyricsSnapshot>? onProgress)
     {
         var requestedSource = Enum.IsDefined(options.Source) ? options.Source : LyricsSource.Auto;
         var sources = requestedSource == LyricsSource.Auto
@@ -328,6 +350,63 @@ public sealed class LyricsService : IDisposable
             : LyricsSource.Auto;
 
     public void Dispose() => _httpClient?.Dispose();
+}
+
+/// <summary>
+/// 解析结果的内存缓存，避免重播、上一首或单曲循环时整套重查。
+/// 满意的结果在本次运行内一直有效；不满意或空的结果可能来自超时或限流，只保留 5 分钟。
+/// </summary>
+internal sealed class LyricsResultCache(TimeProvider timeProvider)
+{
+    private const int Capacity = 64;
+    private static readonly TimeSpan UnsatisfactoryLifetime = TimeSpan.FromMinutes(5);
+
+    private readonly Dictionary<string, Entry> _entries = new(StringComparer.Ordinal);
+    private readonly Lock _lock = new();
+    private long _sequence;
+
+    // 结果取决于歌曲、选项以及有没有拿到 Cider 歌词（用于对齐与内容核对）；不把 API Key 放进键里。
+    public static string Key(NowPlayingInfo track, IReadOnlyList<LyricLineInfo> ciderLyrics, LyricsResolveOptions options) =>
+        string.Join("|",
+            TrackIdentity.For(track),
+            options.Source,
+            options.IncludeTranslation,
+            options.IncludeWordTiming,
+            !string.IsNullOrWhiteSpace(options.MusixmatchApiKey),
+            ciderLyrics.Count > 0);
+
+    public bool TryGet(string key, out LyricsSnapshot snapshot)
+    {
+        lock (_lock)
+        {
+            if (_entries.TryGetValue(key, out var entry) &&
+                (entry.ExpiresAt is null || timeProvider.GetUtcNow() < entry.ExpiresAt))
+            {
+                _entries[key] = entry with { LastUsed = ++_sequence };
+                snapshot = entry.Snapshot;
+                return true;
+            }
+
+            _entries.Remove(key);
+            snapshot = LyricsSnapshot.Empty;
+            return false;
+        }
+    }
+
+    public void Store(string key, LyricsSnapshot snapshot, bool satisfactory)
+    {
+        lock (_lock)
+        {
+            DateTimeOffset? expiresAt = satisfactory ? null : timeProvider.GetUtcNow() + UnsatisfactoryLifetime;
+            _entries[key] = new Entry(snapshot, expiresAt, ++_sequence);
+            if (_entries.Count > Capacity)
+            {
+                _entries.Remove(_entries.MinBy(pair => pair.Value.LastUsed).Key);
+            }
+        }
+    }
+
+    private sealed record Entry(LyricsSnapshot Snapshot, DateTimeOffset? ExpiresAt, long LastUsed);
 }
 
 internal static class LyricsSelection

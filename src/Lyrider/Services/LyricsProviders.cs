@@ -253,6 +253,12 @@ internal abstract class HttpLyricsProvider(HttpClient httpClient) : ILyricsProvi
 
     protected HttpClient HttpClient { get; } = httpClient;
 
+    protected virtual TimeSpan RateLimitCooldown => TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// 有些源限流时仍回 HTTP 200，只在 body 里标出错误码；由子类识别。
+    /// </summary>
+    protected virtual bool IsRateLimited(JsonElement root) => false;
 
     public abstract LyricsSource Source { get; }
 
@@ -308,7 +314,15 @@ internal abstract class HttpLyricsProvider(HttpClient httpClient) : ILyricsProvi
                 }
 
                 await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+                var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+                if (IsRateLimited(document.RootElement))
+                {
+                    _retryAfter = DateTimeOffset.UtcNow.Add(RateLimitCooldown);
+                    document.Dispose();
+                    return null;
+                }
+
+                return document;
             }
         }
         catch (HttpRequestException)
@@ -426,6 +440,13 @@ internal sealed class NeteaseLyricsProvider(HttpClient httpClient)
     private static readonly Uri Referrer = new("https://music.163.com/");
 
     public override LyricsSource Source => LyricsSource.Netease;
+
+    // 实测恢复约需两分钟。
+    protected override TimeSpan RateLimitCooldown => TimeSpan.FromMinutes(2);
+
+    // 网易云限流时回 HTTP 200 + {"code":406,"msg":"操作频繁，请稍候再试"}。
+    protected override bool IsRateLimited(JsonElement root) =>
+        LyricsParsing.TryGetInt64(root, out var code, "code") && code == 406;
 
     public override async Task<LyricsSnapshot> FetchAsync(
         IReadOnlyList<LyricsSearchTrack> tracks,
