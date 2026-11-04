@@ -61,7 +61,7 @@ public sealed class TrayMenuPlacementTests
     }
 
     [TestMethod]
-    public void Calculate_CursorNearRightEdge_ClampsWithinWorkingArea()
+    public void Calculate_CursorNearRightEdge_FlipsLeftOfCursor()
     {
         var result = TrayMenuPlacement.Calculate(
             96,
@@ -70,11 +70,11 @@ public sealed class TrayMenuPlacementTests
             168,
             76);
 
-        Assert.AreEqual(new PixelPoint(1752, 300), result);
+        Assert.AreEqual(new PixelPoint(1732, 300), result);
     }
 
     [TestMethod]
-    public void Calculate_CursorNearBottomEdge_ClampsWithinWorkingArea()
+    public void Calculate_CursorNearBottomEdge_FlipsAboveCursor()
     {
         var result = TrayMenuPlacement.Calculate(
             96,
@@ -83,11 +83,11 @@ public sealed class TrayMenuPlacementTests
             168,
             76);
 
-        Assert.AreEqual(new PixelPoint(500, 1004), result);
+        Assert.AreEqual(new PixelPoint(500, 994), result);
     }
 
     [TestMethod]
-    public void Calculate_WindowTallerThanWorkingArea_PinsToWorkingAreaTop()
+    public void Calculate_WindowTallerThanMonitor_PinsToMonitorTop()
     {
         var result = TrayMenuPlacement.Calculate(
             96,
@@ -100,9 +100,9 @@ public sealed class TrayMenuPlacementTests
     }
 
     [TestMethod]
-    public void Calculate_WorkingAreaOnNegativeOrigin_AllowsNegativeDips()
+    public void Calculate_MonitorOnNegativeOrigin_AllowsNegativeDips()
     {
-        // 副屏在主屏左侧时工作区原点为负，钳制不能把菜单拉回 0。
+        // 副屏在主屏左侧时显示器原点为负，钳制不能把菜单拉回 0。
         var result = TrayMenuPlacement.Calculate(
             96,
             new PixelPoint(-1500, 200),
@@ -111,5 +111,32 @@ public sealed class TrayMenuPlacementTests
             76);
 
         Assert.AreEqual(new PixelPoint(-1500, 200), result);
+    }
+
+    [TestMethod]
+    public void Calculate_TrayIconOnBottomTaskbar_PutsBottomLeftCornerAtCursor()
+    {
+        // 光标在底部任务栏上（工作区外）。按工作区钳制会让菜单与光标隔出任务栏高度。
+        var result = TrayMenuPlacement.Calculate(
+            96,
+            new PixelPoint(1700, 1060),
+            new PixelRect(0, 0, 1920, 1080),
+            168,
+            200);
+
+        Assert.AreEqual(new PixelPoint(1700, 860), result);
+    }
+
+    [TestMethod]
+    public void Calculate_TrayIconInBottomRightCorner_PutsBottomRightCornerAtCursor()
+    {
+        var result = TrayMenuPlacement.Calculate(
+            96,
+            new PixelPoint(1900, 1060),
+            new PixelRect(0, 0, 1920, 1080),
+            168,
+            200);
+
+        Assert.AreEqual(new PixelPoint(1732, 860), result);
     }
 }
