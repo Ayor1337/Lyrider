@@ -19,6 +19,8 @@ public sealed class LyricsService : IDisposable
         LyricsSource.Lrclib
     ];
 
+    private static readonly TimeSpan ProviderTimeout = TimeSpan.FromSeconds(4);
+
     private readonly HttpClient? _httpClient;
     private readonly IReadOnlyDictionary<LyricsSource, ILyricsProvider> _providers;
     private readonly ILyricsTrackResolver? _trackResolver;
@@ -130,39 +132,77 @@ public sealed class LyricsService : IDisposable
                 continue;
             }
 
-            try
-            {
-                searchTracks ??= await ResolveSearchTracksAsync(track, cancellationToken);
-                using var providerTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                providerTimeout.CancelAfter(TimeSpan.FromSeconds(4));
-                var result = await provider.FetchAsync(
-                    searchTracks,
+            searchTracks ??= await ResolveSearchTracksAsync(track, cancellationToken);
+            var tracks = searchTracks;
+            var result = await FetchWithTimeoutAsync(
+                token => provider.FetchAsync(
+                    tracks,
                     options.IncludeTranslation,
                     options.MusixmatchApiKey,
-                    providerTimeout.Token,
-                    ConsiderCandidate);
+                    token,
+                    ConsiderCandidate),
+                cancellationToken);
+            if (result is not null)
+            {
                 ConsiderCandidate(result);
                 if (LyricsSelection.IsSatisfactory(result, options.IncludeTranslation))
                 {
                     return best!;
                 }
             }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+
+            // 标题搜索没找到、或找到的内容与 Cider 歌词对不上时（常见于 Apple Music 英文名
+            // 对应其他平台的日文名），用 Cider 歌词内容反查，单独计时，不占用标题搜索的预算。
+            if (ciderSnapshot is not null &&
+                provider is ILyricsContentSearchProvider contentProvider &&
+                (result is not { Lines.Count: > 0 } ||
+                    LyricsMatching.ContentCoverage(ciderSnapshot.Lines, result.Lines) < LyricsMatching.MinimumContentCoverage))
             {
-                // 该源超时后继续查下一源，已找到的候选仍然保留。
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception)
-            {
-                // 远程源失败后继续回退。
+                var byContent = await FetchWithTimeoutAsync(
+                    token => contentProvider.SearchByLyricsAsync(
+                        tracks,
+                        ciderSnapshot.Lines,
+                        options.IncludeTranslation,
+                        token,
+                        ConsiderCandidate),
+                    cancellationToken);
+                if (byContent is not null)
+                {
+                    ConsiderCandidate(byContent);
+                    if (LyricsSelection.IsSatisfactory(byContent, options.IncludeTranslation))
+                    {
+                        return best!;
+                    }
+                }
             }
         }
 
         cancellationToken.ThrowIfCancellationRequested();
         return best ?? LyricsSnapshot.Empty;
+    }
+
+    /// <summary>
+    /// 单次远程查询限时 4 秒；超时或失败返回 null 以便回退到下一步，已上报的候选仍然保留。
+    /// 调用方取消照常抛出。
+    /// </summary>
+    private static async Task<LyricsSnapshot?> FetchWithTimeoutAsync(
+        Func<CancellationToken, Task<LyricsSnapshot>> fetch,
+        CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(ProviderTimeout);
+        try
+        {
+            return await fetch(timeout.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return null;
+        }
     }
 
     private static LyricsSnapshot MergeMatchingTranslations(LyricsSnapshot target, LyricsSnapshot source)

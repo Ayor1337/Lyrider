@@ -899,6 +899,158 @@ public sealed class LyricsServiceTests
         Assert.AreEqual(4, handler.Requests.Count);
     }
 
+    [TestMethod]
+    public async Task ResolveAsync_EnglishTitleWithJapaneseCiderLyrics_FindsNeteaseByLyricSearch()
+    {
+        var handler = LyricSearchHandler(
+            """{"result":{"songs":[{"id":99,"duration":200000},{"id":7,"duration":181000}]}}""",
+            id => id == 7 ? JapaneseNeteaseLyrics : "[00:01.00]まったく別の歌です");
+        using var service = new LyricsService(handler);
+
+        var result = await service.ResolveAsync(
+            EnglishTitledTrack(),
+            JapaneseCiderLyrics,
+            new LyricsResolveOptions(LyricsSource.Auto, true));
+
+        Assert.AreEqual(LyricsSource.Netease, result.Source);
+        Assert.AreEqual("在遥远的夜空下", result.Lines[0].Translation);
+        Assert.IsTrue(handler.Requests.Any(request => request.Body?.Contains("type=1006", StringComparison.Ordinal) == true));
+        Assert.IsFalse(handler.Requests.Any(request => request.Uri.Query.Contains("id=99", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_TitleMatchContentDiffersFromCider_StillSearchesByLyrics()
+    {
+        var handler = LyricSearchHandler(
+            """{"result":{"songs":[{"id":7,"duration":181000}]}}""",
+            id => id == 7 ? JapaneseNeteaseLyrics : "[00:01.00]まったく別の歌です\n[00:05.00]歌詞が違います",
+            """{"result":{"songs":[{"id":5,"name":"Under The Far Night Sky","duration":180000,"artists":[{"name":"Example Band"}]}]}}""");
+        using var service = new LyricsService(handler);
+
+        var result = await service.ResolveAsync(
+            EnglishTitledTrack(),
+            JapaneseCiderLyrics,
+            new LyricsResolveOptions(LyricsSource.Auto, true));
+
+        Assert.AreEqual(LyricsSource.Netease, result.Source);
+        Assert.AreEqual("在遥远的夜空下", result.Lines[0].Translation);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_LyricSearchCandidateWithDifferentContent_KeepsCiderLyrics()
+    {
+        var handler = LyricSearchHandler(
+            """{"result":{"songs":[{"id":7,"duration":181000}]}}""",
+            _ => "[00:01.00]まったく別の歌です\n[00:05.00]歌詞が違います\n[00:09.00]これは別の曲");
+        using var service = new LyricsService(handler);
+
+        var result = await service.ResolveAsync(
+            EnglishTitledTrack(),
+            JapaneseCiderLyrics,
+            new LyricsResolveOptions(LyricsSource.Auto, true));
+
+        Assert.AreEqual(LyricsSource.Cider, result.Source);
+    }
+
+    [TestMethod]
+    public async Task ResolveAsync_WithoutCiderLyrics_SkipsLyricSearch()
+    {
+        var handler = LyricSearchHandler(
+            """{"result":{"songs":[{"id":7,"duration":181000}]}}""",
+            _ => JapaneseNeteaseLyrics);
+        using var service = new LyricsService(handler);
+
+        await service.ResolveAsync(EnglishTitledTrack(), [], new LyricsResolveOptions(LyricsSource.Auto, true));
+
+        Assert.IsFalse(handler.Requests.Any(request => request.Body?.Contains("type=1006", StringComparison.Ordinal) == true));
+    }
+
+    [TestMethod]
+    public void ContentCoverage_SplitLinesAndTraditionalCharacters_StillMatch()
+    {
+        LyricLineInfo[] reference =
+        [
+            new(1, null, "遠い夜空の下で 君を待つ"),
+            new(2, null, "風が運ぶ記憶")
+        ];
+        LyricLineInfo[] candidate =
+        [
+            new(1, null, "远い夜空の下で"),
+            new(1.5, null, "君を待つ"),
+            new(2, null, "风が运ぶ记忆")
+        ];
+
+        Assert.AreEqual(1.0, LyricsMatching.ContentCoverage(reference, candidate), 0.001);
+    }
+
+    [TestMethod]
+    public void SelectLyricQueries_RepeatedAndShortLines_AreSkipped()
+    {
+        LyricLineInfo[] reference =
+        [
+            new(1, null, "繰り返すサビの一行です"),
+            new(2, null, "ああ"),
+            new(3, null, "一度だけ歌われる長い行です"),
+            new(4, null, "繰り返すサビの一行です")
+        ];
+
+        CollectionAssert.AreEqual(
+            new[] { "一度だけ歌われる長い行です" },
+            LyricsMatching.SelectLyricQueries(reference, 2).ToArray());
+    }
+
+    private const string JapaneseNeteaseLyrics =
+        """
+        [00:01.00]遠い夜空の下で
+        [00:05.00]風が運ぶ記憶を
+        [00:09.00]ひとりで数えている
+        """;
+
+    private static readonly LyricLineInfo[] JapaneseCiderLyrics =
+    [
+        new(1.2, 5.2, "遠い夜空の下で"),
+        new(5.2, 9.2, "風が運ぶ記憶を"),
+        new(9.2, 13, "ひとりで数えている")
+    ];
+
+    private static NowPlayingInfo EnglishTitledTrack() => new()
+    {
+        Name = "Under The Far Night Sky",
+        ArtistName = "Example Band",
+        DurationInMillis = 180_000,
+        HasTimeSyncedLyrics = true
+    };
+
+    // 标题搜索（type=1）找不到，歌词搜索（type=1006）返回 lyricSearchBody；其余源一律 404。
+    private static RouteHttpMessageHandler LyricSearchHandler(
+        string lyricSearchBody,
+        Func<long, string> lrcForId,
+        string titleSearchBody = """{"result":{"songs":[]}}""") =>
+        new(request =>
+        {
+            if (!request.Uri.Host.Equals("music.163.com", StringComparison.OrdinalIgnoreCase))
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            if (request.Uri.AbsolutePath.Contains("search", StringComparison.Ordinal))
+            {
+                return Json(request.Body?.Contains("type=1006", StringComparison.Ordinal) == true
+                    ? lyricSearchBody
+                    : titleSearchBody);
+            }
+
+            var id = long.Parse(request.Uri.Query.Split("id=")[1].Split('&')[0]);
+            var translation = id == 7
+                ? "[00:01.00]在遥远的夜空下\n[00:05.00]风带来的记忆\n[00:09.00]独自数着"
+                : "";
+            return Json(System.Text.Json.JsonSerializer.Serialize(new
+            {
+                lrc = new { lyric = lrcForId(id) },
+                tlyric = new { lyric = translation }
+            }));
+        });
+
     private static ILyricsProvider CreateProvider(LyricsSource source, HttpClient client) => source switch
     {
         LyricsSource.Netease => new NeteaseLyricsProvider(client),

@@ -18,6 +18,20 @@ internal interface ILyricsProvider
         Action<LyricsSnapshot>? onCandidate = null);
 }
 
+/// <summary>
+/// 标题和艺人对不上时（如 Apple Music 用英文名、其他平台用日文名），
+/// 用已有的参考歌词内容反查同一首歌。
+/// </summary>
+internal interface ILyricsContentSearchProvider
+{
+    Task<LyricsSnapshot> SearchByLyricsAsync(
+        IReadOnlyList<LyricsSearchTrack> tracks,
+        IReadOnlyList<LyricLineInfo> referenceLyrics,
+        bool includeTranslation,
+        CancellationToken cancellationToken,
+        Action<LyricsSnapshot>? onCandidate = null);
+}
+
 internal sealed record LyricsSearchTrack(
     string Name,
     string ArtistName,
@@ -267,9 +281,15 @@ internal sealed class LrclibLyricsProvider(HttpClient httpClient) : HttpLyricsPr
     }
 }
 
-internal sealed class NeteaseLyricsProvider(HttpClient httpClient) : HttpLyricsProvider(httpClient)
+internal sealed class NeteaseLyricsProvider(HttpClient httpClient)
+    : HttpLyricsProvider(httpClient), ILyricsContentSearchProvider
 {
+    private const string SongSearchType = "1";
+    private const string LyricSearchType = "1006";
+    private const int MaximumLyricQueries = 2;
+    private const int MaximumLyricCandidates = 3;
     private static readonly Uri SearchUri = new("https://music.163.com/api/search/get/web");
+    private static readonly Uri Referrer = new("https://music.163.com/");
 
     public override LyricsSource Source => LyricsSource.Netease;
 
@@ -290,19 +310,9 @@ internal sealed class NeteaseLyricsProvider(HttpClient httpClient) : HttpLyricsP
         var visited = new HashSet<long>();
         foreach (var track in searchableTracks)
         {
-            var searchRequest = new HttpRequestMessage(HttpMethod.Post, SearchUri)
-            {
-                Content = new FormUrlEncodedContent(new Dictionary<string, string>
-                {
-                    ["s"] = $"{track.Name} {track.ArtistName}",
-                    ["type"] = "1",
-                    ["offset"] = "0",
-                    ["limit"] = "10"
-                })
-            };
-            searchRequest.Headers.Referrer = new Uri("https://music.163.com/");
-
-            using var search = await SendJsonAsync(searchRequest, cancellationToken);
+            using var search = await SendJsonAsync(
+                CreateSearchRequest($"{track.Name} {track.ArtistName}", SongSearchType),
+                cancellationToken);
             if (search is null)
             {
                 continue;
@@ -315,22 +325,12 @@ internal sealed class NeteaseLyricsProvider(HttpClient httpClient) : HttpLyricsP
                     continue;
                 }
 
-                var lyricRequest = new HttpRequestMessage(
-                    HttpMethod.Get,
-                    $"https://music.163.com/api/song/lyric?id={id}&lv=-1&kv=-1&tv=-1");
-                lyricRequest.Headers.Referrer = new Uri("https://music.163.com/");
-                using var lyrics = await SendJsonAsync(lyricRequest, cancellationToken);
-                if (lyrics is null)
+                var snapshot = await FetchLyricsAsync(id, includeTranslation, cancellationToken);
+                if (snapshot is null)
                 {
                     continue;
                 }
 
-                var root = lyrics.RootElement;
-                var original = LyricsParsing.GetNestedString(root, "lrc", "lyric");
-                var translation = includeTranslation
-                    ? LyricsParsing.GetNestedString(root, "tlyric", "lyric")
-                    : null;
-                var snapshot = Snapshot(Source, original, translation);
                 ConsiderCandidate(snapshot, includeTranslation, ref best, onCandidate);
                 if (LyricsSelection.IsSatisfactory(snapshot, includeTranslation))
                 {
@@ -340,6 +340,132 @@ internal sealed class NeteaseLyricsProvider(HttpClient httpClient) : HttpLyricsP
         }
 
         return best;
+    }
+
+    public async Task<LyricsSnapshot> SearchByLyricsAsync(
+        IReadOnlyList<LyricsSearchTrack> tracks,
+        IReadOnlyList<LyricLineInfo> referenceLyrics,
+        bool includeTranslation,
+        CancellationToken cancellationToken,
+        Action<LyricsSnapshot>? onCandidate = null)
+    {
+        var best = new LyricsSnapshot([], false, Source);
+        var visited = new HashSet<long>();
+        var fetched = 0;
+        foreach (var query in LyricsMatching.SelectLyricQueries(referenceLyrics, MaximumLyricQueries))
+        {
+            using var search = await SendJsonAsync(CreateSearchRequest(query, LyricSearchType), cancellationToken);
+            if (search is null)
+            {
+                continue;
+            }
+
+            foreach (var id in FindSongsByDuration(search.RootElement, tracks))
+            {
+                if (!visited.Add(id))
+                {
+                    continue;
+                }
+
+                if (fetched++ >= MaximumLyricCandidates)
+                {
+                    return best;
+                }
+
+                // 歌词搜索不看标题，只有内容与 Cider 歌词足够重合才算同一首歌。
+                var snapshot = await FetchLyricsAsync(id, includeTranslation, cancellationToken);
+                if (snapshot is null ||
+                    LyricsMatching.ContentCoverage(referenceLyrics, snapshot.Lines) < LyricsMatching.MinimumContentCoverage)
+                {
+                    continue;
+                }
+
+                ConsiderCandidate(snapshot, includeTranslation, ref best, onCandidate);
+                if (LyricsSelection.IsSatisfactory(snapshot, includeTranslation))
+                {
+                    return snapshot;
+                }
+            }
+        }
+
+        return best;
+    }
+
+    private static HttpRequestMessage CreateSearchRequest(string query, string type)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, SearchUri)
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["s"] = query,
+                ["type"] = type,
+                ["offset"] = "0",
+                ["limit"] = "10"
+            })
+        };
+        request.Headers.Referrer = Referrer;
+        return request;
+    }
+
+    private async Task<LyricsSnapshot?> FetchLyricsAsync(
+        long id,
+        bool includeTranslation,
+        CancellationToken cancellationToken)
+    {
+        var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"https://music.163.com/api/song/lyric?id={id}&lv=-1&kv=-1&tv=-1");
+        request.Headers.Referrer = Referrer;
+        using var lyrics = await SendJsonAsync(request, cancellationToken);
+        if (lyrics is null)
+        {
+            return null;
+        }
+
+        var root = lyrics.RootElement;
+        var original = LyricsParsing.GetNestedString(root, "lrc", "lyric");
+        var translation = includeTranslation
+            ? LyricsParsing.GetNestedString(root, "tlyric", "lyric")
+            : null;
+        return Snapshot(Source, original, translation);
+    }
+
+    private static IReadOnlyList<long> FindSongsByDuration(JsonElement root, IReadOnlyList<LyricsSearchTrack> tracks)
+    {
+        if (!LyricsParsing.TryGetPath(root, out var songs, "result", "songs") ||
+            songs.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var expectedDurations = tracks
+            .Select(LyricsMatching.DurationSeconds)
+            .Where(duration => duration > 0)
+            .ToArray();
+        var candidates = new List<(long Id, double Distance)>();
+        foreach (var song in songs.EnumerateArray().Take(10))
+        {
+            if (!LyricsParsing.TryGetInt64(song, out var id, "id") || id == 0)
+            {
+                continue;
+            }
+
+            // 时长未知时无法筛选，交给内容比对把关。
+            var duration = LyricsParsing.GetNumber(song, "duration", "dt") / 1000;
+            var distance = expectedDurations.Length == 0 || duration <= 0
+                ? 0
+                : expectedDurations.Min(expected => Math.Abs(expected - duration));
+            if (distance <= 3)
+            {
+                candidates.Add((id, distance));
+            }
+        }
+
+        return candidates
+            .OrderBy(candidate => candidate.Distance)
+            .Select(candidate => candidate.Id)
+            .Distinct()
+            .ToArray();
     }
 
     private static IReadOnlyList<long> FindSongs(JsonElement root, LyricsSearchTrack track)
@@ -706,6 +832,50 @@ internal static class LyricsMatching
             candidateDurationSeconds > 0 &&
             Math.Abs(expectedDuration - candidateDurationSeconds) <= 3;
     }
+
+    // 短句（如 "yeah"、"oh oh"）在不相关的歌词里也常出现，不参与内容比对。
+    private const int MinimumContentLineLength = 4;
+    public const double MinimumContentCoverage = 0.6;
+    private const int MinimumQueryLineLength = 6;
+    private const int MaximumQueryLineLength = 40;
+
+    /// <summary>
+    /// 从参考歌词中挑选适合做歌词搜索的句子：只出现一次、足够长且不过长的行，越长越优先。
+    /// </summary>
+    public static IReadOnlyList<string> SelectLyricQueries(IReadOnlyList<LyricLineInfo> reference, int count) =>
+        reference
+            .Select(line => (Text: line.Text.Trim(), Key: ContentKey(line.Text)))
+            .GroupBy(line => line.Key)
+            .Where(group => group.Key.Length is >= MinimumQueryLineLength and <= MaximumQueryLineLength &&
+                group.Count() == 1)
+            .Select(group => group.Single())
+            .OrderByDescending(line => line.Key.Length)
+            .Take(count)
+            .Select(line => line.Text)
+            .ToArray();
+
+    /// <summary>
+    /// 参考歌词中有多少比例的行出现在候选歌词里。候选按顺序拼接后再查找，
+    /// 因此两边断行方式不同（一行拆成两行或两行合成一行）也能命中。
+    /// </summary>
+    public static double ContentCoverage(IReadOnlyList<LyricLineInfo> reference, IReadOnlyList<LyricLineInfo> candidate)
+    {
+        var keys = reference
+            .Select(line => ContentKey(line.Text))
+            .Where(key => key.Length >= MinimumContentLineLength)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (keys.Length == 0 || candidate.Count == 0)
+        {
+            return 0;
+        }
+
+        var text = ContentKey(string.Join('\n', candidate.Select(line => line.Text)));
+        return (double)keys.Count(key => text.Contains(key, StringComparison.Ordinal)) / keys.Length;
+    }
+
+    private static string ContentKey(string? value) =>
+        Normalize(string.IsNullOrEmpty(value) ? value : ChineseTextConverter.ToSimplified(value));
 
     public static bool IsSameIdentity(LyricsSearchTrack first, LyricsSearchTrack second) =>
         string.Equals(Normalize(first.Name), Normalize(second.Name), StringComparison.Ordinal) &&
