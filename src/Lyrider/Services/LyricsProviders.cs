@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Lyrider.Models;
 
 namespace Lyrider.Services;
@@ -252,6 +253,7 @@ internal abstract class HttpLyricsProvider(HttpClient httpClient) : ILyricsProvi
 
     protected HttpClient HttpClient { get; } = httpClient;
 
+
     public abstract LyricsSource Source { get; }
 
     public abstract Task<LyricsSnapshot> FetchAsync(
@@ -443,7 +445,7 @@ internal sealed class NeteaseLyricsProvider(HttpClient httpClient)
         foreach (var track in searchableTracks)
         {
             using var search = await SendJsonAsync(
-                CreateSearchRequest($"{track.Name} {track.ArtistName}", SongSearchType),
+                CreateSearchRequest($"{LyricsMatching.SearchTitle(track.Name)} {LyricsMatching.PrimaryArtist(track.ArtistName)}", SongSearchType),
                 cancellationToken);
             if (search is null)
             {
@@ -660,7 +662,7 @@ internal sealed class QqMusicLyricsProvider(HttpClient httpClient) : HttpLyricsP
         var visited = new HashSet<string>(StringComparer.Ordinal);
         foreach (var track in searchableTracks)
         {
-            var query = Uri.EscapeDataString($"{track.Name} {track.ArtistName}");
+            var query = Uri.EscapeDataString($"{LyricsMatching.SearchTitle(track.Name)} {LyricsMatching.PrimaryArtist(track.ArtistName)}");
             var searchRequest = CreateRequest(
                 $"https://c.y.qq.com/soso/fcgi-bin/client_search_cp?format=json&p=1&n=10&w={query}");
             using var search = await SendJsonAsync(searchRequest, cancellationToken);
@@ -929,25 +931,30 @@ internal static class LyricsMatching
         string? candidateArtist,
         double candidateDurationSeconds)
     {
-        var expectedTitle = Normalize(expected.Name);
-        var expectedArtist = Normalize(expected.ArtistName);
-        var actualTitle = Normalize(candidateTitle);
-        var actualArtist = Normalize(candidateArtist);
-        if (expectedTitle.Length == 0 ||
-            expectedArtist.Length == 0 ||
-            actualArtist.Length == 0 ||
-            !string.Equals(expectedTitle, actualTitle, StringComparison.Ordinal) ||
-            !(string.Equals(expectedArtist, actualArtist, StringComparison.Ordinal) ||
-                expectedArtist.Contains(actualArtist, StringComparison.Ordinal) ||
-                actualArtist.Contains(expectedArtist, StringComparison.Ordinal)))
+        var expectedDuration = DurationSeconds(expected);
+        var durationKnown = expectedDuration > 0 && candidateDurationSeconds > 0;
+        if ((durationKnown && Math.Abs(expectedDuration - candidateDurationSeconds) > 3) ||
+            !IsArtistMatch(expected.ArtistName, candidateArtist))
         {
             return false;
         }
 
-        var expectedDuration = DurationSeconds(expected);
-        return expectedDuration <= 0 ||
-            candidateDurationSeconds <= 0 ||
-            Math.Abs(expectedDuration - candidateDurationSeconds) <= 3;
+        var expectedTitle = MatchKey(expected.Name);
+        if (expectedTitle.Length == 0)
+        {
+            return false;
+        }
+
+        if (string.Equals(expectedTitle, MatchKey(candidateTitle), StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        // 去掉 feat.、Remaster 等不改变歌词的标记后再比；同名不同版本缺少时长佐证时不放行。
+        var expectedBase = MatchKey(StripNeutralTags(expected.Name));
+        return durationKnown &&
+            expectedBase.Length > 0 &&
+            string.Equals(expectedBase, MatchKey(StripNeutralTags(candidateTitle)), StringComparison.Ordinal);
     }
 
     public static bool IsLikelySameRecording(
@@ -955,15 +962,83 @@ internal static class LyricsMatching
         string? candidateArtist,
         double candidateDurationSeconds)
     {
-        var expectedArtist = Normalize(expected.ArtistName);
-        var actualArtist = Normalize(candidateArtist);
+        var expectedArtists = ArtistKeys(expected.ArtistName);
+        var actualArtists = ArtistKeys(candidateArtist);
         var expectedDuration = DurationSeconds(expected);
-        return expectedArtist.Length > 0 &&
-            string.Equals(expectedArtist, actualArtist, StringComparison.Ordinal) &&
+        return expectedArtists.Count > 0 &&
+            expectedArtists.SetEquals(actualArtists) &&
             expectedDuration > 0 &&
             candidateDurationSeconds > 0 &&
             Math.Abs(expectedDuration - candidateDurationSeconds) <= 3;
     }
+
+    /// <summary>
+    /// 艺人整体互相包含，或拆分后任一位相同即视为匹配（"A & B" 对 "B / A"）。
+    /// </summary>
+    public static bool IsArtistMatch(string? expected, string? actual)
+    {
+        var expectedKey = MatchKey(expected);
+        var actualKey = MatchKey(actual);
+        if (expectedKey.Length == 0 || actualKey.Length == 0)
+        {
+            return false;
+        }
+
+        return expectedKey.Contains(actualKey, StringComparison.Ordinal) ||
+            actualKey.Contains(expectedKey, StringComparison.Ordinal) ||
+            ArtistKeys(expected).Overlaps(ArtistKeys(actual));
+    }
+
+    /// <summary>
+    /// 用于搜索的标题：去掉不改变歌词的标记，减少搜索引擎的噪声。
+    /// </summary>
+    public static string SearchTitle(string title)
+    {
+        var stripped = StripNeutralTags(title);
+        return stripped.Length > 0 ? stripped : title;
+    }
+
+    /// <summary>
+    /// 用于搜索的艺人：只取第一位，合作者留给匹配阶段核对。
+    /// </summary>
+    public static string PrimaryArtist(string artist) =>
+        ArtistSeparator.Split(artist).Select(part => part.Trim()).FirstOrDefault(part => part.Length > 0) ?? artist;
+
+    // 只剥离不改变歌词的标记；Live、Remix、Acoustic、TV Size 等不同录音保留，交给精确比对区分。
+    private static readonly Regex NeutralTag = new(
+        @"\b(feat\.?|ft\.|featuring|remaster(ed)?|single version|album version|radio edit|from|explicit|clean|mono|stereo|bonus track)(?=\W|$)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex BracketSegment = new(
+        @"\s*[(\[（【]([^)\]）】]*)[)\]）】]", RegexOptions.CultureInvariant);
+    private static readonly Regex DashSuffix = new(
+        @"\s+[-–—]\s+(.+)$", RegexOptions.CultureInvariant);
+    private static readonly Regex BareFeaturing = new(
+        @"\s+(feat\.?|ft\.|featuring)\s.*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex ArtistSeparator = new(
+        @"\s*(?:&|,|，|、|/|;|；|×|\s+x\s+|\b(?:feat\.?|ft\.|featuring|vs\.?)(?=\s|$))\s*",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    public static string StripNeutralTags(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return string.Empty;
+        }
+
+        var stripped = BracketSegment.Replace(title, match =>
+            NeutralTag.IsMatch(match.Groups[1].Value) ? string.Empty : match.Value);
+        stripped = DashSuffix.Replace(stripped, match =>
+            NeutralTag.IsMatch(match.Groups[1].Value) ? string.Empty : match.Value);
+        return BareFeaturing.Replace(stripped, string.Empty).Trim();
+    }
+
+    private static HashSet<string> ArtistKeys(string? artist) =>
+        string.IsNullOrWhiteSpace(artist)
+            ? []
+            : ArtistSeparator.Split(artist)
+                .Select(MatchKey)
+                .Where(key => key.Length > 0)
+                .ToHashSet(StringComparer.Ordinal);
 
     // 短句（如 "yeah"、"oh oh"）在不相关的歌词里也常出现，不参与内容比对。
     private const int MinimumContentLineLength = 4;
@@ -976,7 +1051,7 @@ internal static class LyricsMatching
     /// </summary>
     public static IReadOnlyList<string> SelectLyricQueries(IReadOnlyList<LyricLineInfo> reference, int count) =>
         reference
-            .Select(line => (Text: line.Text.Trim(), Key: ContentKey(line.Text)))
+            .Select(line => (Text: line.Text.Trim(), Key: MatchKey(line.Text)))
             .GroupBy(line => line.Key)
             .Where(group => group.Key.Length is >= MinimumQueryLineLength and <= MaximumQueryLineLength &&
                 group.Count() == 1)
@@ -993,7 +1068,7 @@ internal static class LyricsMatching
     public static double ContentCoverage(IReadOnlyList<LyricLineInfo> reference, IReadOnlyList<LyricLineInfo> candidate)
     {
         var keys = reference
-            .Select(line => ContentKey(line.Text))
+            .Select(line => MatchKey(line.Text))
             .Where(key => key.Length >= MinimumContentLineLength)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
@@ -1002,16 +1077,19 @@ internal static class LyricsMatching
             return 0;
         }
 
-        var text = ContentKey(string.Join('\n', candidate.Select(line => line.Text)));
+        var text = MatchKey(string.Join('\n', candidate.Select(line => line.Text)));
         return (double)keys.Count(key => text.Contains(key, StringComparison.Ordinal)) / keys.Length;
     }
 
-    private static string ContentKey(string? value) =>
+    /// <summary>
+    /// 比对用的键：繁转简后再做 <see cref="Normalize"/>，使"周杰倫"与"周杰伦"相等。
+    /// </summary>
+    public static string MatchKey(string? value) =>
         Normalize(string.IsNullOrEmpty(value) ? value : ChineseTextConverter.ToSimplified(value));
 
     public static bool IsSameIdentity(LyricsSearchTrack first, LyricsSearchTrack second) =>
-        string.Equals(Normalize(first.Name), Normalize(second.Name), StringComparison.Ordinal) &&
-        string.Equals(Normalize(first.ArtistName), Normalize(second.ArtistName), StringComparison.Ordinal);
+        string.Equals(MatchKey(first.Name), MatchKey(second.Name), StringComparison.Ordinal) &&
+        string.Equals(MatchKey(first.ArtistName), MatchKey(second.ArtistName), StringComparison.Ordinal);
 
     public static string Normalize(string? value)
     {
@@ -1264,7 +1342,8 @@ internal static class LyricsParsing
                 continue;
             }
 
-            return string.Join(' ', array.EnumerateArray()
+            // 用 " / " 连接，匹配阶段才能把多位艺人拆开。
+            return string.Join(" / ", array.EnumerateArray()
                 .Select(item => GetString(item, "name"))
                 .Where(value => !string.IsNullOrWhiteSpace(value)));
         }

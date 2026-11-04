@@ -1134,6 +1134,50 @@ public sealed class LyricsServiceTests
             }));
         });
 
+    [TestMethod]
+    public void IsConfidentMatch_NeutralTagsAndTraditionalCharacters_Match()
+    {
+        Assert.IsTrue(LyricsMatching.IsConfidentMatch(
+            new LyricsSearchTrack("Song (feat. Guest)", "Main", null, 120_000), "Song", "Main / Guest", 121));
+        Assert.IsTrue(LyricsMatching.IsConfidentMatch(
+            new LyricsSearchTrack("Song - Remastered 2011", "Main", null, 120_000), "Song", "Main", 120));
+        Assert.IsTrue(LyricsMatching.IsConfidentMatch(
+            new LyricsSearchTrack("七里香", "周杰倫", null, 299_000), "七里香", "周杰伦", 299));
+        Assert.IsTrue(LyricsMatching.IsConfidentMatch(
+            new LyricsSearchTrack("Song", "A & B", null, 120_000), "Song", "B / A", 120));
+    }
+
+    [TestMethod]
+    public void IsConfidentMatch_StrippedTitleWithoutDuration_ReturnsFalse()
+    {
+        Assert.IsFalse(LyricsMatching.IsConfidentMatch(
+            new LyricsSearchTrack("Song (feat. Guest)", "Main", null, 0), "Song", "Main", 120));
+        Assert.IsFalse(LyricsMatching.IsConfidentMatch(
+            new LyricsSearchTrack("Song (Acoustic)", "Main", null, 120_000), "Song", "Main", 120));
+    }
+
+    [TestMethod]
+    public void SearchTitleAndPrimaryArtist_StripNeutralTagsAndCollaborators()
+    {
+        Assert.AreEqual("Song", LyricsMatching.SearchTitle("Song (feat. Guest) - Remastered 2011"));
+        Assert.AreEqual("Song", LyricsMatching.SearchTitle("Song ft. Guest"));
+        Assert.AreEqual("残響散歌 (TV Size)", LyricsMatching.SearchTitle("残響散歌 (TV Size)"));
+        Assert.AreEqual("Main", LyricsMatching.PrimaryArtist("Main & Guest"));
+        Assert.AreEqual("Featherweight", LyricsMatching.PrimaryArtist("Featherweight"));
+    }
+
+    [TestMethod]
+    public async Task FetchAsync_Netease_SearchesWithCleanedTitleAndPrimaryArtist()
+    {
+        var handler = new RouteHttpMessageHandler(_ => Json("""{"result":{"songs":[]}}"""));
+        using var client = new HttpClient(handler);
+
+        await new NeteaseLyricsProvider(client).FetchAsync(
+            [new LyricsSearchTrack("Song (feat. Guest)", "Main & Guest", null, 120_000)], false, null, CancellationToken.None);
+
+        Assert.AreEqual("s=Song+Main&type=1&offset=0&limit=10", handler.Requests.Single().Body);
+    }
+
     private static ILyricsProvider CreateProvider(LyricsSource source, HttpClient client) => source switch
     {
         LyricsSource.Netease => new NeteaseLyricsProvider(client),
