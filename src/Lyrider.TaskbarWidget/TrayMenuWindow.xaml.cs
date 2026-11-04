@@ -83,11 +83,11 @@ public partial class TrayMenuWindow : Window
         UpdateLayout();
 
         var cursor = new NativePoint { X = cursorPosition.X, Y = cursorPosition.Y };
-        var workingArea = FormsScreen.FromPoint(cursorPosition).WorkingArea;
+        var bounds = FormsScreen.FromPoint(cursorPosition).Bounds;
         var position = TrayMenuPlacement.Calculate(
             ResolveDpi(Handle, cursor),
             new PixelPoint(cursorPosition.X, cursorPosition.Y),
-            new PixelRect(workingArea.Left, workingArea.Top, workingArea.Right, workingArea.Bottom),
+            new PixelRect(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom),
             ActualWidth,
             ActualHeight);
 
