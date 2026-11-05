@@ -1423,7 +1423,12 @@ public sealed class DesktopLyricsWindowTests
         {
             try { action(); }
             catch (Exception exception) { failure = exception; }
-            finally { Dispatcher.CurrentDispatcher.InvokeShutdown(); }
+            finally
+            {
+                // 同步 InvokeShutdown 遇到仍在关闭的菜单弹窗会卡死；与 DesktopLyricsHost 一致，排在已排队的工作之后再关闭。
+                Dispatcher.CurrentDispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
+                Dispatcher.Run();
+            }
         }) { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
