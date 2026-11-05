@@ -48,9 +48,14 @@ public sealed class TaskbarWidgetWindowTests
                 var contentWidth = translation
                     ? Math.Max(title.DesiredSize.Width, Find<TextBlock>(window, "ScrollingArtistText").DesiredSize.Width)
                     : title.DesiredSize.Width;
+                // Overflowing text rests at zero; its right-aligned inset lives in the text padding.
                 var expected = rightAlignEnabled && alignment == TaskbarAlignment.Left
-                    ? Math.Max(0, viewport.ActualWidth - contentWidth)
+                    ? Math.Max(0, viewport.ActualWidth - title.DesiredSize.Width)
                     : 0;
+                if (contentWidth > viewport.ActualWidth)
+                {
+                    expected = 0;
+                }
                 var duringTransition = ((TranslateTransform)panel.RenderTransform).X;
                 WaitForTransition();
                 var afterTransition = ((TranslateTransform)panel.RenderTransform).X;
@@ -63,7 +68,7 @@ public sealed class TaskbarWidgetWindowTests
                     "The incoming lyric must already be aligned during the transition.");
                 if (translation)
                 {
-                    Assert.AreEqual(expected,
+                    Assert.AreEqual(0,
                         ((TranslateTransform)Find<StackPanel>(window, "SecondaryMarqueePanel").RenderTransform).X, 0.01);
                 }
             }
@@ -73,6 +78,95 @@ public sealed class TaskbarWidgetWindowTests
             }
         });
     }
+
+    [DataTestMethod]
+    [DataRow("A long lyric that must overflow the viewport", "Short translation")]
+    [DataRow("Short", "A long translation that must overflow the viewport")]
+    public void SetPlaybackState_RightAlignedOverflow_ShorterLineStartsAtRightEdge(string lyric, string translation)
+    {
+        RunOnSta(() =>
+        {
+            var window = new TaskbarWidgetWindow();
+            try
+            {
+                SetTaskbarAlignment(window, TaskbarAlignment.Left);
+                window.SetRightAlignedLyrics(true);
+                window.SetPlaybackState(CreateState(lyric, 0) with
+                {
+                    SecondaryLyric = translation,
+                    SecondaryLyricIsTranslation = true
+                });
+                Layout(window);
+                DrainDispatcher();
+
+                var viewportWidth = Find<Grid>(window, "TextViewport").ActualWidth;
+                AssertRestsOnRightEdge(window, "TitleText", "MarqueeTitleText", lyric, 14, viewportWidth);
+                AssertRestsOnRightEdge(window, "ScrollingArtistText", "MarqueeArtistText", translation, 12, viewportWidth);
+                Assert.AreEqual(0, ((TranslateTransform)Find<StackPanel>(window, "PrimaryMarqueePanel").RenderTransform).X, 0.01);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [DataTestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void PointerHover_RunningMarquee_KeepsScrollProgress(bool rightAlignEnabled)
+    {
+        RunOnSta(() =>
+        {
+            var window = new TaskbarWidgetWindow();
+            try
+            {
+                SetTaskbarAlignment(window, TaskbarAlignment.Left);
+                window.SetRightAlignedLyrics(rightAlignEnabled);
+                window.SetPlaybackState(CreateState("A long lyric that must overflow the viewport", 0));
+                Layout(window);
+                DrainDispatcher();
+                var viewport = Find<Grid>(window, "PrimaryMarqueeViewport");
+                var transform = (TranslateTransform)Find<StackPanel>(window, "PrimaryMarqueePanel").RenderTransform;
+                var runningMask = viewport.OpacityMask;
+                Assert.IsNotNull(runningMask, "The marquee must be running before hovering.");
+
+                InvokeHandler(window, "RootBorder_MouseEnter");
+                DrainDispatcher();
+                InvokeHandler(window, "RootBorder_MouseLeave");
+                DrainDispatcher();
+
+                Assert.AreSame(runningMask, viewport.OpacityMask, "Hovering must not restart the marquee.");
+                Assert.IsTrue(transform.HasAnimatedProperties);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    private static void AssertRestsOnRightEdge(
+        TaskbarWidgetWindow window, string lineName, string copyName, string text, double fontSize, double viewportWidth)
+    {
+        var line = Find<TextBlock>(window, lineName);
+        var copy = Find<TextBlock>(window, copyName);
+        var textWidth = MeasureText(text, fontSize);
+        var expectedInset = Math.Max(0, viewportWidth - textWidth);
+        Assert.AreEqual(expectedInset, line.Padding.Left, 0.01, $"{lineName} must rest against the right edge.");
+        Assert.AreEqual(line.Padding.Left, copy.Padding.Left, 0.01, $"{copyName} must loop with the same inset.");
+    }
+
+    private static double MeasureText(string text, double fontSize)
+    {
+        var block = new TextBlock { Text = text, FontSize = fontSize, TextWrapping = TextWrapping.NoWrap };
+        block.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        return block.DesiredSize.Width;
+    }
+
+    private static void InvokeHandler(TaskbarWidgetWindow window, string method) =>
+        typeof(TaskbarWidgetWindow).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(window, [Find<Border>(window, "RootBorder"), null]);
 
     [DataTestMethod]
     [DataRow(true)]

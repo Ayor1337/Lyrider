@@ -152,8 +152,9 @@ public partial class TaskbarWidgetWindow : Window
         {
             AnimateLyricTransition(previousDisplayText, textTransitionDirection);
         }
-        else if ((displayTextChanged || marqueeModeChanged) && !_isPointerOver)
+        else if (displayTextChanged || marqueeModeChanged || textTransitionDirection != 0)
         {
+            // The marquee keeps running under the hover controls, so leaving resumes it in place.
             Dispatcher.BeginInvoke(new Action(StartMarquee));
         }
     }
@@ -364,7 +365,7 @@ public partial class TaskbarWidgetWindow : Window
 
     /// <summary>
     /// Switches between the default artwork-left layout and the mirrored right-aligned one. The
-    /// scroll direction stays unchanged because overflowing text always fills the whole viewport.
+    /// scroll direction stays unchanged; <see cref="PrepareMarquee"/> positions the marquee text.
     /// </summary>
     private void UpdateLyricAlignment(HostContext? host)
     {
@@ -392,7 +393,6 @@ public partial class TaskbarWidgetWindow : Window
             ? new Thickness(2, 0, 6, 0)
             : new Thickness(6, 0, 2, 0);
         var textAlignment = rightAligned ? TextAlignment.Right : TextAlignment.Left;
-        TitleText.TextAlignment = textAlignment;
         OutgoingTitleText.TextAlignment = textAlignment;
         ArtistText.TextAlignment = textAlignment;
         OutgoingArtistText.TextAlignment = textAlignment;
@@ -711,8 +711,13 @@ public partial class TaskbarWidgetWindow : Window
         }
 
         _isPointerOver = true;
+        // An interrupted transition never reaches the completion that starts the marquee.
+        var interruptedTransition = OutgoingInfoPanel.Visibility == Visibility.Visible;
         StopLyricTransition();
-        PrepareMarquee();
+        if (interruptedTransition)
+        {
+            StartMarquee();
+        }
         ControlsPanel.IsHitTestVisible = true;
         AnimatePanel(InfoPanel, 0, -2, 100);
         AnimatePanel(ControlsPanel, 1, 0, 167);
@@ -726,17 +731,12 @@ public partial class TaskbarWidgetWindow : Window
         AnimatePanel(ControlsPanel, 0, 2, 100);
         AnimatePanel(InfoPanel, 1, 0, 167);
         SetRootBackground(_idleBackgroundColor, animate: true);
-        PrepareMarquee();
-        Dispatcher.BeginInvoke(new Action(StartMarquee));
     }
 
     private void TextViewport_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         PrepareMarquee();
-        if (!_isPointerOver)
-        {
-            Dispatcher.BeginInvoke(new Action(StartMarquee));
-        }
+        Dispatcher.BeginInvoke(new Action(StartMarquee));
     }
 
     private void StartMarquee()
@@ -752,21 +752,25 @@ public partial class TaskbarWidgetWindow : Window
         ((TranslateTransform)PrimaryMarqueePanel.RenderTransform).BeginAnimation(
             TranslateTransform.XProperty,
             CreateMarqueeAnimation(cycleDistance, cycleDuration));
-        ApplyMarqueeEdgeFade(PrimaryMarqueeViewport, cycleDuration);
+        ApplyMarqueeEdgeFade(PrimaryMarqueeViewport, cycleDuration, TitleText.Padding.Left > 0);
         if (TaskbarPresentation.ShouldSynchronizeMarquee(_state))
         {
             ((TranslateTransform)SecondaryMarqueePanel.RenderTransform).BeginAnimation(
                 TranslateTransform.XProperty,
                 CreateMarqueeAnimation(cycleDistance, cycleDuration));
-            ApplyMarqueeEdgeFade(SecondaryMarqueeViewport, cycleDuration);
+            ApplyMarqueeEdgeFade(SecondaryMarqueeViewport, cycleDuration, ScrollingArtistText.Padding.Left > 0);
         }
     }
 
     /// <summary>
     /// Softens the edges of scrolling text instead of cutting it off. The leading edge only
     /// fades while the text is moving, so the first glyphs stay crisp during the start delay.
+    /// A line that rests against the right edge keeps that edge crisp the same way.
     /// </summary>
-    private static void ApplyMarqueeEdgeFade(FrameworkElement viewport, TimeSpan cycleDuration)
+    private static void ApplyMarqueeEdgeFade(
+        FrameworkElement viewport,
+        TimeSpan cycleDuration,
+        bool restsOnTrailingEdge)
     {
         if (viewport.ActualWidth <= 0)
         {
@@ -783,7 +787,8 @@ public partial class TaskbarWidgetWindow : Window
         mask.GradientStops.Add(leadingStop);
         mask.GradientStops.Add(new GradientStop(Colors.Black, edge));
         mask.GradientStops.Add(new GradientStop(Colors.Black, 1 - edge));
-        mask.GradientStops.Add(new GradientStop(Colors.Transparent, 1));
+        var trailingStop = new GradientStop(Colors.Transparent, 1);
+        mask.GradientStops.Add(trailingStop);
 
         // Same length as the marquee cycle, so both loops stay in step.
         var leadingFade = new ColorAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever };
@@ -796,6 +801,10 @@ public partial class TaskbarWidgetWindow : Window
         leadingFade.KeyFrames.Add(new LinearColorKeyFrame(Colors.Black, KeyTime.FromTimeSpan(cycleDuration)));
         viewport.OpacityMask = mask;
         leadingStop.BeginAnimation(GradientStop.ColorProperty, leadingFade);
+        if (restsOnTrailingEdge)
+        {
+            trailingStop.BeginAnimation(GradientStop.ColorProperty, leadingFade);
+        }
     }
 
     // Apply text widths and alignment before the incoming lyric becomes visible.
@@ -809,27 +818,32 @@ public partial class TaskbarWidgetWindow : Window
             TitleText.DesiredSize.Width,
             ScrollingArtistText.DesiredSize.Width,
             synchronizeSecondary);
-        var overflow = TaskbarPresentation.CalculateMarqueeDistance(contentWidth, TextViewport.ActualWidth);
-        if (overflow <= 0 || _isPointerOver)
+        var viewportWidth = TextViewport.ActualWidth;
+        var overflow = TaskbarPresentation.CalculateMarqueeDistance(contentWidth, viewportWidth);
+        if (overflow <= 0)
         {
             // In the right-aligned style, text narrower than the viewport hugs its right edge.
-            var offset = _isRightAligned
-                ? TaskbarPresentation.CalculateRightAlignedOffset(contentWidth, TextViewport.ActualWidth)
+            // The secondary line is the right-aligned ArtistText here, not the marquee panel.
+            ((TranslateTransform)PrimaryMarqueePanel.RenderTransform).X = _isRightAligned
+                ? TaskbarPresentation.CalculateRightAlignedOffset(TitleText.DesiredSize.Width, viewportWidth)
                 : 0;
-            ((TranslateTransform)PrimaryMarqueePanel.RenderTransform).X = offset;
-            if (synchronizeSecondary)
-            {
-                ((TranslateTransform)SecondaryMarqueePanel.RenderTransform).X = offset;
-            }
-
             return 0;
         }
 
+        // Both copies share the same inset, so a line narrower than the viewport starts against
+        // its right edge in the right-aligned style and still loops seamlessly.
+        var titleInset = new Thickness(GetRightAlignedInset(TitleText.DesiredSize.Width, viewportWidth), 0, 0, 0);
+        TitleText.Padding = titleInset;
+        MarqueeTitleText.Padding = titleInset;
         TitleText.Width = contentWidth;
         MarqueeTitleText.Width = contentWidth;
         MarqueeTitleText.Visibility = Visibility.Visible;
         if (synchronizeSecondary)
         {
+            var secondaryInset = new Thickness(
+                GetRightAlignedInset(ScrollingArtistText.DesiredSize.Width, viewportWidth), 0, 0, 0);
+            ScrollingArtistText.Padding = secondaryInset;
+            MarqueeArtistText.Padding = secondaryInset;
             ArtistText.Visibility = Visibility.Collapsed;
             ScrollingArtistText.Width = contentWidth;
             MarqueeArtistText.Width = contentWidth;
@@ -840,6 +854,9 @@ public partial class TaskbarWidgetWindow : Window
             contentWidth,
             MarqueeGap);
     }
+
+    private double GetRightAlignedInset(double lineWidth, double viewportWidth) =>
+        _isRightAligned ? TaskbarPresentation.CalculateRightAlignedOffset(lineWidth, viewportWidth) : 0;
 
     private static DoubleAnimationUsingKeyFrames CreateMarqueeAnimation(
         double cycleDistance,
@@ -874,6 +891,10 @@ public partial class TaskbarWidgetWindow : Window
         MarqueeTitleText.Width = double.NaN;
         ScrollingArtistText.Width = double.NaN;
         MarqueeArtistText.Width = double.NaN;
+        TitleText.Padding = default;
+        MarqueeTitleText.Padding = default;
+        ScrollingArtistText.Padding = default;
+        MarqueeArtistText.Padding = default;
     }
 
     private void AnimateLyricTransition(TaskbarDisplayText outgoingText, int direction)
