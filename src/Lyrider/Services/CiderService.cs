@@ -41,6 +41,8 @@ public sealed class CiderService : IDisposable
         };
     }
 
+    public Uri BaseAddress => _baseAddress;
+
     public bool TryUpdateBaseAddress(string? baseAddress)
     {
         if (!TryParseBaseAddress(baseAddress, out var uri))

@@ -40,6 +40,7 @@ public sealed partial class MainWindow : Window
     private readonly LyricsService _lyricsService = new();
     private readonly ConnectionStatusTracker _connectionStatus = new();
     private readonly CiderService _ciderService;
+    private readonly CiderPlaybackSocket _playbackSocket = new();
     private readonly NextTrackLyricsPreloader _nextTrackLyricsPreloader;
     private readonly ArtworkPresenter _artworkPresenter;
     private readonly AppWindow _appWindow;
@@ -162,6 +163,8 @@ public sealed partial class MainWindow : Window
 
         _refreshTimer.Tick += RefreshTimer_Tick;
         _lyricTimer.Tick += LyricTimer_Tick;
+        _playbackSocket.TimeChanged += PlaybackSocket_TimeChanged;
+        _playbackSocket.Start(() => _ciderService.BaseAddress);
         Closed += MainWindow_Closed;
         Activated += MainWindow_Activated;
         _isInitialized = true;
@@ -670,6 +673,27 @@ public sealed partial class MainWindow : Window
             track.DurationInMillis / 1000,
             _latestPlaybackStatus?.IsPlaying ?? false,
             _playbackClock.Elapsed);
+    }
+
+    private void PlaybackSocket_TimeChanged(PlaybackTimeSample sample)
+    {
+        // Convert to the local clock here, before the dispatcher hop adds its own delay.
+        var observedAt = _playbackClock.Elapsed - sample.AgeAt(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        DispatcherQueue.TryEnqueue(() => ApplyPreciseSample(sample, observedAt));
+    }
+
+    private void ApplyPreciseSample(PlaybackTimeSample sample, TimeSpan observedAt)
+    {
+        // The socket can report a new track before the REST poll does; ignore samples whose
+        // duration does not match the track on screen.
+        if (_latestTrack is null ||
+            Math.Abs(sample.Duration - _latestTrack.DurationInMillis / 1000) > 1.5)
+        {
+            return;
+        }
+
+        _playbackTimeline.SynchronizePrecise(sample.Position, sample.Duration, sample.IsPlaying, observedAt);
+        RefreshLyricPlayback();
     }
 
     private void UpdateNowPlaying(NowPlayingInfo? track)
@@ -2533,6 +2557,8 @@ public sealed partial class MainWindow : Window
         CancelPlaybackSeekDebounce();
         _lyricsRefreshCancellation?.Cancel();
         _lifetimeCancellation.Cancel();
+        _playbackSocket.TimeChanged -= PlaybackSocket_TimeChanged;
+        _playbackSocket.Dispose();
         _taskbarWidgetHost.CommandRequested -= TaskbarWidgetHost_CommandRequested;
         _taskbarWidgetHost.Dispose();
         _desktopLyricsHost.CommandRequested -= DesktopLyrics_CommandRequested;

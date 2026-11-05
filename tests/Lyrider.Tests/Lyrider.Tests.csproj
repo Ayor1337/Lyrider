@@ -27,6 +27,7 @@
     <Compile Include="..\..\src\Lyrider\Models\CiderNowPlayingResponse.cs" Link="Production\CiderNowPlayingResponse.cs" />
     <Compile Include="..\..\src\Lyrider\Models\CiderPlaybackModels.cs" Link="Production\CiderPlaybackModels.cs" />
     <Compile Include="..\..\src\Lyrider\Services\CiderService.cs" Link="Production\CiderService.cs" />
+    <Compile Include="..\..\src\Lyrider\Services\CiderPlaybackSocket.cs" Link="Production\CiderPlaybackSocket.cs" />
     <Compile Include="..\..\src\Lyrider\Services\ConnectionStatus.cs" Link="Production\ConnectionStatus.cs" />
     <Compile Include="..\..\src\Lyrider\Services\AppText.cs" Link="Production\AppText.cs" />
     <Compile Include="..\..\src\Lyrider\Services\ChineseTextConverter.cs" Link="Production\ChineseTextConverter.cs" />
