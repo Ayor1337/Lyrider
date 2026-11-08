@@ -37,6 +37,12 @@ public sealed class AppSettings
     /// </summary>
     public bool RightAlignTaskbarLyrics { get; set; }
 
+    /// <summary>
+    /// Experimental: let the taskbar lyric and its translation scroll on their own widths instead
+    /// of in step, so a line that fits stays still.
+    /// </summary>
+    public bool ScrollTaskbarLyricsIndependently { get; set; }
+
     public bool StartSilently { get; set; }
 
     public bool MinimizeToTrayOnClose { get; set; }

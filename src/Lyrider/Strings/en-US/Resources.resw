@@ -109,6 +109,8 @@
   <data name="Main_100.Text" xml:space="preserve"><value>Experimental</value></data>
   <data name="Main_101.Text" xml:space="preserve"><value>Desktop lyrics</value></data>
   <data name="Main_106.Content" xml:space="preserve"><value>Reset position</value></data>
+  <data name="Main_107.Text" xml:space="preserve"><value>Scroll taskbar translation independently</value></data>
+  <data name="Main_108.Text" xml:space="preserve"><value>The lyric and its translation each scroll by their own length; a line that fits stays still</value></data>
   <data name="DesktopPreviewTitle.Text" xml:space="preserve"><value>Preview</value></data>
   <data name="DesktopSceneLyrics.Content" xml:space="preserve"><value>Lyrics</value></data>
   <data name="DesktopSceneTranslation.Content" xml:space="preserve"><value>With translation</value></data>

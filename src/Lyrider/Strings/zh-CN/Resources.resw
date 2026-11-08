@@ -109,6 +109,8 @@
   <data name="Main_100.Text" xml:space="preserve"><value>实验</value></data>
   <data name="Main_101.Text" xml:space="preserve"><value>桌面歌词</value></data>
   <data name="Main_106.Content" xml:space="preserve"><value>重置位置</value></data>
+  <data name="Main_107.Text" xml:space="preserve"><value>任务栏翻译独立滚动</value></data>
+  <data name="Main_108.Text" xml:space="preserve"><value>歌词与翻译各自按长度滚动，放得下的一行保持不动</value></data>
   <data name="DesktopPreviewTitle.Text" xml:space="preserve"><value>效果预览</value></data>
   <data name="DesktopSceneLyrics.Content" xml:space="preserve"><value>普通歌词</value></data>
   <data name="DesktopSceneTranslation.Content" xml:space="preserve"><value>带翻译</value></data>

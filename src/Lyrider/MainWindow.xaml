@@ -1504,6 +1504,43 @@
                                     </Grid>
                                 </Grid>
                             </Border>
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid x:Name="TaskbarLyricsScrollingSettingsRow" RowSpacing="10" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="260" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid Style="{StaticResource SettingsLabelHostStyle}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource SettingsIconStyle}">
+                                            <FontIcon FontSize="16" Glyph="&#xE8AB;" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock x:Uid="Main_107" FontWeight="SemiBold" Text="任务栏翻译独立滚动" />
+                                            <TextBlock x:Uid="Main_108" Style="{StaticResource SettingsDescriptionStyle}" Text="歌词与翻译各自按长度滚动，放得下的一行保持不动" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid
+                                        Grid.Column="1"
+                                        Style="{StaticResource SettingsControlHostStyle}"
+                                        Width="260"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                        <ToggleSwitch
+                                            x:Name="TaskbarLyricsScrollingToggle"
+                                            Style="{StaticResource SettingsToggleStyle}"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
                         </StackPanel>
                     </StackPanel>
 

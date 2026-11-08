@@ -20,6 +20,7 @@ public sealed class TaskbarWidgetHost : IDisposable
     private bool _disposed;
     private bool _refreshInProgress;
     private bool _rightAlignedLyrics;
+    private bool _independentLyricScrolling;
 
     public event Action<TaskbarPlaybackCommand>? CommandRequested;
 
@@ -87,6 +88,16 @@ public sealed class TaskbarWidgetHost : IDisposable
         }
 
         _dispatcher?.BeginInvoke(() => _window?.SetRightAlignedLyrics(value));
+    }
+
+    public void SetIndependentLyricScrolling(bool value)
+    {
+        lock (_gate)
+        {
+            _independentLyricScrolling = value;
+        }
+
+        _dispatcher?.BeginInvoke(() => _window?.SetIndependentLyricScrolling(value));
     }
 
     public void PrepareArtwork(string? url)
@@ -209,6 +220,7 @@ public sealed class TaskbarWidgetHost : IDisposable
                 CloseWindow();
                 _window = new TaskbarWidgetWindow();
                 _window.SetRightAlignedLyrics(GetRightAlignedLyrics());
+                _window.SetIndependentLyricScrolling(GetIndependentLyricScrolling());
                 _window.CommandRequested += Window_CommandRequested;
                 _window.Closed += Window_Closed;
                 _window.Show();
@@ -279,6 +291,14 @@ public sealed class TaskbarWidgetHost : IDisposable
         lock (_gate)
         {
             return _rightAlignedLyrics;
+        }
+    }
+
+    private bool GetIndependentLyricScrolling()
+    {
+        lock (_gate)
+        {
+            return _independentLyricScrolling;
         }
     }
 

@@ -266,7 +266,8 @@ public sealed partial class MainWindow : Window
         foreach (var row in new[] { ThemeSettingsRow, LanguageSettingsRow, BackgroundSettingsRow, BackgroundBlurSettingsRow,
             LyricFontSettingsRow, LyricsSourceSettingsRow, LyricsTranslationSettingsRow, MusixmatchSettingsRow,
             ChineseLyricsSettingsRow, TaskbarWidgetSettingsRow, TaskbarLyricsSettingsRow,
-            SilentStartupSettingsRow, MinimizeToTraySettingsRow, TaskbarLyricsAlignmentSettingsRow })
+            SilentStartupSettingsRow, MinimizeToTraySettingsRow, TaskbarLyricsAlignmentSettingsRow,
+            TaskbarLyricsScrollingSettingsRow })
         {
             var stacked = RootGrid.ActualWidth < 720;
             row.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
@@ -321,7 +322,7 @@ public sealed partial class MainWindow : Window
         foreach (var toggle in new[] { LyricsTranslationToggle, ChineseLyricsToggle, TaskbarWidgetToggle,
             TaskbarLyricsToggle, SilentStartupToggle, MinimizeToTrayToggle, DesktopLyricsEnabledToggle,
             DesktopLyricsLockedToggle, DesktopLyricsPauseToggle, DesktopLyricsTranslationToggle,
-            DesktopLyricsKaraokeToggle, TaskbarLyricsAlignmentToggle })
+            DesktopLyricsKaraokeToggle, TaskbarLyricsAlignmentToggle, TaskbarLyricsScrollingToggle })
         {
             toggle.OnContent = on;
             toggle.OffContent = off;
@@ -2233,6 +2234,7 @@ public sealed partial class MainWindow : Window
         _settings.TaskbarWidgetEnabled = TaskbarWidgetToggle.IsOn;
         _settings.ShowLyricsInTaskbar = TaskbarLyricsToggle.IsOn;
         _settings.RightAlignTaskbarLyrics = TaskbarLyricsAlignmentToggle.IsOn;
+        _settings.ScrollTaskbarLyricsIndependently = TaskbarLyricsScrollingToggle.IsOn;
         _settings.StartSilently = SilentStartupToggle.IsOn;
         _settings.MinimizeToTrayOnClose = MinimizeToTrayToggle.IsOn;
         _settings.BackgroundOpacity = BackgroundOpacitySlider.Value / 100;
@@ -2351,6 +2353,7 @@ public sealed partial class MainWindow : Window
         TaskbarWidgetToggle.IsOn = _settings.TaskbarWidgetEnabled;
         TaskbarLyricsToggle.IsOn = _settings.ShowLyricsInTaskbar;
         TaskbarLyricsAlignmentToggle.IsOn = _settings.RightAlignTaskbarLyrics;
+        TaskbarLyricsScrollingToggle.IsOn = _settings.ScrollTaskbarLyricsIndependently;
         SilentStartupToggle.IsOn = _settings.StartSilently;
         MinimizeToTrayToggle.IsOn = _settings.MinimizeToTrayOnClose;
         LoadDesktopLyricsControls();
@@ -2391,6 +2394,7 @@ public sealed partial class MainWindow : Window
         _artworkPresenter.Apply(_settings.BackgroundOpacity, _settings.BackgroundBlur);
         UpdateResponsiveLayout();
         _taskbarWidgetHost.SetRightAlignedLyrics(_settings.RightAlignTaskbarLyrics);
+        _taskbarWidgetHost.SetIndependentLyricScrolling(_settings.ScrollTaskbarLyricsIndependently);
         if (_settings.TaskbarWidgetEnabled && _taskbarWidgetHost.IsSupported)
         {
             _taskbarWidgetHost.Start();

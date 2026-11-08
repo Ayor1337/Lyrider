@@ -51,6 +51,7 @@ public partial class TaskbarWidgetWindow : Window
     private bool _isRefreshingHost;
     private bool _rightAlignedLyricsEnabled;
     private bool _isRightAligned;
+    private bool _scrollLinesIndependently;
     private string _primaryText = string.Empty;
     private string _secondaryText = string.Empty;
     private int _lyricTransitionGeneration;
@@ -108,6 +109,22 @@ public partial class TaskbarWidgetWindow : Window
 
         _rightAlignedLyricsEnabled = value;
         UpdateLyricAlignment(_hostContext);
+    }
+
+    /// <summary>
+    /// Lets the lyric and its translation scroll on their own widths instead of sharing the longer
+    /// one, so a line that fits stays still while the other one scrolls.
+    /// </summary>
+    public void SetIndependentLyricScrolling(bool value)
+    {
+        if (_scrollLinesIndependently == value)
+        {
+            return;
+        }
+
+        _scrollLinesIndependently = value;
+        PrepareMarquee();
+        Dispatcher.BeginInvoke(new Action(StartMarquee));
     }
 
     public void SetPlaybackState(TaskbarPlaybackState state)
@@ -741,7 +758,18 @@ public partial class TaskbarWidgetWindow : Window
 
     private void StartMarquee()
     {
-        var cycleDistance = PrepareMarquee();
+        var (primaryCycle, secondaryCycle) = PrepareMarquee();
+        StartLineMarquee(PrimaryMarqueePanel, PrimaryMarqueeViewport, primaryCycle, TitleText.Padding.Left > 0);
+        StartLineMarquee(
+            SecondaryMarqueePanel, SecondaryMarqueeViewport, secondaryCycle, ScrollingArtistText.Padding.Left > 0);
+    }
+
+    private static void StartLineMarquee(
+        FrameworkElement panel,
+        FrameworkElement viewport,
+        double cycleDistance,
+        bool restsOnTrailingEdge)
+    {
         if (cycleDistance <= 0)
         {
             return;
@@ -749,17 +777,10 @@ public partial class TaskbarWidgetWindow : Window
 
         var travelDuration = TimeSpan.FromSeconds(cycleDistance / MarqueeSpeed);
         var cycleDuration = MarqueeStartDelay + travelDuration;
-        ((TranslateTransform)PrimaryMarqueePanel.RenderTransform).BeginAnimation(
+        ((TranslateTransform)panel.RenderTransform).BeginAnimation(
             TranslateTransform.XProperty,
             CreateMarqueeAnimation(cycleDistance, cycleDuration));
-        ApplyMarqueeEdgeFade(PrimaryMarqueeViewport, cycleDuration, TitleText.Padding.Left > 0);
-        if (TaskbarPresentation.ShouldSynchronizeMarquee(_state))
-        {
-            ((TranslateTransform)SecondaryMarqueePanel.RenderTransform).BeginAnimation(
-                TranslateTransform.XProperty,
-                CreateMarqueeAnimation(cycleDistance, cycleDuration));
-            ApplyMarqueeEdgeFade(SecondaryMarqueeViewport, cycleDuration, ScrollingArtistText.Padding.Left > 0);
-        }
+        ApplyMarqueeEdgeFade(viewport, cycleDuration, restsOnTrailingEdge);
     }
 
     /// <summary>
@@ -807,52 +828,60 @@ public partial class TaskbarWidgetWindow : Window
         }
     }
 
-    // Apply text widths and alignment before the incoming lyric becomes visible.
-    private double PrepareMarquee()
+    // Apply text widths and alignment before the incoming lyric becomes visible. Returns each
+    // line's cycle distance, or 0 for a line that stays still.
+    private (double Primary, double Secondary) PrepareMarquee()
     {
         StopMarquee();
         TitleText.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
         ScrollingArtistText.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
-        var synchronizeSecondary = TaskbarPresentation.ShouldSynchronizeMarquee(_state);
-        var contentWidth = TaskbarPresentation.CalculateMarqueeContentWidth(
-            TitleText.DesiredSize.Width,
-            ScrollingArtistText.DesiredSize.Width,
-            synchronizeSecondary);
+        var scrollSecondary = TaskbarPresentation.ShouldSynchronizeMarquee(_state);
+        var titleWidth = TitleText.DesiredSize.Width;
+        var secondaryWidth = ScrollingArtistText.DesiredSize.Width;
+        // Synchronized lines share the longer width so they stay in step; independent lines
+        // each scroll by their own width.
+        var sharedWidth = TaskbarPresentation.CalculateMarqueeContentWidth(titleWidth, secondaryWidth, scrollSecondary);
+        var primaryContentWidth = _scrollLinesIndependently ? titleWidth : sharedWidth;
+        var secondaryContentWidth = _scrollLinesIndependently ? secondaryWidth : sharedWidth;
         var viewportWidth = TextViewport.ActualWidth;
-        var overflow = TaskbarPresentation.CalculateMarqueeDistance(contentWidth, viewportWidth);
-        if (overflow <= 0)
+
+        var primaryCycle = 0.0;
+        if (TaskbarPresentation.CalculateMarqueeDistance(primaryContentWidth, viewportWidth) <= 0)
         {
             // In the right-aligned style, text narrower than the viewport hugs its right edge.
-            // The secondary line is the right-aligned ArtistText here, not the marquee panel.
+            // A still secondary line is the right-aligned ArtistText, not the marquee panel.
             ((TranslateTransform)PrimaryMarqueePanel.RenderTransform).X = _isRightAligned
-                ? TaskbarPresentation.CalculateRightAlignedOffset(TitleText.DesiredSize.Width, viewportWidth)
+                ? TaskbarPresentation.CalculateRightAlignedOffset(titleWidth, viewportWidth)
                 : 0;
-            return 0;
+        }
+        else
+        {
+            // Both copies share the same inset, so a line narrower than the viewport starts
+            // against its right edge in the right-aligned style and still loops seamlessly.
+            var titleInset = new Thickness(GetRightAlignedInset(titleWidth, viewportWidth), 0, 0, 0);
+            TitleText.Padding = titleInset;
+            MarqueeTitleText.Padding = titleInset;
+            TitleText.Width = primaryContentWidth;
+            MarqueeTitleText.Width = primaryContentWidth;
+            MarqueeTitleText.Visibility = Visibility.Visible;
+            primaryCycle = TaskbarPresentation.CalculateMarqueeCycleDistance(primaryContentWidth, MarqueeGap);
         }
 
-        // Both copies share the same inset, so a line narrower than the viewport starts against
-        // its right edge in the right-aligned style and still loops seamlessly.
-        var titleInset = new Thickness(GetRightAlignedInset(TitleText.DesiredSize.Width, viewportWidth), 0, 0, 0);
-        TitleText.Padding = titleInset;
-        MarqueeTitleText.Padding = titleInset;
-        TitleText.Width = contentWidth;
-        MarqueeTitleText.Width = contentWidth;
-        MarqueeTitleText.Visibility = Visibility.Visible;
-        if (synchronizeSecondary)
+        var secondaryCycle = 0.0;
+        if (scrollSecondary &&
+            TaskbarPresentation.CalculateMarqueeDistance(secondaryContentWidth, viewportWidth) > 0)
         {
-            var secondaryInset = new Thickness(
-                GetRightAlignedInset(ScrollingArtistText.DesiredSize.Width, viewportWidth), 0, 0, 0);
+            var secondaryInset = new Thickness(GetRightAlignedInset(secondaryWidth, viewportWidth), 0, 0, 0);
             ScrollingArtistText.Padding = secondaryInset;
             MarqueeArtistText.Padding = secondaryInset;
             ArtistText.Visibility = Visibility.Collapsed;
-            ScrollingArtistText.Width = contentWidth;
-            MarqueeArtistText.Width = contentWidth;
+            ScrollingArtistText.Width = secondaryContentWidth;
+            MarqueeArtistText.Width = secondaryContentWidth;
             SynchronizedSecondaryMarquee.Visibility = Visibility.Visible;
+            secondaryCycle = TaskbarPresentation.CalculateMarqueeCycleDistance(secondaryContentWidth, MarqueeGap);
         }
 
-        return TaskbarPresentation.CalculateMarqueeCycleDistance(
-            contentWidth,
-            MarqueeGap);
+        return (primaryCycle, secondaryCycle);
     }
 
     private double GetRightAlignedInset(double lineWidth, double viewportWidth) =>
