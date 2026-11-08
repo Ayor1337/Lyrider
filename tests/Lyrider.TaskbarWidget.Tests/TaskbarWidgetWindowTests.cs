@@ -112,6 +112,56 @@ public sealed class TaskbarWidgetWindowTests
     }
 
     [DataTestMethod]
+    [DataRow("A long lyric that must overflow the viewport", "Short translation")]
+    [DataRow("Short", "A long translation that must overflow the viewport")]
+    public void SetIndependentLyricScrolling_RightAligned_OnlyOverflowingLineScrolls(string lyric, string translation)
+    {
+        RunOnSta(() =>
+        {
+            var window = new TaskbarWidgetWindow();
+            try
+            {
+                SetTaskbarAlignment(window, TaskbarAlignment.Left);
+                window.SetRightAlignedLyrics(true);
+                window.SetIndependentLyricScrolling(true);
+                window.SetPlaybackState(CreateState(lyric, 0) with
+                {
+                    SecondaryLyric = translation,
+                    SecondaryLyricIsTranslation = true
+                });
+                Layout(window);
+                DrainDispatcher();
+
+                var viewportWidth = Find<Grid>(window, "TextViewport").ActualWidth;
+                var title = Find<TextBlock>(window, "TitleText");
+                var primary = (TranslateTransform)Find<StackPanel>(window, "PrimaryMarqueePanel").RenderTransform;
+                var secondary = (TranslateTransform)Find<StackPanel>(window, "SecondaryMarqueePanel").RenderTransform;
+                var lyricOverflows = MeasureText(lyric, 14) > viewportWidth;
+                var translationOverflows = MeasureText(translation, 12) > viewportWidth;
+                Assert.AreNotEqual(lyricOverflows, translationOverflows, "Each case needs exactly one long line.");
+
+                Assert.AreEqual(lyricOverflows, primary.HasAnimatedProperties);
+                Assert.AreEqual(translationOverflows, secondary.HasAnimatedProperties);
+                Assert.AreEqual(0, title.Padding.Left, 0.01, "A scrolling line needs no right-aligned inset.");
+                Assert.AreEqual(0, Find<TextBlock>(window, "ScrollingArtistText").Padding.Left, 0.01);
+                if (!lyricOverflows)
+                {
+                    Assert.AreEqual(viewportWidth - title.DesiredSize.Width, primary.X, 0.01,
+                        "A still lyric must rest against the right edge.");
+                }
+
+                Assert.AreEqual(
+                    translationOverflows ? Visibility.Collapsed : Visibility.Visible,
+                    Find<TextBlock>(window, "ArtistText").Visibility);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [DataTestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void PointerHover_RunningMarquee_KeepsScrollProgress(bool rightAlignEnabled)

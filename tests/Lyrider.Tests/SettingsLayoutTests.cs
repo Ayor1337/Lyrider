@@ -139,23 +139,28 @@ public sealed class SettingsLayoutTests
     }
 
     [TestMethod]
-    public void SettingsPage_ExperimentalSection_OwnsRightAlignedLyricsCardAboveCiderConnection()
+    public void SettingsPage_ExperimentalSection_OwnsTaskbarLyricsCardsAboveCiderConnection()
     {
         var document = XDocument.Load(Path.Combine(
             AppContext.BaseDirectory,
             "Fixtures",
             "MainWindow.xaml"));
 
-        var toggle = FindNamedElement(document, "TaskbarLyricsAlignmentToggle");
-        Assert.AreEqual("ToggleSwitch", toggle?.Name.LocalName);
+        foreach (var toggleName in new[] { "TaskbarLyricsAlignmentToggle", "TaskbarLyricsScrollingToggle" })
+        {
+            Assert.AreEqual("ToggleSwitch", FindNamedElement(document, toggleName)?.Name.LocalName);
+        }
+
         var card = FindNamedElement(document, "TaskbarLyricsAlignmentSettingsRow")?.Parent;
         Assert.IsNotNull(card);
         Assert.AreEqual("Border", card!.Name.LocalName);
+        var scrollingCard = FindNamedElement(document, "TaskbarLyricsScrollingSettingsRow")?.Parent;
+        Assert.IsNotNull(scrollingCard);
 
-        // The card closes a section of its own instead of sharing the "歌词与播放" cards.
+        // The cards form a section of their own instead of sharing the "歌词与播放" cards.
         var cards = card.Parent;
         Assert.IsNotNull(cards);
-        Assert.AreSame(card, cards!.Elements().Last());
+        CollectionAssert.AreEqual(new[] { card, scrollingCard }, cards!.Elements().ToArray());
         var section = cards.Parent;
         Assert.IsNotNull(section);
         var heading = section!.Elements().First();

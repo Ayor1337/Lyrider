@@ -17,6 +17,7 @@ public sealed class TaskbarWidgetTests
         Assert.IsFalse(settings.TaskbarWidgetEnabled);
         Assert.IsTrue(settings.ShowLyricsInTaskbar);
         Assert.IsFalse(settings.RightAlignTaskbarLyrics);
+        Assert.IsFalse(settings.ScrollTaskbarLyricsIndependently);
         Assert.IsFalse(settings.MinimizeToTrayOnClose);
         Assert.IsFalse(settings.ConvertTraditionalLyricsToSimplified);
         Assert.AreEqual("Auto", settings.LyricsSource);
@@ -25,6 +26,7 @@ public sealed class TaskbarWidgetTests
         settings.TaskbarWidgetEnabled = true;
         settings.ShowLyricsInTaskbar = false;
         settings.RightAlignTaskbarLyrics = true;
+        settings.ScrollTaskbarLyricsIndependently = true;
         settings.MinimizeToTrayOnClose = true;
         settings.ConvertTraditionalLyricsToSimplified = true;
         settings.LyricsSource = "Netease";
@@ -37,6 +39,7 @@ public sealed class TaskbarWidgetTests
         Assert.IsTrue(restored.TaskbarWidgetEnabled);
         Assert.IsFalse(restored.ShowLyricsInTaskbar);
         Assert.IsTrue(restored.RightAlignTaskbarLyrics);
+        Assert.IsTrue(restored.ScrollTaskbarLyricsIndependently);
         Assert.IsTrue(restored.MinimizeToTrayOnClose);
         Assert.IsTrue(restored.ConvertTraditionalLyricsToSimplified);
         Assert.AreEqual("Netease", restored.LyricsSource);
@@ -47,6 +50,7 @@ public sealed class TaskbarWidgetTests
         Assert.IsNotNull(upgraded);
         Assert.IsTrue(upgraded.ShowLyricsInTaskbar);
         Assert.IsFalse(upgraded.RightAlignTaskbarLyrics);
+        Assert.IsFalse(upgraded.ScrollTaskbarLyricsIndependently);
         Assert.AreEqual("Auto", upgraded.LyricsSource);
         Assert.IsFalse(upgraded.ShowLyricsTranslation);
         Assert.IsFalse(upgraded.HasCompletedOnboarding);
