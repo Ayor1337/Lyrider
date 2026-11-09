@@ -221,6 +221,11 @@ $manifest = @"
         <desktop:Extension
           Category="windows.fullTrustProcess"
           Executable="Lyrider.exe" />
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="lyrider">
+            <uap:DisplayName>Lyrider</uap:DisplayName>
+          </uap:Protocol>
+        </uap:Extension>
       </Extensions>
     </Application>
   </Applications>

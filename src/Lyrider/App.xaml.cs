@@ -1,6 +1,7 @@
 using System.Globalization;
 using Lyrider.Services;
 using Microsoft.UI.Xaml;
+using Microsoft.Windows.AppLifecycle;
 using Windows.System.UserProfile;
 using ApplicationLanguages = Microsoft.Windows.Globalization.ApplicationLanguages;
 
@@ -8,7 +9,10 @@ namespace Lyrider;
 
 public partial class App : Application
 {
+    private const string InstanceMutexName = @"Local\Lyrider.Instance";
+
     private Window? _window;
+    private Mutex? _instanceMutex;
 
     public App()
     {
@@ -43,8 +47,29 @@ public partial class App : Application
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // Held for the process lifetime; only a protocol launch defers to a running instance, so
+        // the Cider plugin opening lyrider:// never starts a second copy.
+        _instanceMutex = new Mutex(true, InstanceMutexName, out var isFirstInstance);
+        if (!isFirstInstance && IsProtocolActivation())
+        {
+            Exit();
+            return;
+        }
+
         var window = new MainWindow();
         _window = window;
         await window.StartAsync();
+    }
+
+    private static bool IsProtocolActivation()
+    {
+        try
+        {
+            return AppInstance.GetCurrent().GetActivatedEventArgs().Kind == ExtendedActivationKind.Protocol;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 }

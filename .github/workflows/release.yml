@@ -99,6 +99,10 @@ jobs:
           -Configuration Release
           -Publisher '${{ steps.certificate.outputs.publisher }}'
 
+      - name: Package Cider plugin
+        shell: pwsh
+        run: .\scripts\package-cider-plugin.ps1
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7
         with:
@@ -106,6 +110,7 @@ jobs:
           path: |
             AppPackages/Lyrider_${{ steps.version.outputs.package }}_x64/*.msix
             AppPackages/Lyrider_${{ steps.version.outputs.package }}_x64/*.cer
+            AppPackages/Lyrider-Cider-Plugin_*.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -116,8 +121,10 @@ jobs:
         run: |
           $tag = '${{ steps.version.outputs.tag }}'
           $outputDirectory = "AppPackages/Lyrider_${{ steps.version.outputs.package }}_x64"
-          $assets = Get-ChildItem $outputDirectory -File |
+          $assets = @(Get-ChildItem $outputDirectory -File |
               Where-Object Extension -in '.msix', '.cer' |
+              ForEach-Object FullName)
+          $assets += Get-ChildItem AppPackages -Filter 'Lyrider-Cider-Plugin_*.zip' -File |
               ForEach-Object FullName
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null

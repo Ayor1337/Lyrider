@@ -14,7 +14,7 @@ Lyrider 是一个用于 [Cider](https://cider.sh) 的歌词显示工具，**仅�
 - 主界面显示当前歌词的实际来源
 - 可显示歌词源提供的简体中文译文
 - 界面支持简体中文和英语，默认跟随 Windows 显示语言，也可在设置中切换
-- 设置页的「实验」分区：Windows 任务栏图标靠左时，可把任务栏歌词切成右对齐样式（歌词在封面左侧右对齐，封面靠右）；也可让任务栏歌词与翻译各自独立滚动，不再同步
+- 设置页的「实验」分区：Windows 任务栏图标靠左时，可把任务栏歌词切成右对齐样式（歌词在封面左侧右对齐，封面靠右）；也可让任务栏歌词与翻译各自独立滚动，不再同步；还可在 Cider 退出时自动退出 Lyrider
 
 ## 界面预览
 
@@ -88,6 +88,15 @@ Add-AppxPackage $package.FullName
 也可以双击 `Lyrider.cer`，将证书安装到“当前用户”的“受信任人”存储，然后双击 MSIX 安装。只应信任从本仓库 Release 下载的证书。
 
 安装包已包含 .NET、Windows App SDK 运行时和两套界面语言资源；语言资源会保留在主包中，因此设置页的语言选择不受 Windows 当前显示语言限制。后续版本只要继续使用同一张证书签名，直接安装新的 MSIX 即可升级，不需要重复导入证书。
+
+### 随 Cider 启动 Lyrider
+
+可选的 Cider 插件会在 Cider 启动时自动启动 Lyrider。它需要 Cider 4 和 MSIX 版 Lyrider（插件通过 MSIX 注册的 `lyrider:` 协议启动 Lyrider）；Lyrider 已在运行时不会再开第二个。
+
+1. 从同一 Release 下载 `Lyrider-Cider-Plugin_<版本>.zip`，把其中的 `plugin.yml` 和 `plugin.js` 解压到 `%APPDATA%\sh.cider.dotnet\plugins\io.github.ayor1337.lyrider-launcher\`。在源码目录中也可以直接运行 `.\scripts\package-cider-plugin.ps1 -Install`。
+2. 重启 Cider，在 设置 > 扩展 > 插件 中启用 **Lyrider Launcher**。
+
+如果还想在 Cider 退出时一起关闭 Lyrider，在 Lyrider 设置的「实验」分区打开「随 Cider 退出」。
 
 ## 通过源码运行
 

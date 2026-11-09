@@ -29,6 +29,11 @@ public sealed partial class MainWindow : Window
         Interval = TimeSpan.FromSeconds(1)
     };
     private readonly DispatcherTimer _lyricTimer = new();
+    private readonly DispatcherTimer _ciderExitTimer = new()
+    {
+        Interval = TimeSpan.FromSeconds(2)
+    };
+    private readonly CiderExitWatcher _ciderExitWatcher = new();
     private readonly Stopwatch _playbackClock = Stopwatch.StartNew();
     private readonly PlaybackTimeline _playbackTimeline = new();
     private readonly CancellationTokenSource _lifetimeCancellation = new();
@@ -163,6 +168,7 @@ public sealed partial class MainWindow : Window
 
         _refreshTimer.Tick += RefreshTimer_Tick;
         _lyricTimer.Tick += LyricTimer_Tick;
+        _ciderExitTimer.Tick += CiderExitTimer_Tick;
         _playbackSocket.TimeChanged += PlaybackSocket_TimeChanged;
         _playbackSocket.Start(() => _ciderService.BaseAddress);
         Closed += MainWindow_Closed;
@@ -267,7 +273,7 @@ public sealed partial class MainWindow : Window
             LyricFontSettingsRow, LyricsSourceSettingsRow, LyricsTranslationSettingsRow, MusixmatchSettingsRow,
             ChineseLyricsSettingsRow, TaskbarWidgetSettingsRow, TaskbarLyricsSettingsRow,
             SilentStartupSettingsRow, MinimizeToTraySettingsRow, TaskbarLyricsAlignmentSettingsRow,
-            TaskbarLyricsScrollingSettingsRow })
+            TaskbarLyricsScrollingSettingsRow, ExitWithCiderSettingsRow })
         {
             var stacked = RootGrid.ActualWidth < 720;
             row.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
@@ -322,7 +328,8 @@ public sealed partial class MainWindow : Window
         foreach (var toggle in new[] { LyricsTranslationToggle, ChineseLyricsToggle, TaskbarWidgetToggle,
             TaskbarLyricsToggle, SilentStartupToggle, MinimizeToTrayToggle, DesktopLyricsEnabledToggle,
             DesktopLyricsLockedToggle, DesktopLyricsPauseToggle, DesktopLyricsTranslationToggle,
-            DesktopLyricsKaraokeToggle, TaskbarLyricsAlignmentToggle, TaskbarLyricsScrollingToggle })
+            DesktopLyricsKaraokeToggle, TaskbarLyricsAlignmentToggle, TaskbarLyricsScrollingToggle,
+            ExitWithCiderToggle })
         {
             toggle.OnContent = on;
             toggle.OffContent = off;
@@ -2235,6 +2242,7 @@ public sealed partial class MainWindow : Window
         _settings.ShowLyricsInTaskbar = TaskbarLyricsToggle.IsOn;
         _settings.RightAlignTaskbarLyrics = TaskbarLyricsAlignmentToggle.IsOn;
         _settings.ScrollTaskbarLyricsIndependently = TaskbarLyricsScrollingToggle.IsOn;
+        _settings.ExitWithCider = ExitWithCiderToggle.IsOn;
         _settings.StartSilently = SilentStartupToggle.IsOn;
         _settings.MinimizeToTrayOnClose = MinimizeToTrayToggle.IsOn;
         _settings.BackgroundOpacity = BackgroundOpacitySlider.Value / 100;
@@ -2354,6 +2362,7 @@ public sealed partial class MainWindow : Window
         TaskbarLyricsToggle.IsOn = _settings.ShowLyricsInTaskbar;
         TaskbarLyricsAlignmentToggle.IsOn = _settings.RightAlignTaskbarLyrics;
         TaskbarLyricsScrollingToggle.IsOn = _settings.ScrollTaskbarLyricsIndependently;
+        ExitWithCiderToggle.IsOn = _settings.ExitWithCider;
         SilentStartupToggle.IsOn = _settings.StartSilently;
         MinimizeToTrayToggle.IsOn = _settings.MinimizeToTrayOnClose;
         LoadDesktopLyricsControls();
@@ -2395,6 +2404,7 @@ public sealed partial class MainWindow : Window
         UpdateResponsiveLayout();
         _taskbarWidgetHost.SetRightAlignedLyrics(_settings.RightAlignTaskbarLyrics);
         _taskbarWidgetHost.SetIndependentLyricScrolling(_settings.ScrollTaskbarLyricsIndependently);
+        ApplyExitWithCider();
         if (_settings.TaskbarWidgetEnabled && _taskbarWidgetHost.IsSupported)
         {
             _taskbarWidgetHost.Start();
@@ -2409,6 +2419,31 @@ public sealed partial class MainWindow : Window
             RefreshLyricPlayback(forceScroll: true);
         }
         UpdatePlaybackSurfaces(_latestTrack, _latestPlaybackStatus);
+    }
+
+    private void ApplyExitWithCider()
+    {
+        if (!_settings.ExitWithCider)
+        {
+            _ciderExitTimer.Stop();
+            return;
+        }
+
+        if (!_ciderExitTimer.IsEnabled)
+        {
+            // Arm afresh so a Cider that quit while the option was off does not end Lyrider now.
+            _ciderExitWatcher.Reset();
+            _ciderExitTimer.Start();
+        }
+    }
+
+    private void CiderExitTimer_Tick(object? sender, object e)
+    {
+        if (_ciderExitWatcher.Poll())
+        {
+            _ciderExitTimer.Stop();
+            ExitApplication();
+        }
     }
 
     private void ApplyDesktopLyricsSettings()
@@ -2558,6 +2593,8 @@ public sealed partial class MainWindow : Window
         }
         _refreshTimer.Stop();
         _lyricTimer.Stop();
+        _ciderExitTimer.Stop();
+        _ciderExitTimer.Tick -= CiderExitTimer_Tick;
         CancelPlaybackSeekDebounce();
         _lyricsRefreshCancellation?.Cancel();
         _lifetimeCancellation.Cancel();

@@ -14,7 +14,7 @@ Lyrider is a lyrics display companion for [Cider](https://cider.sh). **Windows 1
 - The main window shows the source of the lyrics currently displayed
 - Optional Simplified Chinese translations supplied by the selected lyrics source
 - Simplified Chinese and English interfaces, following the Windows display language by default with a manual language option in Settings
-- Experimental section in Settings: right-align the taskbar lyrics when the Windows taskbar keeps its icons on the left (lyrics flush right beside the artwork, artwork at the right edge), and let the taskbar lyric and its translation scroll independently instead of in step
+- Experimental section in Settings: right-align the taskbar lyrics when the Windows taskbar keeps its icons on the left (lyrics flush right beside the artwork, artwork at the right edge), let the taskbar lyric and its translation scroll independently instead of in step, and quit Lyrider automatically when Cider quits
 
 ## Preview
 
@@ -88,6 +88,15 @@ Add-AppxPackage $package.FullName
 Alternatively, double-click `Lyrider.cer`, install it for the current user in the **Trusted People** certificate store, and then double-click the MSIX package. Only trust a certificate downloaded from this repository's Releases page.
 
 The package includes the .NET and Windows App SDK runtimes, plus both interface languages in the main package so the Settings language selector works independently of the Windows display language. When future versions are signed with the same certificate, you can install the new MSIX directly without importing the certificate again.
+
+### Start Lyrider with Cider
+
+The optional Cider plugin starts Lyrider whenever Cider starts. It needs Cider 4 and the MSIX build of Lyrider, which registers the `lyrider:` protocol the plugin opens; if Lyrider is already running, no second copy starts.
+
+1. Download `Lyrider-Cider-Plugin_<version>.zip` from the same Release and extract `plugin.yml` and `plugin.js` into `%APPDATA%\sh.cider.dotnet\plugins\io.github.ayor1337.lyrider-launcher\`. From a source checkout, `.\scripts\package-cider-plugin.ps1 -Install` does the same.
+2. Restart Cider and enable **Lyrider Launcher** under Settings > Extensions > Plugins.
+
+To close Lyrider together with Cider as well, turn on **Exit with Cider** in Lyrider's experimental settings.
 
 ## Running from source
 

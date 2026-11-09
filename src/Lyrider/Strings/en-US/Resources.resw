@@ -111,6 +111,8 @@
   <data name="Main_106.Content" xml:space="preserve"><value>Reset position</value></data>
   <data name="Main_107.Text" xml:space="preserve"><value>Scroll taskbar translation independently</value></data>
   <data name="Main_108.Text" xml:space="preserve"><value>The lyric and its translation each scroll by their own length; a line that fits stays still</value></data>
+  <data name="Main_109.Text" xml:space="preserve"><value>Exit with Cider</value></data>
+  <data name="Main_110.Text" xml:space="preserve"><value>Once Cider has been running, Lyrider quits when Cider quits</value></data>
   <data name="DesktopPreviewTitle.Text" xml:space="preserve"><value>Preview</value></data>
   <data name="DesktopSceneLyrics.Content" xml:space="preserve"><value>Lyrics</value></data>
   <data name="DesktopSceneTranslation.Content" xml:space="preserve"><value>With translation</value></data>
