@@ -1,0 +1,5 @@
+identifier: io.github.ayor1337.lyrider-launcher
+name: Lyrider Launcher
+description: Starts Lyrider when Cider starts.
+version: 1.0.0
+author: Ayor

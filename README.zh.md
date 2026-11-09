@@ -89,6 +89,15 @@ Add-AppxPackage $package.FullName
 
 安装包已包含 .NET、Windows App SDK 运行时和两套界面语言资源；语言资源会保留在主包中，因此设置页的语言选择不受 Windows 当前显示语言限制。后续版本只要继续使用同一张证书签名，直接安装新的 MSIX 即可升级，不需要重复导入证书。
 
+### 随 Cider 启动 Lyrider
+
+可选的 Cider 插件会在 Cider 启动时自动启动 Lyrider。它需要 Cider 4 和 MSIX 版 Lyrider（插件通过 MSIX 注册的 `lyrider:` 协议启动 Lyrider）；Lyrider 已在运行时不会再开第二个。
+
+1. 从同一 Release 下载 `Lyrider-Cider-Plugin_<版本>.zip`，把其中的 `plugin.yml` 和 `plugin.js` 解压到 `%APPDATA%\sh.cider.dotnet\plugins\io.github.ayor1337.lyrider-launcher\`。在源码目录中也可以直接运行 `.\scripts\package-cider-plugin.ps1 -Install`。
+2. 重启 Cider，在 设置 > 扩展 > 插件 中启用 **Lyrider Launcher**。
+
+如果还想在 Cider 退出时一起关闭 Lyrider，在 Lyrider 设置的「实验」分区打开「随 Cider 退出」。
+
 ## 通过源码运行
 
 需要准备：

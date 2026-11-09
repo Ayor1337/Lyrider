@@ -24,7 +24,9 @@
 - `TaskbarPlacement.cs`, `TrayMenuPlacement.cs`, `TaskbarPresentation.cs`: pure layout and text logic with no WPF or Win32 types, source-linked into the test project. `TaskbarPlacement.cs` also declares the `PixelPoint` / `PixelRect` records the others build on.
 - `TaskbarContracts.cs`: the `TaskbarPlaybackState` and `TaskbarDisplayText` records plus the `TaskbarPlaybackCommand` enum.
 
-**`scripts/`** holds repository tooling rather than application code: `package-msix.ps1` builds and packs the MSIX.
+**`cider-plugin/`** — an optional Cider 4 plugin (`plugin.yml` plus a dependency-free ES module `plugin.js`) that opens `lyrider://launch` through Cider's `windowControls.OpenInBrowser` host object when Cider starts. The protocol is declared only in the MSIX manifest written by `package-msix.ps1`, so unpackaged Debug builds cannot be started this way. `App.OnLaunched` exits a protocol launch when another instance already holds the `Local\Lyrider.Instance` mutex.
+
+**`scripts/`** holds repository tooling rather than application code: `package-msix.ps1` builds and packs the MSIX, and `package-cider-plugin.ps1` zips the Cider plugin into `AppPackages/` (`-Install` also copies it into Cider's plugin directory).
 
 Build artifacts belong in `bin/` and `obj/`; both are ignored. Tests live in `tests/Lyrider.Tests/` rather than beside production classes.
 
