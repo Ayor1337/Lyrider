@@ -43,6 +43,11 @@ public sealed class AppSettings
     /// </summary>
     public bool ScrollTaskbarLyricsIndependently { get; set; }
 
+    /// <summary>
+    /// Experimental: quit Lyrider once a Cider process seen while it runs has exited.
+    /// </summary>
+    public bool ExitWithCider { get; set; }
+
     public bool StartSilently { get; set; }
 
     public bool MinimizeToTrayOnClose { get; set; }

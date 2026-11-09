@@ -146,7 +146,7 @@ public sealed class SettingsLayoutTests
             "Fixtures",
             "MainWindow.xaml"));
 
-        foreach (var toggleName in new[] { "TaskbarLyricsAlignmentToggle", "TaskbarLyricsScrollingToggle" })
+        foreach (var toggleName in new[] { "TaskbarLyricsAlignmentToggle", "TaskbarLyricsScrollingToggle", "ExitWithCiderToggle" })
         {
             Assert.AreEqual("ToggleSwitch", FindNamedElement(document, toggleName)?.Name.LocalName);
         }
@@ -156,11 +156,13 @@ public sealed class SettingsLayoutTests
         Assert.AreEqual("Border", card!.Name.LocalName);
         var scrollingCard = FindNamedElement(document, "TaskbarLyricsScrollingSettingsRow")?.Parent;
         Assert.IsNotNull(scrollingCard);
+        var exitWithCiderCard = FindNamedElement(document, "ExitWithCiderSettingsRow")?.Parent;
+        Assert.IsNotNull(exitWithCiderCard);
 
-        // The cards form a section of their own instead of sharing the "歌词与播放" cards.
+        // The experimental cards form a section of their own instead of sharing the "歌词与播放" cards.
         var cards = card.Parent;
         Assert.IsNotNull(cards);
-        CollectionAssert.AreEqual(new[] { card, scrollingCard }, cards!.Elements().ToArray());
+        CollectionAssert.AreEqual(new[] { card, scrollingCard, exitWithCiderCard }, cards!.Elements().ToArray());
         var section = cards.Parent;
         Assert.IsNotNull(section);
         var heading = section!.Elements().First();
