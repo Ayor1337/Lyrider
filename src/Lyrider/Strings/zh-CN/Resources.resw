@@ -113,6 +113,12 @@
   <data name="Main_108.Text" xml:space="preserve"><value>歌词与翻译各自按长度滚动，放得下的一行保持不动</value></data>
   <data name="Main_109.Text" xml:space="preserve"><value>随 Cider 退出</value></data>
   <data name="Main_110.Text" xml:space="preserve"><value>检测到 Cider 运行后，Cider 退出时 Lyrider 也自动退出</value></data>
+  <data name="Main_111.Text" xml:space="preserve"><value>缓存位置</value></data>
+  <data name="Main_112.Text" xml:space="preserve"><value>找到的歌词和封面保存在这里，再次播放无需重新下载；更换位置后从空缓存开始</value></data>
+  <data name="Main_113.Content" xml:space="preserve"><value>更改</value></data>
+  <data name="Main_114.Content" xml:space="preserve"><value>恢复默认</value></data>
+  <data name="Main_115.Text" xml:space="preserve"><value>清除缓存</value></data>
+  <data name="Main_116.Content" xml:space="preserve"><value>清除</value></data>
   <data name="DesktopPreviewTitle.Text" xml:space="preserve"><value>效果预览</value></data>
   <data name="DesktopSceneLyrics.Content" xml:space="preserve"><value>普通歌词</value></data>
   <data name="DesktopSceneTranslation.Content" xml:space="preserve"><value>带翻译</value></data>

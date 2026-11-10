@@ -35,6 +35,9 @@
     <Compile Include="..\..\src\Lyrider\Services\LyricPresentation.cs" Link="Production\LyricPresentation.cs" />
     <Compile Include="..\..\src\Lyrider\Services\PlaybackTimeline.cs" Link="Production\PlaybackTimeline.cs" />
     <Compile Include="..\..\src\Lyrider\Services\LyricsService.cs" Link="Production\LyricsService.cs" />
+    <Compile Include="..\..\src\Lyrider\Services\LyricsDiskCache.cs" Link="Production\LyricsDiskCache.cs" />
+    <Compile Include="..\..\src\Lyrider.TaskbarWidget\CacheFiles.cs" Link="Production\CacheFiles.cs" />
+    <Compile Include="..\..\src\Lyrider.TaskbarWidget\ArtworkCache.cs" Link="Production\ArtworkCache.cs" />
     <Compile Include="..\..\src\Lyrider\Services\LyricsProviders.cs" Link="Production\LyricsProviders.cs" />
     <Compile Include="..\..\src\Lyrider\Services\NextTrackLyricsPreloader.cs" Link="Production\NextTrackLyricsPreloader.cs" />
     <Compile Include="..\..\src\Lyrider\Services\QueueCollectionSynchronizer.cs" Link="Production\QueueCollectionSynchronizer.cs" />

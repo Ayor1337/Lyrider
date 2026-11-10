@@ -43,6 +43,8 @@ public sealed partial class MainWindow : Window
     private readonly TaskbarWidgetHost _taskbarWidgetHost = new();
     private readonly DesktopLyricsHost _desktopLyricsHost = new();
     private readonly LyricsService _lyricsService = new();
+    // 主窗口和任务栏共用；目录在 ApplySettings 里随缓存位置设置更新。
+    private readonly ArtworkCache _artworkCache = new(null);
     private readonly ConnectionStatusTracker _connectionStatus = new();
     private readonly CiderService _ciderService;
     private readonly CiderPlaybackSocket _playbackSocket = new();
@@ -74,6 +76,8 @@ public sealed partial class MainWindow : Window
     private bool _isExitRequested;
     private bool _isSettingsTransitioning;
     private bool _isRunningSettingsAction;
+    // 设置页里选好但还没保存的缓存位置；null 表示默认位置。
+    private string? _lyricsCacheDirectoryDraft;
     private bool _isRunningConnectionAction;
     private bool _isRunningOnboardingAction;
     private bool _showAboutAfterMenuCloses;
@@ -130,7 +134,9 @@ public sealed partial class MainWindow : Window
         _artworkPresenter = new ArtworkPresenter(
             BackgroundArtworkHost,
             ArtworkImage,
-            CurrentQueueArtworkImage);
+            CurrentQueueArtworkImage,
+            _artworkCache);
+        _taskbarWidgetHost.ArtworkCache = _artworkCache;
 
         var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Win32Interop.GetWindowIdFromWindow(windowHandle);
@@ -273,7 +279,8 @@ public sealed partial class MainWindow : Window
             LyricFontSettingsRow, LyricsSourceSettingsRow, LyricsTranslationSettingsRow, MusixmatchSettingsRow,
             ChineseLyricsSettingsRow, TaskbarWidgetSettingsRow, TaskbarLyricsSettingsRow,
             SilentStartupSettingsRow, MinimizeToTraySettingsRow, TaskbarLyricsAlignmentSettingsRow,
-            TaskbarLyricsScrollingSettingsRow, ExitWithCiderSettingsRow })
+            TaskbarLyricsScrollingSettingsRow, ExitWithCiderSettingsRow, LyricsCacheLocationSettingsRow,
+            LyricsCacheClearSettingsRow })
         {
             var stacked = RootGrid.ActualWidth < 720;
             row.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
@@ -2248,6 +2255,17 @@ public sealed partial class MainWindow : Window
         _settings.BackgroundOpacity = BackgroundOpacitySlider.Value / 100;
         _settings.BackgroundBlur = BackgroundBlurSlider.Value;
         _settings.DesktopLyrics = ReadDesktopLyricsDraft();
+        _settings.LyricsCacheDirectory = _lyricsCacheDirectoryDraft;
+
+        if (!TryCreateDirectory(LyricsDiskCache.ResolveDirectoryPath(_settings.LyricsCacheDirectory)))
+        {
+            _settings = previousSettings;
+            await ShowSettingsDialogAsync(
+                AppText.Get("无法保存设置", "Could not save settings"),
+                AppText.Get("无法在所选位置创建歌词缓存文件夹，请换一个位置。",
+                    "Could not create the lyrics cache folder there. Choose another location."));
+            return;
+        }
 
         if (!_settingsStore.TrySave(_settings))
         {
@@ -2259,6 +2277,8 @@ public sealed partial class MainWindow : Window
         }
 
         ApplySettings();
+        UpdateLyricsCacheDirectoryText();
+        _ = UpdateLyricsCacheSizeAsync();
         _nextTrackLyricsPreloader.Clear();
         _nextQueueItem = null;
         _artworkPresenter.PrepareNext(null);
@@ -2373,7 +2393,103 @@ public sealed partial class MainWindow : Window
         LyricFontSizeValueText.Text = FormatFontSize(LyricFontSizeSlider.Value);
         BackgroundOpacityValueText.Text = FormatPercent(BackgroundOpacitySlider.Value);
         BackgroundBlurValueText.Text = FormatPercent(BackgroundBlurSlider.Value);
+        _lyricsCacheDirectoryDraft = _settings.LyricsCacheDirectory;
+        UpdateLyricsCacheDirectoryText();
+        _ = UpdateLyricsCacheSizeAsync();
         ConnectionTestInfoBar.IsOpen = false;
+    }
+
+    private void UpdateLyricsCacheDirectoryText()
+    {
+        var path = LyricsDiskCache.ResolveDirectoryPath(_lyricsCacheDirectoryDraft);
+        LyricsCacheDirectoryText.Text = string.Equals(
+            _lyricsCacheDirectoryDraft, _settings.LyricsCacheDirectory, StringComparison.OrdinalIgnoreCase)
+            ? path
+            : AppText.Format("{0}（保存设置后生效）", "{0} (applies after saving)", path);
+        LyricsCacheDefaultButton.IsEnabled = _lyricsCacheDirectoryDraft is not null;
+    }
+
+    private async Task UpdateLyricsCacheSizeAsync()
+    {
+        var directory = LyricsDiskCache.ResolveDirectoryPath(_settings.LyricsCacheDirectory);
+        var bytes = await new LyricsDiskCache(directory).GetSizeAsync() +
+            await new ArtworkCache(Path.Combine(directory, ArtworkCache.DirectoryName)).GetSizeAsync();
+        var size = bytes < 1024 * 1024
+            ? $"{bytes / 1024.0:0.#} KB"
+            : $"{bytes / 1024.0 / 1024.0:0.#} MB";
+        LyricsCacheSizeText.Text = AppText.Format("已占用 {0}", "Using {0}", size);
+    }
+
+    private async void LyricsCacheBrowseButton_Click(object sender, RoutedEventArgs e)
+    {
+        string? path;
+        try
+        {
+            var picker = new Microsoft.Windows.Storage.Pickers.FolderPicker(_appWindow.Id);
+            path = (await picker.PickSingleFolderAsync())?.Path;
+        }
+        catch (Exception)
+        {
+            await ShowSettingsDialogAsync(
+                AppText.Get("无法选择文件夹", "Could not choose a folder"),
+                AppText.Get("无法打开文件夹选择器。", "The folder picker could not be opened."));
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        _lyricsCacheDirectoryDraft = string.Equals(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)),
+            LyricsDiskCache.DefaultDirectoryPath,
+            StringComparison.OrdinalIgnoreCase)
+            ? null
+            : path;
+        UpdateLyricsCacheDirectoryText();
+    }
+
+    private void LyricsCacheDefaultButton_Click(object sender, RoutedEventArgs e)
+    {
+        _lyricsCacheDirectoryDraft = null;
+        UpdateLyricsCacheDirectoryText();
+    }
+
+    private async void LyricsCacheClearButton_Click(object sender, RoutedEventArgs e)
+    {
+        LyricsCacheClearButton.IsEnabled = false;
+        try
+        {
+            var failed = await _lyricsService.ClearCacheAsync() + await _artworkCache.ClearAsync();
+            await UpdateLyricsCacheSizeAsync();
+            if (failed > 0)
+            {
+                await ShowSettingsDialogAsync(
+                    AppText.Get("部分缓存未能清除", "Some cache files were not cleared"),
+                    AppText.Format(
+                        "有 {0} 个缓存文件正在使用或没有删除权限。",
+                        "{0} cache files are in use or could not be deleted.",
+                        failed));
+            }
+        }
+        finally
+        {
+            LyricsCacheClearButton.IsEnabled = true;
+        }
+    }
+
+    private static bool TryCreateDirectory(string path)
+    {
+        try
+        {
+            Directory.CreateDirectory(path);
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     private async Task ShowSettingsDialogAsync(string title, object content)
@@ -2392,6 +2508,10 @@ public sealed partial class MainWindow : Window
     private void ApplySettings()
     {
         ApplyDesktopLyricsSettings();
+        var cacheDirectory = LyricsDiskCache.ResolveDirectoryPath(_settings.LyricsCacheDirectory);
+        _lyricsService.DiskCache = new LyricsDiskCache(cacheDirectory);
+        _artworkCache.DirectoryPath = Path.Combine(cacheDirectory, ArtworkCache.DirectoryName);
+        _ = _artworkCache.TrimAsync();
         RootGrid.RequestedTheme = _settings.Theme switch
         {
             "Light" => ElementTheme.Light,

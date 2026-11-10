@@ -10,6 +10,7 @@
 - `MainWindow.xaml` and `MainWindow.xaml.cs`: the current now-playing UI and one-second refresh loop.
 - `Services/CiderService.cs`: HTTP access, authentication headers, JSON parsing, and connection errors.
 - `Services/LyricsService.cs` and `Services/LyricsProviders.cs`: lyrics-source selection and the Cider/NetEase/QQ Music/Musixmatch/LRCLIB provider adapters, including Apple storefront alias resolution, matching, fallback, parsing, language-aware translation handling, and external timestamp alignment to Cider lyrics.
+- `Services/LyricsDiskCache.cs`: persistent cache of satisfactory lyrics results, one SHA-256-named JSON file per cache key in the cache root, which defaults to `%LOCALAPPDATA%\Lyrider\lyrics-data` and is overridable via `AppSettings.LyricsCacheDirectory`. Entries never expire.
 - `Services/PlaybackTimeline.cs`: monotonic local playback-position projection used to schedule lyric transitions at their timestamps between Cider API refreshes.
 - `Services/TokenStore.cs`: DPAPI-protected Cider Token and Musixmatch API Key persistence for the current Windows user.
 - `Services/ArtworkBackdrop.cs`: composition-layer backdrop that blurs the artwork with a Win2D effect.
@@ -22,6 +23,7 @@
 - `WindowMaterial.cs`: asks DWM for the acrylic system backdrop, reporting whether it applied so callers can fall back to an opaque background.
 - `NativeMethods.cs`: all P/Invoke declarations, plus the `NativeRect` / `NativePoint` / `NativeMargins` structs.
 - `TaskbarPlacement.cs`, `TrayMenuPlacement.cs`, `TaskbarPresentation.cs`: pure layout and text logic with no WPF or Win32 types, source-linked into the test project. `TaskbarPlacement.cs` also declares the `PixelPoint` / `PixelRect` records the others build on.
+- `ArtworkCache.cs` and `CacheFiles.cs`: pure .NET, shared by the WinUI `ArtworkPresenter` and the WPF `TaskbarArtworkPresenter`. Covers are stored by URL hash in the `artwork` subfolder of the cache root and trimmed least-recently-used past 256 MB. `CacheFiles` holds the naming rule both disk caches use; size and clearing count only hash-named files, so a user-chosen folder's other files are never touched.
 - `TaskbarContracts.cs`: the `TaskbarPlaybackState` and `TaskbarDisplayText` records plus the `TaskbarPlaybackCommand` enum.
 
 **`cider-plugin/`** — an optional Cider 4 plugin (`plugin.yml` plus a dependency-free ES module `plugin.js`) that opens `lyrider://launch` through Cider's `windowControls.OpenInBrowser` host object when Cider starts. The protocol is declared only in the MSIX manifest written by `package-msix.ps1`, so unpackaged Debug builds cannot be started this way. `App.OnLaunched` exits a protocol launch when another instance already holds the `Local\Lyrider.Instance` mutex.

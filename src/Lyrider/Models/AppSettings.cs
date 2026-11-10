@@ -54,6 +54,9 @@ public sealed class AppSettings
 
     public bool HasCompletedOnboarding { get; set; }
 
+    /// <summary>Lyrics cache folder; null uses %LOCALAPPDATA%\Lyrider\lyrics-data.</summary>
+    public string? LyricsCacheDirectory { get; set; }
+
     /// <summary>Backdrop artwork opacity, as a 0–1 fraction.</summary>
     public double BackgroundOpacity { get; set; } = 0.14;
 

@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
 using Lyrider.Services;
+using Lyrider.TaskbarWidget;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -52,7 +53,8 @@ internal sealed class ArtworkPresenterTests : Application
             await Show_PreloadFailed_CreatesFallbackResources(server);
             await Show_PromotedLoadFails_FallsBackToUri(server);
             await Dispose_PreloadInFlight_CancelsLoad(server);
-            Console.WriteLine("PASS: 6 artwork integration tests.");
+            await Show_CachedArtwork_LoadsWithoutHttp(server);
+            Console.WriteLine("PASS: 7 artwork integration tests.");
             Environment.ExitCode = 0;
         }
         catch (Exception exception)
@@ -165,6 +167,38 @@ internal sealed class ArtworkPresenterTests : Application
         response.Release();
         Check(_foreground.Source is null, "Disposal left a foreground cover attached.");
         Console.WriteLine("PASS: disposal cancels pending work.");
+    }
+
+    private async Task Show_CachedArtwork_LoadsWithoutHttp(ArtworkServer server)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Lyrider.Artwork.Tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var cache = new ArtworkCache(directory);
+            var response = server.Add("cached");
+            using (var first = new ArtworkPresenter(_host, _foreground, _queue, cache))
+            {
+                first.PrepareNext(response.Url);
+                var preloaded = Field<BitmapImage>(first, "_nextBitmap");
+                await UntilAsync(() => preloaded.PixelWidth > 0 && cache.TryReadCached(new Uri(response.Url), out _),
+                    "Preloaded cover was not written to the cache.");
+            }
+
+            var requests = response.Requests;
+            using var presenter = new ArtworkPresenter(_host, _foreground, _queue, cache);
+            presenter.Show(response.Url);
+            var bitmap = (BitmapImage)_foreground.Source;
+            var surface = Field<LoadedImageSurface>(presenter, "_surface");
+            await UntilAsync(() => bitmap.PixelWidth > 0 && surface.DecodedPhysicalSize.Width > 0,
+                "Cached cover did not decode.");
+            await Task.Delay(150);
+            Check(response.Requests == requests, "Showing a cached cover made an HTTP request.");
+            Console.WriteLine("PASS: cached cover decodes foreground and backdrop without HTTP.");
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
     }
 
     private static T Field<T>(ArtworkPresenter presenter, string name) =>

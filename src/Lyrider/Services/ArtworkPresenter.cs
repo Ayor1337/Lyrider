@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Lyrider.TaskbarWidget;
 using Windows.Foundation;
 
 namespace Lyrider.Services;
@@ -32,6 +33,7 @@ public sealed class ArtworkPresenter : IDisposable
     private readonly FrameworkElement _host;
     private readonly Image _artworkImage;
     private readonly Image _queueArtworkImage;
+    private readonly ArtworkCache? _cache;
     private readonly ContainerVisual _backdrop;
     private BackdropLayer _frontLayer;
     private BackdropLayer _backLayer;
@@ -53,11 +55,13 @@ public sealed class ArtworkPresenter : IDisposable
     public ArtworkPresenter(
         FrameworkElement host,
         Image artworkImage,
-        Image queueArtworkImage)
+        Image queueArtworkImage,
+        ArtworkCache? cache = null)
     {
         _host = host;
         _artworkImage = artworkImage;
         _queueArtworkImage = queueArtworkImage;
+        _cache = cache;
         var compositor = ElementCompositionPreview.GetElementVisual(host).Compositor;
 
         var blur = new GaussianBlurEffect
@@ -117,7 +121,7 @@ public sealed class ArtworkPresenter : IDisposable
         _nextBitmapLoadCancellation = new CancellationTokenSource();
         _ = LoadNextBitmapAsync(bitmap, artworkUri, _nextBitmapLoadCancellation.Token);
 
-        var surface = LoadedImageSurface.StartLoadFromUri(artworkUri, BackdropDecodeSize);
+        var surface = StartSurfaceLoad(artworkUri, ReadCached(artworkUri));
         surface.LoadCompleted += (_, args) =>
         {
             if (ReferenceEquals(_nextSurface, surface) &&
@@ -135,7 +139,9 @@ public sealed class ArtworkPresenter : IDisposable
         {
             // A URI-backed BitmapImage defers loading until it is displayed. Loading a stream
             // explicitly ensures the next cover is downloaded and decoded before Show promotes it.
-            var bytes = await ArtworkClient.GetByteArrayAsync(uri, cancellationToken);
+            var bytes = _cache is null
+                ? await ArtworkClient.GetByteArrayAsync(uri, cancellationToken)
+                : await _cache.GetBytesAsync(uri, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             using var stream = new MemoryStream(bytes).AsRandomAccessStream();
             await bitmap.SetSourceAsync(stream).AsTask(cancellationToken);
@@ -146,6 +152,8 @@ public sealed class ArtworkPresenter : IDisposable
         }
         catch (Exception)
         {
+            // 没命中缓存时这里是下载失败，没有文件可删；命中时说明缓存文件解不出图片。
+            _cache?.Remove(uri);
             if (ReferenceEquals(_nextBitmap, bitmap))
             {
                 _nextBitmapFailed = true;
@@ -158,6 +166,63 @@ public sealed class ArtworkPresenter : IDisposable
             }
         }
     }
+
+    private byte[]? ReadCached(Uri uri) =>
+        _cache is not null && _cache.TryReadCached(uri, out var bytes) ? bytes : null;
+
+    /// <summary>
+    /// 命中缓存时从内存解码；未命中时沿用 URI 加载（保持原有的失败回退），同时在后台把图片存进缓存，
+    /// 下次启动或重播就不用再下载。
+    /// </summary>
+    private BitmapImage CreateBitmap(Uri uri, byte[]? cached)
+    {
+        if (cached is null)
+        {
+            if (_cache is not null)
+            {
+                _ = StoreInCacheAsync(_cache, uri);
+            }
+
+            return new BitmapImage(uri);
+        }
+
+        var bitmap = new BitmapImage();
+        _ = SetCachedSourceAsync(bitmap, cached, uri);
+        return bitmap;
+    }
+
+    private async Task SetCachedSourceAsync(BitmapImage bitmap, byte[] bytes, Uri uri)
+    {
+        try
+        {
+            using var stream = new MemoryStream(bytes).AsRandomAccessStream();
+            await bitmap.SetSourceAsync(stream);
+        }
+        catch (Exception)
+        {
+            _cache?.Remove(uri);
+            if (!_disposed)
+            {
+                bitmap.UriSource = uri;
+            }
+        }
+    }
+
+    private static async Task StoreInCacheAsync(ArtworkCache cache, Uri uri)
+    {
+        try
+        {
+            await cache.GetBytesAsync(uri);
+        }
+        catch (Exception)
+        {
+            // 只是没存上；显示走的是 URI 加载，不受影响。
+        }
+    }
+
+    private static LoadedImageSurface StartSurfaceLoad(Uri uri, byte[]? cached) => cached is null
+        ? LoadedImageSurface.StartLoadFromUri(uri, BackdropDecodeSize)
+        : LoadedImageSurface.StartLoadFromStream(new MemoryStream(cached).AsRandomAccessStream(), BackdropDecodeSize);
 
     public void Show(string? url)
     {
@@ -174,12 +239,13 @@ public sealed class ArtworkPresenter : IDisposable
 
         if (url is not null && Uri.TryCreate(url, UriKind.Absolute, out var artworkUri))
         {
+            var cached = promoted && !_nextBitmapFailed && !_nextSurfaceFailed ? null : ReadCached(artworkUri);
             bitmap = promoted && !_nextBitmapFailed
                 ? _nextBitmap
-                : new BitmapImage(artworkUri);
+                : CreateBitmap(artworkUri, cached);
             surface = promoted && !_nextSurfaceFailed
                 ? _nextSurface
-                : LoadedImageSurface.StartLoadFromUri(artworkUri, BackdropDecodeSize);
+                : StartSurfaceLoad(artworkUri, cached);
             if (promoted && !_nextBitmapFailed)
             {
                 _bitmapLoadCancellation = _nextBitmapLoadCancellation;

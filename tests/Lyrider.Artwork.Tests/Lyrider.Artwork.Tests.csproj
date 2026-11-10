@@ -17,6 +17,8 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
     <Compile Include="../../src/Lyrider/Services/ArtworkPresenter.cs" Link="ArtworkPresenter.cs" />
     <Compile Include="../../src/Lyrider/Services/UiMotion.cs" Link="UiMotion.cs" />
+    <Compile Include="../../src/Lyrider.TaskbarWidget/CacheFiles.cs" Link="CacheFiles.cs" />
+    <Compile Include="../../src/Lyrider.TaskbarWidget/ArtworkCache.cs" Link="ArtworkCache.cs" />
     <Content Include="../../src/Lyrider/Assets/Lyrider.png" Link="fixture.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

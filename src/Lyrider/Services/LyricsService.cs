@@ -67,9 +67,33 @@ public sealed class LyricsService : IDisposable
             return cached;
         }
 
+        var diskCache = DiskCache;
+        if (diskCache is not null && await diskCache.TryLoadAsync(cacheKey, cancellationToken) is { } stored)
+        {
+            _cache.Store(cacheKey, stored, satisfactory: true);
+            return stored;
+        }
+
         var result = await ResolveUncachedAsync(track, ciderLyrics, options, cancellationToken, onProgress);
-        _cache.Store(cacheKey, result, LyricsSelection.IsSatisfactory(result, options.IncludeTranslation));
+        var satisfactory = LyricsSelection.IsSatisfactory(result, options.IncludeTranslation);
+        _cache.Store(cacheKey, result, satisfactory);
+        if (satisfactory && diskCache is not null)
+        {
+            // 单个小文件，比网络查询快几个数量级；失败也只是少一条缓存。
+            await diskCache.SaveAsync(cacheKey, result);
+        }
+
         return result;
+    }
+
+    /// <summary>满意结果的持久化位置；为空时只用内存缓存。</summary>
+    public LyricsDiskCache? DiskCache { get; set; }
+
+    /// <summary>清空内存与磁盘缓存，返回没能删掉的磁盘文件数。</summary>
+    public async Task<int> ClearCacheAsync()
+    {
+        _cache.Clear();
+        return DiskCache is { } diskCache ? await diskCache.ClearAsync() : 0;
     }
 
     private async Task<LyricsSnapshot> ResolveUncachedAsync(
@@ -403,6 +427,14 @@ internal sealed class LyricsResultCache(TimeProvider timeProvider)
             {
                 _entries.Remove(_entries.MinBy(pair => pair.Value.LastUsed).Key);
             }
+        }
+    }
+
+    public void Clear()
+    {
+        lock (_lock)
+        {
+            _entries.Clear();
         }
     }
 

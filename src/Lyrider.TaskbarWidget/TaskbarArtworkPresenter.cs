@@ -9,7 +9,11 @@ using Color = System.Windows.Media.Color;
 
 namespace Lyrider.TaskbarWidget;
 
-internal sealed class TaskbarArtworkPresenter(Border border, TextBlock placeholder, Border outgoingLayer) : IDisposable
+internal sealed class TaskbarArtworkPresenter(
+    Border border,
+    TextBlock placeholder,
+    Border outgoingLayer,
+    ArtworkCache? artworkCache = null) : IDisposable
 {
     private static readonly HttpClient ArtworkClient = new() { Timeout = TimeSpan.FromSeconds(15) };
     private static readonly TimeSpan CrossfadeDuration = TimeSpan.FromMilliseconds(240);
@@ -81,7 +85,9 @@ internal sealed class TaskbarArtworkPresenter(Border border, TextBlock placehold
         var token = entry.Cancellation.Token;
         try
         {
-            var bytes = await ArtworkClient.GetByteArrayAsync(uri, token);
+            var bytes = artworkCache is null
+                ? await ArtworkClient.GetByteArrayAsync(uri, token)
+                : await artworkCache.GetBytesAsync(uri, token);
             // WPF 的 URI 图片会延迟加载；从流解码后再缓存，切歌时才能直接显示。
             var bitmap = await Task.Run(() =>
             {
@@ -111,6 +117,8 @@ internal sealed class TaskbarArtworkPresenter(Border border, TextBlock placehold
         }
         catch (Exception)
         {
+            // 走到这里要么没命中缓存且下载失败（没有文件可删），要么缓存的文件解不出图片。
+            artworkCache?.Remove(uri);
             entry.Failed = true;
             if (!_disposed && ReferenceEquals(_current, entry))
             {

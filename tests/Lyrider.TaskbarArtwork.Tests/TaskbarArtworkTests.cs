@@ -31,7 +31,8 @@ internal static class TaskbarArtworkTests
                 await SetArtwork_FailedPreload_RetriesWhenTrackStarts(server);
                 await SetArtwork_FailedCurrentLoad_ShowsPlaceholder(server);
                 await Close_InFlightLoad_CancelsRequest(server);
-                Console.WriteLine("PASS: 6 taskbar artwork integration tests.");
+                await SetArtwork_CachedCover_ShowsWithoutRequest(server);
+                Console.WriteLine("PASS: 7 taskbar artwork integration tests.");
             }
             catch (Exception exception)
             {
@@ -172,6 +173,37 @@ internal static class TaskbarArtworkTests
         Check(token.IsCancellationRequested, "关闭窗口未取消封面请求。");
         response.Release();
         Console.WriteLine("PASS: 关闭窗口取消未完成的封面请求。");
+    }
+
+    private static async Task SetArtwork_CachedCover_ShowsWithoutRequest(ArtworkServer server)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "Lyrider.TaskbarArtwork.Tests", Guid.NewGuid().ToString("N"));
+        var response = server.Add("cached-160");
+        try
+        {
+            var cache = new ArtworkCache(directory);
+            var first = new TaskbarWidgetWindow(cache);
+            try
+            {
+                SetArtwork(first, response.Url);
+                await UntilAsync(() => Placeholder(first).Visibility == Visibility.Collapsed);
+            }
+            finally { first.Close(); }
+
+            var restarted = new TaskbarWidgetWindow(cache);
+            try
+            {
+                SetArtwork(restarted, response.Url);
+                await UntilAsync(() => Placeholder(restarted).Visibility == Visibility.Collapsed);
+                Check(response.Requests == 1, "已缓存的封面重新下载了。");
+            }
+            finally { restarted.Close(); }
+            Console.WriteLine("PASS: 已缓存的封面重开窗口后直接从磁盘显示。");
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
     }
 
     private static void SavePreview(TaskbarWidgetWindow window)

@@ -26,6 +26,9 @@ public sealed class TaskbarWidgetHost : IDisposable
 
     public bool IsSupported => OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
 
+    /// <summary>任务栏封面的磁盘缓存；在 <see cref="Start"/> 之前设置，之后新建的窗口才会用上。</summary>
+    public ArtworkCache? ArtworkCache { get; set; }
+
     public void Start()
     {
         lock (_gate)
@@ -218,7 +221,7 @@ public sealed class TaskbarWidgetHost : IDisposable
             if (_window is null || _window.Handle == nint.Zero || !NativeMethods.IsWindow(_window.Handle))
             {
                 CloseWindow();
-                _window = new TaskbarWidgetWindow();
+                _window = new TaskbarWidgetWindow(ArtworkCache);
                 _window.SetRightAlignedLyrics(GetRightAlignedLyrics());
                 _window.SetIndependentLyricScrolling(GetIndependentLyricScrolling());
                 _window.CommandRequested += Window_CommandRequested;

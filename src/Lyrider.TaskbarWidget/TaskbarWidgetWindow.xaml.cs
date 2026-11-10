@@ -73,10 +73,11 @@ public partial class TaskbarWidgetWindow : Window
     private readonly record struct AnimationLayout(
         HostContext Host, PixelRect? Widgets, int WidgetWidth, int WidgetHeight);
 
-    public TaskbarWidgetWindow()
+    public TaskbarWidgetWindow(ArtworkCache? artworkCache = null)
     {
         InitializeComponent();
-        _artworkPresenter = new TaskbarArtworkPresenter(ArtworkBorder, ArtworkPlaceholder, ArtworkOutgoingLayer);
+        _artworkPresenter = new TaskbarArtworkPresenter(
+            ArtworkBorder, ArtworkPlaceholder, ArtworkOutgoingLayer, artworkCache);
         PreviousButton.ToolTip = WidgetText.Get("上一首", "Previous");
         PlayPauseButton.ToolTip = WidgetText.Get("播放/暂停", "Play/Pause");
         NextButton.ToolTip = WidgetText.Get("下一首", "Next");

@@ -113,6 +113,12 @@
   <data name="Main_108.Text" xml:space="preserve"><value>The lyric and its translation each scroll by their own length; a line that fits stays still</value></data>
   <data name="Main_109.Text" xml:space="preserve"><value>Exit with Cider</value></data>
   <data name="Main_110.Text" xml:space="preserve"><value>Once Cider has been running, Lyrider quits when Cider quits</value></data>
+  <data name="Main_111.Text" xml:space="preserve"><value>Cache location</value></data>
+  <data name="Main_112.Text" xml:space="preserve"><value>Found lyrics and covers are saved here so replays skip the download. A new location starts with an empty cache</value></data>
+  <data name="Main_113.Content" xml:space="preserve"><value>Change</value></data>
+  <data name="Main_114.Content" xml:space="preserve"><value>Reset</value></data>
+  <data name="Main_115.Text" xml:space="preserve"><value>Clear cache</value></data>
+  <data name="Main_116.Content" xml:space="preserve"><value>Clear</value></data>
   <data name="DesktopPreviewTitle.Text" xml:space="preserve"><value>Preview</value></data>
   <data name="DesktopSceneLyrics.Content" xml:space="preserve"><value>Lyrics</value></data>
   <data name="DesktopSceneTranslation.Content" xml:space="preserve"><value>With translation</value></data>
