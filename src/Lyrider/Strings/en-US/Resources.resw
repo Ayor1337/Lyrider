@@ -119,6 +119,8 @@
   <data name="Main_114.Content" xml:space="preserve"><value>Reset</value></data>
   <data name="Main_115.Text" xml:space="preserve"><value>Clear cache</value></data>
   <data name="Main_116.Content" xml:space="preserve"><value>Clear</value></data>
+  <data name="Main_117.Text" xml:space="preserve"><value>Skip leading lyric credits</value></data>
+  <data name="Main_118.Text" xml:space="preserve"><value>Taskbar and desktop lyrics skip opening lines such as title, artist, lyricist and composer</value></data>
   <data name="DesktopPreviewTitle.Text" xml:space="preserve"><value>Preview</value></data>
   <data name="DesktopSceneLyrics.Content" xml:space="preserve"><value>Lyrics</value></data>
   <data name="DesktopSceneTranslation.Content" xml:space="preserve"><value>With translation</value></data>

@@ -119,6 +119,8 @@
   <data name="Main_114.Content" xml:space="preserve"><value>恢复默认</value></data>
   <data name="Main_115.Text" xml:space="preserve"><value>清除缓存</value></data>
   <data name="Main_116.Content" xml:space="preserve"><value>清除</value></data>
+  <data name="Main_117.Text" xml:space="preserve"><value>跳过歌词开头的署名</value></data>
+  <data name="Main_118.Text" xml:space="preserve"><value>任务栏和桌面歌词跳过开头的歌名、歌手、作词、作曲等行</value></data>
   <data name="DesktopPreviewTitle.Text" xml:space="preserve"><value>效果预览</value></data>
   <data name="DesktopSceneLyrics.Content" xml:space="preserve"><value>普通歌词</value></data>
   <data name="DesktopSceneTranslation.Content" xml:space="preserve"><value>带翻译</value></data>

@@ -9,9 +9,11 @@ internal static class DesktopLyricStateBuilder
 {
     public static DesktopLyricsState Build(string title, string artist, IReadOnlyList<LyricLineInfo> lines,
         int activeIndex, bool timeSynced, bool isPlaying, bool convertToSimplified,
-        double playbackPosition = 0, long observedTimestamp = 0)
+        double playbackPosition = 0, long observedTimestamp = 0, bool skipLeadingCredits = true)
     {
-        var index = timeSynced ? LyricPresentation.FindTaskbarLyricIndex(lines, activeIndex, title, artist) : -1;
+        var index = timeSynced
+            ? LyricPresentation.FindTaskbarLyricIndex(lines, activeIndex, title, artist, skipLeadingCredits)
+            : -1;
         string Display(string text) => convertToSimplified ? ChineseTextConverter.ToSimplified(text) : text;
         if (index < 0)
         {
@@ -25,7 +27,7 @@ internal static class DesktopLyricStateBuilder
         var words = MapWords(line, text);
         var timing = words.IsDefaultOrEmpty ? null : new DesktopLyricsTiming(words, playbackPosition, observedTimestamp);
         var ordinal = 0;
-        for (var lyricIndex = LyricPresentation.FindFirstTaskbarLyricIndex(lines, title, artist);
+        for (var lyricIndex = LyricPresentation.FindFirstTaskbarLyricIndex(lines, title, artist, skipLeadingCredits);
             lyricIndex >= 0 && lyricIndex < index;
             lyricIndex = LyricPresentation.FindNextTaskbarLyricIndex(lines, lyricIndex))
             ordinal++;

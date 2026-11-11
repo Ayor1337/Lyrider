@@ -357,6 +357,17 @@ public sealed class DesktopLyricsTests
     }
 
     [TestMethod]
+    public void Build_WithCreditSkippingOff_ShowsLeadingCredits()
+    {
+        LyricLineInfo[] lines = [new(0, null, "作词：作者"), new(2, null, "First")];
+        var credits = DesktopLyricStateBuilder.Build("Song", "Artist", lines, 0, true, true, false, skipLeadingCredits: false);
+        Assert.AreEqual("作词：作者", credits.CurrentLyric);
+        Assert.AreEqual("First", credits.NextLyric);
+        Assert.AreEqual(1, DesktopLyricStateBuilder.Build("Song", "Artist", lines, 1, true, true, false,
+            skipLeadingCredits: false).LineOrdinal);
+    }
+
+    [TestMethod]
     public void Build_UnsyncedOrBeforeFirstLine_FallsBackToTitle()
     {
         LyricLineInfo[] lines = [new(5, null, "歌词")];

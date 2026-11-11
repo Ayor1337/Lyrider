@@ -225,6 +225,23 @@ public sealed class LyricPresentationTests
         Assert.AreEqual(2, LyricPresentation.FindTaskbarLyricIndex(lines, 2, "Song", "Artist"));
     }
 
+    [TestMethod]
+    public void FindTaskbarLyricIndex_WithCreditSkippingOff_KeepsCreditsButSkipsLeadingGaps()
+    {
+        IReadOnlyList<LyricLineInfo> lines =
+        [
+            new(0, 5, "纯音乐，请欣赏"),
+            new(5, 10, "Song"),
+            new(10, 20, "作词：某人"),
+            new(20, null, "第一句歌词")
+        ];
+
+        Assert.AreEqual(1, LyricPresentation.FindFirstTaskbarLyricIndex(lines, "Song", "Artist", skipLeadingCredits: false));
+        Assert.AreEqual(-1, LyricPresentation.FindTaskbarLyricIndex(lines, 0, "Song", "Artist", skipLeadingCredits: false));
+        Assert.AreEqual(1, LyricPresentation.FindTaskbarLyricIndex(lines, 1, "Song", "Artist", skipLeadingCredits: false));
+        Assert.AreEqual(2, LyricPresentation.FindTaskbarLyricIndex(lines, 2, "Song", "Artist", skipLeadingCredits: false));
+    }
+
     [DataTestMethod]
     [DataRow("【制作人：某人】", 0)]
     [DataRow("【制作人：某人】", 9.999)]

@@ -48,6 +48,12 @@ public sealed class AppSettings
     /// </summary>
     public bool ExitWithCider { get; set; }
 
+    /// <summary>
+    /// Experimental: let the taskbar and desktop lyrics skip leading title, artist and credit
+    /// lines such as "作词：…". The main lyrics panel always shows every line.
+    /// </summary>
+    public bool SkipLeadingLyricCredits { get; set; }
+
     public bool StartSilently { get; set; }
 
     public bool MinimizeToTrayOnClose { get; set; }

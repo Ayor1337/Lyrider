@@ -279,7 +279,8 @@ public sealed partial class MainWindow : Window
             LyricFontSettingsRow, LyricsSourceSettingsRow, LyricsTranslationSettingsRow, MusixmatchSettingsRow,
             ChineseLyricsSettingsRow, TaskbarWidgetSettingsRow, TaskbarLyricsSettingsRow,
             SilentStartupSettingsRow, MinimizeToTraySettingsRow, TaskbarLyricsAlignmentSettingsRow,
-            TaskbarLyricsScrollingSettingsRow, ExitWithCiderSettingsRow, LyricsCacheLocationSettingsRow,
+            TaskbarLyricsScrollingSettingsRow, ExitWithCiderSettingsRow, LeadingLyricCreditsSettingsRow,
+            LyricsCacheLocationSettingsRow,
             LyricsCacheClearSettingsRow })
         {
             var stacked = RootGrid.ActualWidth < 720;
@@ -336,7 +337,7 @@ public sealed partial class MainWindow : Window
             TaskbarLyricsToggle, SilentStartupToggle, MinimizeToTrayToggle, DesktopLyricsEnabledToggle,
             DesktopLyricsLockedToggle, DesktopLyricsPauseToggle, DesktopLyricsTranslationToggle,
             DesktopLyricsKaraokeToggle, TaskbarLyricsAlignmentToggle, TaskbarLyricsScrollingToggle,
-            ExitWithCiderToggle })
+            ExitWithCiderToggle, LeadingLyricCreditsToggle })
         {
             toggle.OnContent = on;
             toggle.OffContent = off;
@@ -825,7 +826,8 @@ public sealed partial class MainWindow : Window
         _desktopLyricsHost.Update(track is null ? DesktopLyricsState.Unavailable : DesktopLyricStateBuilder.Build(
             ValueOrFallback(track.Name), ValueOrFallback(track.ArtistName), _lyrics, _currentLyricIndex,
             _lyricsAreTimeSynced, status?.IsPlaying ?? false, _settings.ConvertTraditionalLyricsToSimplified,
-            _optimisticSeekIndex >= 0 ? _optimisticSeekTarget : _playbackTimeline.PositionAt(_playbackClock.Elapsed), Stopwatch.GetTimestamp()));
+            _optimisticSeekIndex >= 0 ? _optimisticSeekTarget : _playbackTimeline.PositionAt(_playbackClock.Elapsed), Stopwatch.GetTimestamp(),
+            _settings.SkipLeadingLyricCredits));
         if (track is null)
         {
             _taskbarWidgetHost.Update(TaskbarPlaybackState.Unavailable);
@@ -836,7 +838,8 @@ public sealed partial class MainWindow : Window
             _lyrics,
             _currentLyricIndex,
             track.Name,
-            track.ArtistName);
+            track.ArtistName,
+            _settings.SkipLeadingLyricCredits);
         var hasCurrentLyric =
             _settings.ShowLyricsInTaskbar &&
             _lyricsAreTimeSynced &&
@@ -2250,6 +2253,7 @@ public sealed partial class MainWindow : Window
         _settings.RightAlignTaskbarLyrics = TaskbarLyricsAlignmentToggle.IsOn;
         _settings.ScrollTaskbarLyricsIndependently = TaskbarLyricsScrollingToggle.IsOn;
         _settings.ExitWithCider = ExitWithCiderToggle.IsOn;
+        _settings.SkipLeadingLyricCredits = LeadingLyricCreditsToggle.IsOn;
         _settings.StartSilently = SilentStartupToggle.IsOn;
         _settings.MinimizeToTrayOnClose = MinimizeToTrayToggle.IsOn;
         _settings.BackgroundOpacity = BackgroundOpacitySlider.Value / 100;
@@ -2383,6 +2387,7 @@ public sealed partial class MainWindow : Window
         TaskbarLyricsAlignmentToggle.IsOn = _settings.RightAlignTaskbarLyrics;
         TaskbarLyricsScrollingToggle.IsOn = _settings.ScrollTaskbarLyricsIndependently;
         ExitWithCiderToggle.IsOn = _settings.ExitWithCider;
+        LeadingLyricCreditsToggle.IsOn = _settings.SkipLeadingLyricCredits;
         SilentStartupToggle.IsOn = _settings.StartSilently;
         MinimizeToTrayToggle.IsOn = _settings.MinimizeToTrayOnClose;
         LoadDesktopLyricsControls();

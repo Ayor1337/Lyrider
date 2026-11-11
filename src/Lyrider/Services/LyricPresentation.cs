@@ -52,14 +52,19 @@ internal static class LyricPresentation
         return activeIndex;
     }
 
+    /// <summary>
+    /// Index of the first line the taskbar and desktop lyrics show. Leading gaps are always
+    /// skipped; leading title, artist and credit lines only when <paramref name="skipLeadingCredits"/>.
+    /// </summary>
     public static int FindFirstTaskbarLyricIndex(
         IReadOnlyList<LyricLineInfo> lines,
         string? title,
-        string? artist)
+        string? artist,
+        bool skipLeadingCredits = true)
     {
         for (var index = 0; index < lines.Count; index++)
         {
-            if (!IsLeadingNonLyricLine(lines[index].Text, title, artist))
+            if (!IsLeadingNonLyricLine(lines[index].Text, title, artist, skipLeadingCredits))
             {
                 return index;
             }
@@ -72,9 +77,10 @@ internal static class LyricPresentation
         IReadOnlyList<LyricLineInfo> lines,
         int activeIndex,
         string? title,
-        string? artist)
+        string? artist,
+        bool skipLeadingCredits = true)
     {
-        var firstIndex = FindFirstTaskbarLyricIndex(lines, title, artist);
+        var firstIndex = FindFirstTaskbarLyricIndex(lines, title, artist, skipLeadingCredits);
         if (activeIndex < firstIndex || activeIndex >= lines.Count)
         {
             return -1;
@@ -217,11 +223,20 @@ internal static class LyricPresentation
     private static double EffectiveViewport(double viewportHeight) =>
         viewportHeight > 0 ? viewportHeight : DefaultViewportHeight;
 
-    private static bool IsLeadingNonLyricLine(string text, string? title, string? artist)
+    private static bool IsLeadingNonLyricLine(string text, string? title, string? artist, bool skipLeadingCredits)
     {
         var trimmed = text.Trim().Trim('【', '】', '[', ']', '(', ')', '（', '）').Trim();
-        if (IsTaskbarGap(trimmed) ||
-            EqualsTrackMetadata(trimmed, title) ||
+        if (IsTaskbarGap(trimmed))
+        {
+            return true;
+        }
+
+        if (!skipLeadingCredits)
+        {
+            return false;
+        }
+
+        if (EqualsTrackMetadata(trimmed, title) ||
             EqualsTrackMetadata(trimmed, artist))
         {
             return true;
