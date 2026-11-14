@@ -81,7 +81,8 @@ public sealed record DesktopLyricsOptions(
     DesktopLyricsAlignment? Alignment = null,
     DesktopLyricsFontWeight FontWeight = DesktopLyricsFontWeight.SemiBold,
     double StrokeThickness = 4,
-    string StrokeColor = "#000000")
+    string StrokeColor = "#000000",
+    string? FontFamily = null)
 {
     // 新开关缺失时沿用旧显示模式，保留已有配置。
     [JsonIgnore]
@@ -127,6 +128,7 @@ public sealed record DesktopLyricsOptions(
         FontWeight = Enum.IsDefined(FontWeight) ? FontWeight : DesktopLyricsFontWeight.SemiBold,
         StrokeThickness = ClampFinite(StrokeThickness, 0, 8, 4),
         StrokeColor = IsColor(StrokeColor) ? StrokeColor : "#000000",
+        FontFamily = string.IsNullOrWhiteSpace(FontFamily) ? null : FontFamily.Trim(),
         FontSize = ClampFinite(FontSize, 16, 72, 32),
         TextColor = IsColor(TextColor) ? TextColor : "#FFFFFF",
         HighlightColor = IsColor(HighlightColor) ? HighlightColor : "#4FDFFF",
@@ -157,7 +159,10 @@ public sealed record DesktopLyricsState(
     string? NextLyric = null,
     DesktopLyricsTiming? Timing = null,
     int LineOrdinal = 0,
-    bool IsChineseSong = false)
+    bool IsChineseSong = false,
+    string? Artist = null,
+    string? Album = null,
+    bool IsJapaneseSong = false)
 {
     public static DesktopLyricsState Unavailable { get; } = new(string.Empty, false, false);
 }
@@ -193,7 +198,15 @@ public static class DesktopLyricsPresentation
         var visible = options.Enabled && state.IsAvailable && (!options.HideWhenPaused || state.IsPlaying);
         if (string.IsNullOrWhiteSpace(state.CurrentLyric))
         {
-            return new(state.Title, null, visible);
+            // 前奏或无同步歌词时显示歌曲信息：双行为歌名与“歌手 · 专辑”，单行为“歌名 - 歌手”。
+            if (options.ShowDoubleLine)
+            {
+                var details = string.Join(" · ", new[] { state.Artist, state.Album }
+                    .Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value!.Trim()).Distinct());
+                return new(state.Title, details.Length == 0 ? null : details, visible);
+            }
+            return new(string.IsNullOrWhiteSpace(state.Artist) ? state.Title : $"{state.Title} - {state.Artist.Trim()}",
+                null, visible);
         }
 
         var hasTranslation = UsesTranslation(state, options);
@@ -205,6 +218,13 @@ public static class DesktopLyricsPresentation
             return new(string.IsNullOrWhiteSpace(secondary) ? string.Empty : secondary, state.CurrentLyric, visible, true);
         return new(state.CurrentLyric, string.IsNullOrWhiteSpace(secondary) ? null : secondary, visible);
     }
+
+    /// <summary>两个状态除逐字时间锚点外完全一致，只需刷新扫色进度而不必重排。</summary>
+    public static bool HasSameContent(DesktopLyricsState left, DesktopLyricsState right) =>
+        left with { Timing = null } == right with { Timing = null } &&
+        HasWordTiming(left.Timing) == HasWordTiming(right.Timing);
+
+    private static bool HasWordTiming(DesktopLyricsTiming? timing) => timing is { Words.IsDefaultOrEmpty: false };
 
     public static bool UsesTranslation(DesktopLyricsState state, DesktopLyricsOptions options) =>
         options.ShowTranslation && !state.IsChineseSong && !string.IsNullOrWhiteSpace(state.CurrentLyric) &&

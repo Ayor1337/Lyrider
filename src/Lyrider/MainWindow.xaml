@@ -1519,6 +1519,8 @@
                                     <ComboBoxItem Tag="SemiBold" x:Uid="DesktopWeightSemiBold" Content="半粗"/>
                                     <ComboBoxItem Tag="Bold" x:Uid="DesktopWeightBold" Content="粗体"/>
                                 </ComboBox>
+                                <TextBlock x:Uid="DesktopFontFamilyLabel" Text="字体"/>
+                                <ComboBox x:Name="DesktopLyricsFontFamilyComboBox" x:Uid="DesktopFontFamilyGroup" AutomationProperties.Name="字体" MinWidth="240" MaxDropDownHeight="420" SelectionChanged="DesktopLyricsSettingChanged"/>
                                 <TextBlock x:Uid="DesktopStrokeLabel" Text="描边粗细（0 为关闭）"/>
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>

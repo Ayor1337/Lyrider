@@ -32,7 +32,8 @@ public partial class DesktopLyricsWindow : Window
     private double _extraLineGap;
     private bool _currentInSecondary;
     private HwndSource? _source;
-    private readonly DispatcherTimer _karaokeTimer;
+    private bool _karaokeAnimating;
+    private Color _highlightColor = (Color)ColorConverter.ConvertFromString(new DesktopLyricsOptions().HighlightColor);
     private readonly DispatcherTimer _lockedHoverTimer;
     private DesktopLyricsUnlockWindow? _unlockWindow;
     private DispatcherOperation? _revealOperation;
@@ -50,11 +51,6 @@ public partial class DesktopLyricsWindow : Window
         RegisterName("SecondaryText", SecondaryText);
         _quickMenu = CreateQuickMenu();
         Surface.ContextMenu = _quickMenu;
-        _karaokeTimer = new DispatcherTimer(DispatcherPriority.Render, Dispatcher)
-        {
-            Interval = TimeSpan.FromMilliseconds(33)
-        };
-        _karaokeTimer.Tick += KaraokeTimer_Tick;
         _lockedHoverTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
         {
             Interval = TimeSpan.FromMilliseconds(100)
@@ -75,8 +71,7 @@ public partial class DesktopLyricsWindow : Window
         {
             _quickMenu.IsOpen = false;
             _revealOperation?.Abort();
-            _karaokeTimer.Stop();
-            _karaokeTimer.Tick -= KaraokeTimer_Tick;
+            StopKaraokeAnimation();
             _lockedHoverTimer.Stop();
             _lockedHoverTimer.Tick -= LockedHoverTimer_Tick;
             CloseUnlockWindow();
@@ -90,6 +85,7 @@ public partial class DesktopLyricsWindow : Window
         options = options.Normalize();
         if (_options == options) return;
         _options = options;
+        _highlightColor = (Color)ColorConverter.ConvertFromString(options.HighlightColor);
         if (options.Locked || !options.Enabled) _quickMenu.IsOpen = false;
         Surface.ContextMenu = options.Locked ? null : _quickMenu;
         UpdateQuickMenu();
@@ -104,8 +100,11 @@ public partial class DesktopLyricsWindow : Window
     public void SetPlaybackState(DesktopLyricsState state)
     {
         if (_state == state) return;
+        var contentChanged = !DesktopLyricsPresentation.HasSameContent(_state, state);
         _state = state;
-        UpdateContent();
+        // 每秒刷新只会移动逐字时间锚点，此时只更新扫色，不重排、不移动窗口。
+        if (contentChanged) UpdateContent();
+        else UpdateKaraokeProgress();
     }
 
     public void ResetPosition()
@@ -162,7 +161,22 @@ public partial class DesktopLyricsWindow : Window
         }));
     }
 
-    private void KaraokeTimer_Tick(object? sender, EventArgs e) => UpdateKaraokeProgress();
+    private void KaraokeRendering(object? sender, EventArgs e) => UpdateKaraokeProgress();
+
+    // 扫色跟随渲染帧推进，避免固定间隔计时器与屏幕刷新不同步造成的跳格。
+    private void StartKaraokeAnimation()
+    {
+        if (_karaokeAnimating) return;
+        _karaokeAnimating = true;
+        CompositionTarget.Rendering += KaraokeRendering;
+    }
+
+    private void StopKaraokeAnimation()
+    {
+        if (!_karaokeAnimating) return;
+        _karaokeAnimating = false;
+        CompositionTarget.Rendering -= KaraokeRendering;
+    }
 
     private void UpdateKaraokeProgress()
     {
@@ -170,13 +184,12 @@ public partial class DesktopLyricsWindow : Window
             !string.IsNullOrWhiteSpace(_state.CurrentLyric)
             ? _state.Timing : null;
         var progress = timing?.ProgressAt(Stopwatch.GetElapsedTime(timing.ObservedTimestamp).TotalSeconds, _state.IsPlaying) ?? 0;
-        var highlight = (Color)ColorConverter.ConvertFromString(_options.HighlightColor);
-        PrimaryText.SetKaraokeProgress(_currentInSecondary ? 0 : progress, highlight);
-        SecondaryText.SetKaraokeProgress(_currentInSecondary ? progress : 0, highlight);
+        PrimaryText.SetKaraokeProgress(_currentInSecondary ? 0 : progress, _highlightColor);
+        SecondaryText.SetKaraokeProgress(_currentInSecondary ? progress : 0, _highlightColor);
         if (timing is not null && _state.IsPlaying && progress < 1)
-            _karaokeTimer.Start();
+            StartKaraokeAnimation();
         else
-            _karaokeTimer.Stop();
+            StopKaraokeAnimation();
     }
 
     private void Window_SourceInitialized(object? sender, EventArgs e)
