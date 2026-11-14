@@ -207,6 +207,27 @@ public sealed class SettingsLayoutTests
         Assert.AreEqual(6, section!.Elements().Count(element => element.Name.LocalName == "Border"));
     }
 
+    [TestMethod]
+    public void SettingsPage_NavItems_MatchSectionsInOrder()
+    {
+        var document = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "MainWindow.xaml"));
+        var navList = FindNamedElement(document, "SettingsNavList");
+        Assert.IsNotNull(navList);
+        Assert.AreEqual("0", navList!.Attribute("SelectedIndex")?.Value);
+        var navUids = navList.Elements()
+            .Select(item => item.Descendants().Single(element => element.Name.LocalName == "TextBlock")
+                .Attribute(XamlNamespace + "Uid")?.Value)
+            .ToArray();
+
+        var sections = FindNamedElement(document, "SettingsSectionsPanel")!.Elements().ToArray();
+        CollectionAssert.AreEqual(
+            sections.Select(section => section.Elements().First().Attribute(XamlNamespace + "Uid")?.Value).ToArray(),
+            navUids);
+        CollectionAssert.AreEqual(
+            new[] { null, "Collapsed", "Collapsed", "Collapsed", "Collapsed" },
+            sections.Select(section => section.Attribute("Visibility")?.Value).ToArray());
+    }
+
     private static XElement? FindNamedElement(XDocument document, string name) =>
         document.Descendants().SingleOrDefault(element =>
             string.Equals(element.Attribute(XamlNamespace + "Name")?.Value, name, StringComparison.Ordinal));

@@ -89,8 +89,15 @@
                     <Setter Property="Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
                     <Setter Property="CornerRadius" Value="8" />
                 </Style>
-                <Style x:Key="SettingsSectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}">
-                    <Setter Property="Margin" Value="2,0,0,4" />
+                <Style x:Key="SettingsSectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource SubtitleTextBlockStyle}">
+                    <Setter Property="Margin" Value="2,4,0,12" />
+                </Style>
+                <Style x:Key="SettingsNavItemStyle" TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                    <Setter Property="MinHeight" Value="40" />
+                    <Setter Property="MinWidth" Value="0" />
+                    <Setter Property="Padding" Value="14,0,12,0" />
+                    <Setter Property="Margin" Value="0,0,0,2" />
+                    <Setter Property="CornerRadius" Value="6" />
                 </Style>
                 <Style x:Key="SettingsDescriptionStyle" TargetType="TextBlock">
                     <Setter Property="Margin" Value="0,3,0,0" />
@@ -629,8 +636,8 @@
             </Grid.RowDefinitions>
             <Grid
                 x:Name="SettingsHeaderGrid"
-                Width="1020"
-                MaxWidth="1020"
+                Width="1400"
+                MaxWidth="1400"
                 HorizontalAlignment="Center">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="50" />
@@ -664,22 +671,70 @@
                     Style="{StaticResource AccentButtonStyle}" />
             </Grid>
 
-            <ScrollViewer
+            <Grid
+                x:Name="SettingsContentGrid"
                 Grid.Row="1"
-                HorizontalContentAlignment="Stretch"
-                HorizontalScrollBarVisibility="Disabled"
-                HorizontalScrollMode="Disabled">
-                <Grid
-                    x:Name="SettingsContentGrid"
-                    Width="1020"
-                    MaxWidth="1020"
-                    HorizontalAlignment="Center">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="50" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="50" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel x:Name="SettingsSectionsPanel" Grid.Column="1" HorizontalAlignment="Stretch" Spacing="32">
+                Width="1400"
+                MaxWidth="1400"
+                HorizontalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="50" />
+                    <ColumnDefinition Width="200" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="50" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 导航项顺序必须与 SettingsSectionsPanel 中分区的顺序一致，切换时按索引对应。 -->
+                <ListView
+                    x:Name="SettingsNavList"
+                    Grid.Column="1"
+                    Margin="-4,0,0,0"
+                    Padding="0"
+                    VerticalAlignment="Top"
+                    IsItemClickEnabled="False"
+                    SelectionMode="Single"
+                    SelectedIndex="0"
+                    SelectionChanged="SettingsNavList_SelectionChanged">
+                    <ListViewItem Style="{StaticResource SettingsNavItemStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="14">
+                            <FontIcon FontSize="16" Glyph="&#xE790;" />
+                            <TextBlock x:Uid="Main_029" VerticalAlignment="Center" Text="外观" />
+                        </StackPanel>
+                    </ListViewItem>
+                    <ListViewItem Style="{StaticResource SettingsNavItemStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="14">
+                            <FontIcon FontSize="16" Glyph="&#xE8D6;" />
+                            <TextBlock x:Uid="Main_039" VerticalAlignment="Center" Text="歌词与播放" />
+                        </StackPanel>
+                    </ListViewItem>
+                    <ListViewItem Style="{StaticResource SettingsNavItemStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="14">
+                            <FontIcon FontSize="16" Glyph="&#xE7F4;" />
+                            <TextBlock x:Uid="Main_101" VerticalAlignment="Center" Text="桌面歌词" />
+                        </StackPanel>
+                    </ListViewItem>
+                    <ListViewItem Style="{StaticResource SettingsNavItemStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="14">
+                            <FontIcon FontSize="16" Glyph="&#xE945;" />
+                            <TextBlock x:Uid="Main_100" VerticalAlignment="Center" Text="实验" />
+                        </StackPanel>
+                    </ListViewItem>
+                    <ListViewItem Style="{StaticResource SettingsNavItemStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="14">
+                            <FontIcon FontSize="16" Glyph="&#xE968;" />
+                            <TextBlock x:Uid="Main_058" VerticalAlignment="Center" Text="Cider 连接" />
+                        </StackPanel>
+                    </ListViewItem>
+                </ListView>
+
+                <ScrollViewer
+                    x:Name="SettingsContentScrollViewer"
+                    Grid.Column="2"
+                    Grid.ColumnSpan="2"
+                    HorizontalContentAlignment="Stretch"
+                    HorizontalScrollBarVisibility="Disabled"
+                    HorizontalScrollMode="Disabled">
+                    <StackPanel x:Name="SettingsSectionsPanel" Margin="24,0,50,0" HorizontalAlignment="Stretch">
                     <StackPanel Spacing="4">
                         <TextBlock x:Uid="Main_029" Style="{StaticResource SettingsSectionHeaderStyle}" Text="外观" />
                         <StackPanel Spacing="4">
@@ -870,7 +925,7 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <StackPanel Spacing="4">
+                    <StackPanel Spacing="4" Visibility="Collapsed">
                         <TextBlock x:Uid="Main_039" Style="{StaticResource SettingsSectionHeaderStyle}" Text="歌词与播放" />
                         <StackPanel Spacing="4">
                             <Border Style="{StaticResource SettingsCardStyle}">
@@ -1307,7 +1362,7 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <StackPanel x:Name="DesktopLyricsSettingsSection" Spacing="4">
+                    <StackPanel x:Name="DesktopLyricsSettingsSection" Spacing="4" Visibility="Collapsed">
                         <TextBlock x:Uid="Main_101" Style="{StaticResource SettingsSectionHeaderStyle}" Text="桌面歌词"/>
                         <Border Style="{StaticResource SettingsCardStyle}" Padding="20">
                             <StackPanel Spacing="16">
@@ -1545,7 +1600,7 @@
                         </Border>
                     </StackPanel>
 
-                    <StackPanel Spacing="4">
+                    <StackPanel Spacing="4" Visibility="Collapsed">
                         <TextBlock x:Uid="Main_100" Style="{StaticResource SettingsSectionHeaderStyle}" Text="实验" />
                         <StackPanel Spacing="4">
                             <Border Style="{StaticResource SettingsCardStyle}">
@@ -1699,7 +1754,7 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <StackPanel Spacing="4">
+                    <StackPanel Spacing="4" Visibility="Collapsed">
                         <TextBlock x:Uid="Main_058" Style="{StaticResource SettingsSectionHeaderStyle}" Text="Cider 连接" />
                         <Border Style="{StaticResource SettingsCardStyle}">
                             <Grid x:Name="ConnectionHeaderGrid" RowSpacing="12" ColumnSpacing="24">
@@ -1756,8 +1811,8 @@
                         </Border>
                     </StackPanel>
                     </StackPanel>
-                </Grid>
-            </ScrollViewer>
+                </ScrollViewer>
+            </Grid>
         </Grid>
 
         <ContentDialog x:Uid="Main_063"
