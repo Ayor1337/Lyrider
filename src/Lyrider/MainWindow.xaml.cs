@@ -271,9 +271,10 @@ public sealed partial class MainWindow : Window
             ScrollToCurrentLyric(animate: false);
         }
         SettingsPageGrid.Padding = new Thickness(0, compact ? 16 : 24, 0, 32);
-        var settingsLayoutWidth = Math.Max(0, Math.Min(1020, RootGrid.ActualWidth - padding * 2));
+        var settingsLayoutWidth = Math.Max(0, Math.Min(1400, RootGrid.ActualWidth - padding * 2));
         SettingsHeaderGrid.Width = settingsLayoutWidth;
         SettingsContentGrid.Width = settingsLayoutWidth;
+        UpdateSettingsNavLayout(compactNav: RootGrid.ActualWidth < 720);
 
         foreach (var row in new[] { ThemeSettingsRow, LanguageSettingsRow, BackgroundSettingsRow, BackgroundBlurSettingsRow,
             LyricFontSettingsRow, LyricsSourceSettingsRow, LyricsTranslationSettingsRow, MusixmatchSettingsRow,
@@ -1385,13 +1386,92 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            UiMotion.Stagger(SettingsSectionsPanel.Children, new Vector2(0, 24), 45, 225, 420);
+            UiMotion.Stagger(GetSettingsSectionItems(GetSelectedSettingsSection()), new Vector2(0, 24), 45, 225, 420);
             await UiMotion.EnterAsync(SettingsPageGrid, new Vector2(0, 16), 280);
         }
         finally
         {
             SettingsPageGrid.IsHitTestVisible = true;
             _isSettingsTransitioning = false;
+        }
+    }
+
+    private void SettingsNavList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // SelectedIndex 在 XAML 中设置，InitializeComponent 期间可能先于分区面板连接触发。
+        if (SettingsSectionsPanel is null || SettingsContentScrollViewer is null)
+        {
+            return;
+        }
+
+        if (SettingsNavList.SelectedIndex < 0)
+        {
+            // 再次点击已选项不会取消选择，但键盘或代码清空选择时回到上一个分区。
+            SettingsNavList.SelectedItem = e.RemovedItems.FirstOrDefault() ?? SettingsNavList.Items[0];
+            return;
+        }
+
+        var selected = GetSelectedSettingsSection();
+        foreach (var section in SettingsSectionsPanel.Children)
+        {
+            section.Visibility = section == selected ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        SettingsContentScrollViewer.ChangeView(null, 0, null, disableAnimation: true);
+        if (SettingsPageGrid.Visibility == Visibility.Visible && !_isSettingsTransitioning)
+        {
+            UiMotion.Stagger(GetSettingsSectionItems(selected), new Vector2(0, 12), 30, 150, 260);
+        }
+    }
+
+    private UIElement GetSelectedSettingsSection() =>
+        SettingsSectionsPanel.Children[Math.Clamp(SettingsNavList.SelectedIndex, 0, SettingsSectionsPanel.Children.Count - 1)];
+
+    private void SelectSettingsSection(UIElement section) =>
+        SettingsNavList.SelectedIndex = SettingsSectionsPanel.Children.IndexOf(section);
+
+    /// <summary>分区标题和每张卡片，用于逐项入场动画。</summary>
+    private static IEnumerable<UIElement> GetSettingsSectionItems(UIElement section)
+    {
+        if (section is not Panel panel)
+        {
+            yield return section;
+            yield break;
+        }
+
+        foreach (var child in panel.Children)
+        {
+            if (child is StackPanel cards)
+            {
+                foreach (var card in cards.Children)
+                {
+                    yield return card;
+                }
+            }
+            else
+            {
+                yield return child;
+            }
+        }
+    }
+
+    private void UpdateSettingsNavLayout(bool compactNav)
+    {
+        // 窄窗口下导航只保留图标，并去掉两侧留白，给卡片留出足够宽度。
+        SettingsContentGrid.ColumnDefinitions[0].Width = new GridLength(compactNav ? 0 : 50);
+        SettingsContentGrid.ColumnDefinitions[1].Width = new GridLength(compactNav ? 48 : 200);
+        SettingsContentGrid.ColumnDefinitions[3].Width = new GridLength(compactNav ? 0 : 50);
+        SettingsNavList.Margin = new Thickness(compactNav ? 0 : -4, 0, 0, 0);
+        SettingsSectionsPanel.Margin = new Thickness(compactNav ? 12 : 24, 0, compactNav ? 12 : 50, 0);
+        foreach (var item in SettingsNavList.Items.OfType<ListViewItem>())
+        {
+            item.Padding = compactNav ? new Thickness(0) : new Thickness(14, 0, 12, 0);
+            item.HorizontalContentAlignment = compactNav ? HorizontalAlignment.Center : HorizontalAlignment.Left;
+            if (item.Content is StackPanel { Children: [_, TextBlock label] })
+            {
+                label.Visibility = compactNav ? Visibility.Collapsed : Visibility.Visible;
+                ToolTipService.SetToolTip(item, compactNav ? label.Text : null);
+            }
         }
     }
 
@@ -2595,8 +2675,8 @@ public sealed partial class MainWindow : Window
             {
                 _appWindow.Show(true);
                 Activate();
+                SelectSettingsSection(DesktopLyricsSettingsSection);
                 await ShowSettingsPageAsync();
-                DesktopLyricsSettingsSection.StartBringIntoView();
                 return;
             }
 
