@@ -24,16 +24,13 @@ internal static class DesktopLyricsPreview
         var layout = new Grid();
         layout.RowDefinitions.Add(new() { Height = new GridLength(DesktopLyricsContent.WindowVerticalPadding - 8) });
         layout.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) });
-        var backdrop = new Border
-        {
-            Background = new SolidColorBrush(Color.FromArgb((byte)Math.Round(255 * (options.Locked ? 0 : options.BackgroundOpacity)), 0, 0, 0))
-        };
-        Grid.SetRowSpan(backdrop, 2);
         Grid.SetRow(content, 1);
-        layout.Children.Add(backdrop);
         layout.Children.Add(content);
+        // 与窗口一致，背景铺满整个表面而不只是歌词区域。
         var surface = new Border
         {
+            Background = new SolidColorBrush(Color.FromArgb((byte)Math.Round(255 * (options.Locked ? 0 : options.BackgroundOpacity)), 0, 0, 0)),
+            CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12, 4, 12, 4),
             Child = layout,
             Width = width

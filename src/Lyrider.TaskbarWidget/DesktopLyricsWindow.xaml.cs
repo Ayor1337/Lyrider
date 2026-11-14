@@ -5,8 +5,10 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Microsoft.Win32;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows.Threading;
 using Color = System.Windows.Media.Color;
 using Brushes = System.Windows.Media.Brushes;
@@ -25,7 +27,14 @@ public partial class DesktopLyricsWindow : Window
     private DesktopLyricsOptions _options = new();
     private DesktopLyricsState _state = DesktopLyricsState.Unavailable;
     private bool _placing;
-    private bool _resizing;
+    private DesktopLyricsResizeEdge _resizeEdges;
+    private bool _resizeAutoHeight;
+    private DesktopLyricsResizeEdge _hoverEdges;
+    private readonly HashSet<FrameworkElement> _shownResizeIndicators = [];
+    private readonly SolidColorBrush _backdropBrush = new(Colors.Transparent);
+    private Color _backdropTarget = Colors.Transparent;
+    private bool _toolbarShown;
+    private double _resizeStartHeight;
     private bool _moving;
     private OutlinedLyricText PrimaryText => LyricsContent.PrimaryText;
     private OutlinedLyricText SecondaryText => LyricsContent.SecondaryText;
@@ -50,6 +59,7 @@ public partial class DesktopLyricsWindow : Window
         RegisterName("PrimaryText", PrimaryText);
         RegisterName("SecondaryText", SecondaryText);
         _quickMenu = CreateQuickMenu();
+        Backdrop.Background = _backdropBrush;
         Surface.ContextMenu = _quickMenu;
         _lockedHoverTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
         {
@@ -65,7 +75,11 @@ public partial class DesktopLyricsWindow : Window
         AutomationProperties.SetName(LockButton, (string)LockButton.ToolTip);
         AutomationProperties.SetName(CloseButton, (string)CloseButton.ToolTip);
         SourceInitialized += Window_SourceInitialized;
-        SizeChanged += (_, _) => { if (!_placing && !_resizing && Handle != 0) PlaceWindow(); };
+        SizeChanged += (_, _) =>
+        {
+            if (_resizeEdges != DesktopLyricsResizeEdge.None) UpdateResizingLayout();
+            else if (!_placing && Handle != 0) PlaceWindow();
+        };
         SystemEvents.DisplaySettingsChanged += DisplaySettingsChanged;
         Closed += (_, _) =>
         {
@@ -86,6 +100,8 @@ public partial class DesktopLyricsWindow : Window
         if (_options == options) return;
         _options = options;
         _highlightColor = (Color)ColorConverter.ConvertFromString(options.HighlightColor);
+        if (options.Locked) _hoverEdges = DesktopLyricsResizeEdge.None;
+        UpdateResizeIndicators();
         if (options.Locked || !options.Enabled) _quickMenu.IsOpen = false;
         Surface.ContextMenu = options.Locked ? null : _quickMenu;
         UpdateQuickMenu();
@@ -123,9 +139,7 @@ public partial class DesktopLyricsWindow : Window
         _extraLineGap = 0;
         PrimaryText.ToolTip = _options.Locked ? null : text.Primary;
         SecondaryText.ToolTip = _options.Locked ? null : text.Secondary;
-        WidthHandle.Visibility = _options.Locked ? Visibility.Collapsed : Visibility.Visible;
-        HeightHandle.Visibility = WidthHandle.Visibility;
-        CornerHandle.Visibility = WidthHandle.Visibility;
+        ResizeFrame.Visibility = _options.Locked ? Visibility.Collapsed : Visibility.Visible;
         UpdateHover();
         if (text.IsVisible)
         {
@@ -216,6 +230,24 @@ public partial class DesktopLyricsWindow : Window
             handled = true;
             return 3; // MA_NOACTIVATE
         }
+        if (message == NativeMethods.WmSizing && _resizeEdges != DesktopLyricsResizeEdge.None && lParam != 0)
+        {
+            var rect = Marshal.PtrToStructure<NativeRect>(lParam);
+            // 以系统报告的实际拖动边为准，键盘缩放时用户可能改选其他边。
+            var edges = EdgesFromSizingDirection((int)wParam);
+            if (edges != DesktopLyricsResizeEdge.None && edges != _resizeEdges)
+            {
+                _resizeEdges = edges;
+                UpdateResizeIndicators();
+            }
+            var constrained = ConstrainResize(rect.ToPixelRect());
+            Marshal.StructureToPtr(new NativeRect
+            {
+                Left = constrained.Left, Top = constrained.Top, Right = constrained.Right, Bottom = constrained.Bottom
+            }, lParam, false);
+            handled = true;
+            return 1;
+        }
         if (message == 0x02E0 || message == 0x001A) // DPI or work-area change
         {
             Dispatcher.BeginInvoke(PlaceWindow);
@@ -225,7 +257,7 @@ public partial class DesktopLyricsWindow : Window
 
     private void PlaceWindow()
     {
-        if (_placing || _resizing || _moving || Handle == 0) return;
+        if (_placing || _resizeEdges != DesktopLyricsResizeEdge.None || _moving || Handle == 0) return;
         _placing = true;
         try
         {
@@ -271,14 +303,14 @@ public partial class DesktopLyricsWindow : Window
             ? dpi / 96.0 : 1;
     }
 
-    private void SavePosition()
+    private void SavePosition(bool? saveHeight = null)
     {
         if (!NativeMethods.GetWindowRect(Handle, out var rect)) return;
         var screen = FormsScreen.FromHandle(Handle);
         var work = screen.WorkingArea;
         var position = DesktopLyricsPlacement.Capture(screen.DeviceName,
             new(work.Left, work.Top, work.Right, work.Bottom), rect.ToPixelRect(), ResolveScale(screen),
-            saveHeight: SizeToContent == SizeToContent.Manual);
+            saveHeight: saveHeight ?? SizeToContent == SizeToContent.Manual);
         _options = _options with { Position = position };
         PlaceWindow();
         PositionChanged?.Invoke(position);
@@ -289,7 +321,7 @@ public partial class DesktopLyricsWindow : Window
         if (_options.Locked || e.OriginalSource is not DependencyObject target) return;
         for (var parent = target; parent is not null; parent = VisualTreeHelper.GetParent(parent))
         {
-            if (parent is ButtonBase or Thumb) return;
+            if (parent is ButtonBase) return;
         }
         try
         {
@@ -317,18 +349,182 @@ public partial class DesktopLyricsWindow : Window
         e.Handled = true;
     }
 
-    private void WidthHandle_DragDelta(object sender, DragDeltaEventArgs e)
-        => ResizeWindow(e.HorizontalChange, 0);
+    // 边框交给系统缩放循环处理：拖动跟手、支持八个方向，尺寸约束在 WM_SIZING 中统一计算。
+    private void ResizeEdge_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_options.Locked || sender is not FrameworkElement { Tag: string tag } ||
+            !Enum.TryParse<DesktopLyricsResizeEdge>(tag, out var edges) || edges == DesktopLyricsResizeEdge.None) return;
+        e.Handled = true;
+        if (e.ClickCount == 2)
+        {
+            // 双击上下边恢复自动高度，保留当前宽度和位置。
+            if (edges.HasFlag(DesktopLyricsResizeEdge.Top) || edges.HasFlag(DesktopLyricsResizeEdge.Bottom))
+                RestoreAutoHeight();
+            return;
+        }
+        if (e.ButtonState != MouseButtonState.Pressed) return;
+        BeginResize(edges);
+        try
+        {
+            Mouse.Capture(null);
+            NativeMethods.SendMessage(Handle, NativeMethods.WmSysCommand, NativeMethods.ScSize + SizingDirection(edges), 0);
+        }
+        finally
+        {
+            EndResize();
+        }
+    }
 
-    private void HeightHandle_DragDelta(object sender, DragDeltaEventArgs e)
-        => ResizeWindow(0, e.VerticalChange);
+    private static int SizingDirection(DesktopLyricsResizeEdge edges) => edges switch
+    {
+        DesktopLyricsResizeEdge.Left => 1,
+        DesktopLyricsResizeEdge.Right => 2,
+        DesktopLyricsResizeEdge.Top => 3,
+        DesktopLyricsResizeEdge.Top | DesktopLyricsResizeEdge.Left => 4,
+        DesktopLyricsResizeEdge.Top | DesktopLyricsResizeEdge.Right => 5,
+        DesktopLyricsResizeEdge.Bottom => 6,
+        DesktopLyricsResizeEdge.Bottom | DesktopLyricsResizeEdge.Left => 7,
+        _ => 8
+    };
 
-    private void CornerHandle_DragDelta(object sender, DragDeltaEventArgs e)
-        => ResizeWindow(e.HorizontalChange, e.VerticalChange);
+    private static DesktopLyricsResizeEdge EdgesOf(object element) =>
+        element is FrameworkElement { Tag: string tag } && Enum.TryParse<DesktopLyricsResizeEdge>(tag, out var edges)
+            ? edges : DesktopLyricsResizeEdge.None;
+
+    private void ResizeEdge_MouseEnter(object sender, MouseEventArgs e)
+    {
+        _hoverEdges = EdgesOf(sender);
+        UpdateResizeIndicators();
+    }
+
+    private void ResizeEdge_MouseLeave(object sender, MouseEventArgs e)
+    {
+        // 相邻的边和角互相重叠，离开与进入的顺序不固定，只清除自己设置的悬停状态。
+        if (_hoverEdges == EdgesOf(sender)) _hoverEdges = DesktopLyricsResizeEdge.None;
+        UpdateResizeIndicators();
+    }
+
+    // 拖动中以实际缩放的边为准，只显示与之完全对应的那个指示器。
+    private void UpdateResizeIndicators()
+    {
+        var active = _options.Locked ? DesktopLyricsResizeEdge.None
+            : _resizeEdges != DesktopLyricsResizeEdge.None ? _resizeEdges : _hoverEdges;
+        foreach (var indicator in ResizeIndicators.Children.OfType<FrameworkElement>())
+            SetResizeIndicatorVisible(indicator, active != DesktopLyricsResizeEdge.None && EdgesOf(indicator) == active);
+    }
+
+    // 显示时淡入并从 60% 放大到原尺寸，隐藏时稍慢淡出缩回；角上的弧以窗口角为原点展开。
+    private void SetResizeIndicatorVisible(FrameworkElement indicator, bool visible)
+    {
+        if (visible == _shownResizeIndicators.Contains(indicator)) return;
+        if (visible) _shownResizeIndicators.Add(indicator);
+        else _shownResizeIndicators.Remove(indicator);
+        if (indicator.RenderTransform is not ScaleTransform scale || scale.IsFrozen)
+            indicator.RenderTransform = scale = new ScaleTransform(0.6, 0.6);
+        double opacity = visible ? 1 : 0, size = visible ? 1 : 0.6;
+        if (!SystemParameters.ClientAreaAnimation)
+        {
+            // 系统关闭了动画时直接切换。
+            indicator.BeginAnimation(OpacityProperty, null);
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            indicator.Opacity = opacity;
+            scale.ScaleX = scale.ScaleY = size;
+            return;
+        }
+        var duration = TimeSpan.FromMilliseconds(visible ? 160 : 200);
+        var easing = visible ? ResizeIndicatorShowEasing : ResizeIndicatorHideEasing;
+        indicator.BeginAnimation(OpacityProperty, new DoubleAnimation(opacity, duration) { EasingFunction = easing });
+        var grow = new DoubleAnimation(size, duration) { EasingFunction = easing };
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, grow);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
+    }
+
+    private static readonly IEasingFunction ResizeIndicatorShowEasing = FrozenEasing(new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.3 });
+    private static readonly IEasingFunction ResizeIndicatorHideEasing = FrozenEasing(new CubicEase { EasingMode = EasingMode.EaseIn });
+
+    private static IEasingFunction FrozenEasing(EasingFunctionBase easing)
+    {
+        easing.Freeze();
+        return easing;
+    }
+
+    private static DesktopLyricsResizeEdge EdgesFromSizingDirection(int direction) => direction switch
+    {
+        1 => DesktopLyricsResizeEdge.Left,
+        2 => DesktopLyricsResizeEdge.Right,
+        3 => DesktopLyricsResizeEdge.Top,
+        4 => DesktopLyricsResizeEdge.Top | DesktopLyricsResizeEdge.Left,
+        5 => DesktopLyricsResizeEdge.Top | DesktopLyricsResizeEdge.Right,
+        6 => DesktopLyricsResizeEdge.Bottom,
+        7 => DesktopLyricsResizeEdge.Bottom | DesktopLyricsResizeEdge.Left,
+        8 => DesktopLyricsResizeEdge.Bottom | DesktopLyricsResizeEdge.Right,
+        _ => DesktopLyricsResizeEdge.None
+    };
+
+    private void BeginResize(DesktopLyricsResizeEdge edges)
+    {
+        _resizeEdges = edges;
+        _resizeAutoHeight = SizeToContent == SizeToContent.Height;
+        _resizeStartHeight = ActualHeight;
+        UpdateResizeIndicators();
+        // 缩放期间由 WM_SIZING 决定尺寸，关闭自动高度和 WPF 自身的最小最大值限制，避免互相拉扯。
+        SizeToContent = SizeToContent.Manual;
+        MinWidth = MinHeight = 0;
+        MaxWidth = MaxHeight = double.PositiveInfinity;
+    }
+
+    private void EndResize()
+    {
+        if (_resizeEdges == DesktopLyricsResizeEdge.None) return;
+        // 拖了上下边但高度没变（例如按 Esc 取消）时保持原来的自动高度。
+        var changedHeight = (_resizeEdges.HasFlag(DesktopLyricsResizeEdge.Top) || _resizeEdges.HasFlag(DesktopLyricsResizeEdge.Bottom)) &&
+            Math.Abs(ActualHeight - _resizeStartHeight) > 0.5;
+        _resizeEdges = DesktopLyricsResizeEdge.None;
+        _hoverEdges = DesktopLyricsResizeEdge.None;
+        UpdateResizeIndicators();
+        // 先按当前矩形保存，再由 PlaceWindow 按是否保存了高度恢复自动高度；
+        // 先切换 SizeToContent 会触发按旧位置重新放置，丢掉这次缩放。
+        SavePosition(saveHeight: !_resizeAutoHeight || changedHeight);
+    }
+
+    private void RestoreAutoHeight()
+    {
+        // 先去掉保存的高度再放置窗口；直接切换 SizeToContent 会触发按旧高度重新放置。
+        if (_options.Position is not { Height: not null } position) return;
+        var updated = position with { Height = null };
+        _options = _options with { Position = updated };
+        PlaceWindow();
+        PositionChanged?.Invoke(updated);
+    }
+
+    private PixelRect ConstrainResize(PixelRect proposed)
+    {
+        var screen = FormsScreen.FromHandle(Handle);
+        var work = screen.WorkingArea;
+        var vertical = _options.TextDirection == DesktopLyricsTextDirection.Vertical;
+        // 竖排文字会按高度截断，最小高度只需容纳两个字；横排至少容纳当前宽度下的全部歌词。
+        double MinimumHeight(double width) => vertical
+            ? DesktopLyricsContent.WindowVerticalPadding + LyricsContent.Margin.Top + LyricsContent.Margin.Bottom + _options.FontSize * 2.5
+            : MinimumContentHeight(width);
+        return DesktopLyricsPlacement.Resize(proposed, _resizeEdges, new(work.Left, work.Top, work.Right, work.Bottom),
+            ResolveScale(screen), MinimumHeight, _resizeAutoHeight ? width => MinimumContentHeight(width) : null);
+    }
+
+    private void UpdateResizingLayout()
+    {
+        if (_options.TextDirection == DesktopLyricsTextDirection.Vertical)
+        {
+            PrimaryText.MaxHeight = SecondaryText.MaxHeight = Math.Max(1, ActualHeight -
+                DesktopLyricsContent.WindowVerticalPadding - LyricsContent.Margin.Top - LyricsContent.Margin.Bottom);
+        }
+        UpdateLayout();
+        UpdateLineSpacing();
+    }
 
     private double MinimumContentHeight(double? width = null)
     {
-        LyricsContent.Measure(new Size(Math.Max(1, (width ?? Width) - 24), double.PositiveInfinity));
+        LyricsContent.Measure(new Size(Math.Max(1, (width ?? (ActualWidth > 0 ? ActualWidth : Width)) - 24), double.PositiveInfinity));
         return Math.Max(DesktopLyricsPlacement.MinimumHeight, LyricsContent.DesiredSize.Height + DesktopLyricsContent.WindowVerticalPadding - _extraLineGap);
     }
 
@@ -342,55 +538,82 @@ public partial class DesktopLyricsWindow : Window
         LyricsContent.SetExtraLineGap(extra);
     }
 
-    private void ResizeWindow(double widthChange, double heightChange)
-    {
-        if (_options.Locked) return;
-        _resizing = true;
-        var screen = FormsScreen.FromHandle(Handle);
-        var work = screen.WorkingArea;
-        var scale = ResolveScale(screen);
-        Width = DesktopLyricsPlacement.ConstrainSize(Width + widthChange, ActualHeight, work.Width / scale, work.Height / scale).Width;
-        if (_options.TextDirection == DesktopLyricsTextDirection.Vertical && heightChange != 0)
-        {
-            PrimaryText.MaxHeight = SecondaryText.MaxHeight = Math.Max(1, ActualHeight + heightChange - DesktopLyricsContent.WindowVerticalPadding - LyricsContent.Margin.Top - LyricsContent.Margin.Bottom);
-        }
-        MinHeight = Math.Min(MinimumContentHeight(), MaxHeight);
-        if (heightChange != 0 || SizeToContent == SizeToContent.Manual)
-        {
-            var height = ActualHeight;
-            SizeToContent = SizeToContent.Manual;
-            Height = DesktopLyricsPlacement.ConstrainSize(Width, height + heightChange, work.Width / scale, work.Height / scale, MinHeight).Height;
-        }
-        UpdateLayout();
-        UpdateLineSpacing();
-        UpdateLayout();
-        if (NativeMethods.GetWindowRect(Handle, out var rect))
-        {
-            NativeMethods.SetWindowPos(Handle, new nint(-1),
-                Math.Clamp(rect.Left, work.Left, Math.Max(work.Left, work.Right - rect.ToPixelRect().Width)),
-                Math.Clamp(rect.Top, work.Top, Math.Max(work.Top, work.Bottom - rect.ToPixelRect().Height)),
-                0, 0, NativeMethods.SwpNoActivate | NativeMethods.SwpNoSize);
-        }
-    }
-
-    private void WidthHandle_DragCompleted(object sender, DragCompletedEventArgs e)
-        => ResizeHandle_DragCompleted(sender, e);
-
-    private void ResizeHandle_DragCompleted(object sender, DragCompletedEventArgs e)
-    {
-        _resizing = false;
-        SavePosition();
-    }
-
     private void UpdateHover()
     {
         var hover = !_options.Locked && (Surface.IsMouseOver || _quickMenu.IsOpen);
-        Toolbar.Visibility = hover ? Visibility.Visible : Visibility.Hidden;
-        CornerHandle.Opacity = hover ? 1 : 0;
+        // 锁定与解锁切换时也渐变；锁定后的鼠标穿透在 ApplyInputStyle 中立即生效。
+        var animate = IsVisible && Opacity > 0;
+        SetToolbarVisible(hover, animate);
         var alpha = _options.Locked ? (byte)0 : (byte)Math.Round(255 * Math.Max(_options.BackgroundOpacity, hover ? 0.45 : 0));
-        Backdrop.Background = new SolidColorBrush(Color.FromArgb(alpha, 0, 0, 0));
+        // 窗口尚未显示时直接切换，首帧不应从透明渐变出来。
+        SetBackdropAlpha(alpha, animate);
         Surface.Background = _options.Locked ? Brushes.Transparent : new SolidColorBrush(Color.FromArgb(1, 0, 0, 0));
     }
+
+    // 与缩放指示器节奏一致：出现 160ms 减速，消失 200ms 加速；不用回弹，避免透明度过冲。
+    private void SetBackdropAlpha(byte alpha, bool animate)
+    {
+        var target = Color.FromArgb(alpha, 0, 0, 0);
+        if (target == _backdropTarget) return;
+        var showing = alpha > _backdropBrush.Color.A;
+        _backdropTarget = target;
+        if (!animate || !SystemParameters.ClientAreaAnimation)
+        {
+            _backdropBrush.BeginAnimation(SolidColorBrush.ColorProperty, null);
+            _backdropBrush.Color = target;
+            return;
+        }
+        _backdropBrush.BeginAnimation(SolidColorBrush.ColorProperty,
+            new ColorAnimation(target, TimeSpan.FromMilliseconds(showing ? 160 : 200))
+            {
+                EasingFunction = showing ? BackdropShowEasing : ResizeIndicatorHideEasing
+            });
+    }
+
+    // 工具栏与背景同节奏淡入淡出；动画只作用在外层胶囊的不透明度上，静止时仍以 Visibility 表示显隐。
+    private void SetToolbarVisible(bool visible, bool animate)
+    {
+        if (animate && visible == _toolbarShown) return;
+        var wasHidden = Toolbar.Visibility != Visibility.Visible;
+        _toolbarShown = visible;
+        // 淡出期间按钮已不可点击，避免误触正在消失的按钮。
+        ToolbarSurface.IsHitTestVisible = visible;
+        if (!animate || !SystemParameters.ClientAreaAnimation)
+        {
+            ToolbarSurface.BeginAnimation(OpacityProperty, null);
+            ToolbarSurface.Opacity = 1;
+            Toolbar.Visibility = visible ? Visibility.Visible : Visibility.Hidden;
+            return;
+        }
+        var animation = new DoubleAnimation(visible ? 1 : 0, TimeSpan.FromMilliseconds(visible ? 160 : 200))
+        {
+            EasingFunction = visible ? BackdropShowEasing : ResizeIndicatorHideEasing
+        };
+        if (visible)
+        {
+            // 从完全隐藏开始时从透明淡入；若正在淡出则从当前不透明度接着淡入。
+            // 原值也设为 0：动画时钟要到下一帧才开始，否则显示的第一帧会闪出完全不透明的工具栏。
+            if (wasHidden)
+            {
+                animation.From = 0;
+                ToolbarSurface.Opacity = 0;
+            }
+            Toolbar.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            animation.Completed += (_, _) =>
+            {
+                if (_toolbarShown) return;
+                Toolbar.Visibility = Visibility.Hidden;
+                ToolbarSurface.BeginAnimation(OpacityProperty, null);
+                ToolbarSurface.Opacity = 1;
+            };
+        }
+        ToolbarSurface.BeginAnimation(OpacityProperty, animation);
+    }
+
+    private static readonly IEasingFunction BackdropShowEasing = FrozenEasing(new CubicEase { EasingMode = EasingMode.EaseOut });
 
     private void UpdateLockedHoverTracking()
     {
@@ -412,7 +635,7 @@ public partial class DesktopLyricsWindow : Window
     private void RefreshLockedHover()
     {
         if (NativeMethods.GetCursorPos(out var point)) UpdateLockedHover(new(point.X, point.Y));
-        else _unlockWindow?.Hide();
+        else _unlockWindow?.FadeOut();
     }
 
     private void UpdateLockedHover(PixelPoint point)
@@ -420,7 +643,9 @@ public partial class DesktopLyricsWindow : Window
         if (!_options.Locked || !IsVisible || !NativeMethods.GetWindowRect(Handle, out var rect) ||
             point.X < rect.Left || point.X >= rect.Right || point.Y < rect.Top || point.Y >= rect.Bottom)
         {
-            _unlockWindow?.Hide();
+            // 歌词窗口本身已隐藏时立即隐藏图标；只是鼠标移开时淡出。
+            if (!IsVisible) _unlockWindow?.Hide();
+            else _unlockWindow?.FadeOut();
             return;
         }
         if (_unlockWindow is null)

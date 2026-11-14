@@ -27,6 +27,9 @@ internal static class NativeMethods
     internal const int DwmsbtTransientWindow = 3;
     internal const uint MonitorDefaultToNearest = 2;
     internal const int MdtEffectiveDpi = 0;
+    internal const int WmSysCommand = 0x0112;
+    internal const int WmSizing = 0x0214;
+    internal const int ScSize = 0xF000;
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     internal static extern nint FindWindow(string? className, string? windowName);
@@ -45,6 +48,9 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetCursorPos(out NativePoint point);
+
+    [DllImport("user32.dll")]
+    internal static extern nint SendMessage(nint windowHandle, int message, nint wParam, nint lParam);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

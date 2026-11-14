@@ -8,25 +8,29 @@
     WindowStyle="None" ResizeMode="NoResize"
     ShowInTaskbar="False" ShowActivated="False" Topmost="True" Opacity="0"
     UseLayoutRounding="True">
-    <Button x:Name="UnlockButton" Click="UnlockButton_Click" Foreground="White" Background="#01000000">
+    <!-- 反色圆形按钮：白色圆底配深色图标；圆外保留透明命中区。 -->
+    <Button x:Name="UnlockButton" Click="UnlockButton_Click" Foreground="#1F1F1F" Background="#01000000">
         <Button.Template>
             <ControlTemplate TargetType="Button">
-                <Border x:Name="ButtonSurface" Background="{TemplateBinding Background}">
+                <Grid Background="{TemplateBinding Background}">
+                    <!-- 窗口只有按钮大小，阴影会被裁掉，改用淡描边在浅色桌面上勾出轮廓。 -->
+                    <Ellipse x:Name="Circle" Width="24" Height="24" Fill="#F2FFFFFF" Stroke="#38000000" StrokeThickness="1"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
                     <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Border>
+                </Grid>
                 <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
-                        <Setter TargetName="ButtonSurface" Property="Background" Value="#30FFFFFF" />
-                    </Trigger>
-                    <Trigger Property="IsPressed" Value="True">
-                        <Setter TargetName="ButtonSurface" Property="Background" Value="#50FFFFFF" />
+                        <Setter TargetName="Circle" Property="Fill" Value="#FFE4E4E4" />
                     </Trigger>
                     <Trigger Property="IsKeyboardFocused" Value="True">
-                        <Setter TargetName="ButtonSurface" Property="Background" Value="#30FFFFFF" />
+                        <Setter TargetName="Circle" Property="Fill" Value="#FFE4E4E4" />
+                    </Trigger>
+                    <Trigger Property="IsPressed" Value="True">
+                        <Setter TargetName="Circle" Property="Fill" Value="#FFC8C8C8" />
                     </Trigger>
                 </ControlTemplate.Triggers>
             </ControlTemplate>
         </Button.Template>
-        <TextBlock FontFamily="Segoe Fluent Icons" FontSize="16" Text="&#xE785;" IsHitTestVisible="False" />
+        <TextBlock FontFamily="Segoe Fluent Icons" FontSize="14" Text="&#xE785;" IsHitTestVisible="False" />
     </Button>
 </Window>

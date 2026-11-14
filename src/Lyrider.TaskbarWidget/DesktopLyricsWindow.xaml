@@ -126,12 +126,14 @@
     <Grid x:Name="Surface" Background="#01000000" MouseLeftButtonDown="Surface_MouseLeftButtonDown"
           MouseRightButtonUp="Surface_MouseRightButtonUp"
           MouseEnter="Surface_MouseEnter" MouseLeave="Surface_MouseLeave">
+        <!-- 背景铺满窗口，与缩放边框的触发范围一致；歌词内边距由内层网格保留。 -->
+        <!-- 圆角半径与角落指示弧（2px 内缩 + 6px 弧半径）对齐。 -->
+        <Border x:Name="Backdrop" IsHitTestVisible="False" CornerRadius="8" />
         <Grid Margin="12,4">
             <Grid.RowDefinitions>
                 <RowDefinition Height="44" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <Border x:Name="Backdrop" Grid.RowSpan="2" IsHitTestVisible="False" />
             <Border x:Name="ToolbarSurface" HorizontalAlignment="Center" VerticalAlignment="Center"
                     Padding="6,2" Visibility="{Binding Visibility, ElementName=Toolbar}">
                 <StackPanel x:Name="Toolbar" Orientation="Horizontal" HorizontalAlignment="Center" Visibility="Hidden">
@@ -155,32 +157,63 @@
             </Border>
             <local:DesktopLyricsContent x:Name="LyricsContent" Grid.Row="1" VerticalAlignment="Center" />
         </Grid>
-        <Thumb x:Name="WidthHandle" Width="10" HorizontalAlignment="Right" Cursor="SizeWE"
-               Background="Transparent" DragDelta="WidthHandle_DragDelta" DragCompleted="WidthHandle_DragCompleted">
-            <Thumb.Template>
-                <ControlTemplate TargetType="Thumb">
-                    <Border Background="#01000000" />
-                </ControlTemplate>
-            </Thumb.Template>
-        </Thumb>
-        <Thumb x:Name="HeightHandle" Height="10" VerticalAlignment="Bottom" Cursor="SizeNS"
-               Background="Transparent" DragDelta="HeightHandle_DragDelta" DragCompleted="ResizeHandle_DragCompleted">
-            <Thumb.Template>
-                <ControlTemplate TargetType="Thumb">
-                    <Border Background="#01000000" />
-                </ControlTemplate>
-            </Thumb.Template>
-        </Thumb>
-        <Thumb x:Name="CornerHandle" Width="16" Height="16" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-               Margin="0,0,16,8" Opacity="0"
-               Cursor="SizeNWSE" Background="Transparent" DragDelta="CornerHandle_DragDelta" DragCompleted="ResizeHandle_DragCompleted">
-            <Thumb.Template>
-                <ControlTemplate TargetType="Thumb">
-                    <Border Background="#01000000">
-                        <Path Data="M 5,13 L 13,5 M 9,13 L 13,9" Stroke="#90FFFFFF" StrokeThickness="2" />
-                    </Border>
-                </ControlTemplate>
-            </Thumb.Template>
-        </Thumb>
+        <!-- 四边与四角交给系统缩放循环；角在边之后声明，重叠处优先按对角缩放。
+             悬停或拖动时，边的中点淡入一枚小药丸，角上淡入一段圆角弧。 -->
+        <Grid x:Name="ResizeFrame">
+            <Grid.Resources>
+                <Style TargetType="Border">
+                    <Setter Property="Background" Value="#01000000" />
+                    <EventSetter Event="MouseLeftButtonDown" Handler="ResizeEdge_MouseLeftButtonDown" />
+                    <EventSetter Event="MouseEnter" Handler="ResizeEdge_MouseEnter" />
+                    <EventSetter Event="MouseLeave" Handler="ResizeEdge_MouseLeave" />
+                </Style>
+                <Style x:Key="EdgePill" TargetType="Rectangle">
+                    <Setter Property="Fill" Value="#E6FFFFFF" />
+                    <Setter Property="RadiusX" Value="2" />
+                    <Setter Property="RadiusY" Value="2" />
+                    <Setter Property="Opacity" Value="0" />
+                    <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+                </Style>
+                <Style x:Key="CornerArc" TargetType="Path">
+                    <Setter Property="Width" Value="16" />
+                    <Setter Property="Height" Value="16" />
+                    <Setter Property="Stroke" Value="#E6FFFFFF" />
+                    <Setter Property="StrokeThickness" Value="3" />
+                    <Setter Property="StrokeStartLineCap" Value="Round" />
+                    <Setter Property="StrokeEndLineCap" Value="Round" />
+                    <Setter Property="Opacity" Value="0" />
+                </Style>
+            </Grid.Resources>
+            <Grid x:Name="ResizeIndicators" IsHitTestVisible="False">
+                <Rectangle x:Name="LeftResizeIndicator" Tag="Left" Style="{StaticResource EdgePill}" Width="4" Height="28"
+                           HorizontalAlignment="Left" VerticalAlignment="Center" Margin="2,0,0,0" />
+                <Rectangle x:Name="RightResizeIndicator" Tag="Right" Style="{StaticResource EdgePill}" Width="4" Height="28"
+                           HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,2,0" />
+                <Rectangle x:Name="TopResizeIndicator" Tag="Top" Style="{StaticResource EdgePill}" Width="28" Height="4"
+                           HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,2,0,0" />
+                <Rectangle x:Name="BottomResizeIndicator" Tag="Bottom" Style="{StaticResource EdgePill}" Width="28" Height="4"
+                           HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,2" />
+                <Path x:Name="TopLeftResizeIndicator" Tag="Top, Left" Style="{StaticResource CornerArc}" RenderTransformOrigin="0,0"
+                      HorizontalAlignment="Left" VerticalAlignment="Top" Margin="2,2,0,0"
+                      Data="M 1.5,14 L 1.5,7.5 A 6,6 0 0 1 7.5,1.5 L 14,1.5" />
+                <Path x:Name="TopRightResizeIndicator" Tag="Top, Right" Style="{StaticResource CornerArc}" RenderTransformOrigin="1,0"
+                      HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,2,0"
+                      Data="M 2,1.5 L 8.5,1.5 A 6,6 0 0 1 14.5,7.5 L 14.5,14" />
+                <Path x:Name="BottomRightResizeIndicator" Tag="Bottom, Right" Style="{StaticResource CornerArc}" RenderTransformOrigin="1,1"
+                      HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,2,2"
+                      Data="M 14.5,2 L 14.5,8.5 A 6,6 0 0 1 8.5,14.5 L 2,14.5" />
+                <Path x:Name="BottomLeftResizeIndicator" Tag="Bottom, Left" Style="{StaticResource CornerArc}" RenderTransformOrigin="0,1"
+                      HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="2,0,0,2"
+                      Data="M 14,14.5 L 7.5,14.5 A 6,6 0 0 1 1.5,8.5 L 1.5,2" />
+            </Grid>
+            <Border x:Name="LeftResizeEdge" Tag="Left" Width="8" HorizontalAlignment="Left" Cursor="SizeWE" />
+            <Border x:Name="RightResizeEdge" Tag="Right" Width="8" HorizontalAlignment="Right" Cursor="SizeWE" />
+            <Border x:Name="TopResizeEdge" Tag="Top" Height="8" VerticalAlignment="Top" Cursor="SizeNS" />
+            <Border x:Name="BottomResizeEdge" Tag="Bottom" Height="8" VerticalAlignment="Bottom" Cursor="SizeNS" />
+            <Border x:Name="TopLeftResizeEdge" Tag="Top, Left" Width="18" Height="18" HorizontalAlignment="Left" VerticalAlignment="Top" Cursor="SizeNWSE" />
+            <Border x:Name="TopRightResizeEdge" Tag="Top, Right" Width="18" Height="18" HorizontalAlignment="Right" VerticalAlignment="Top" Cursor="SizeNESW" />
+            <Border x:Name="BottomLeftResizeEdge" Tag="Bottom, Left" Width="18" Height="18" HorizontalAlignment="Left" VerticalAlignment="Bottom" Cursor="SizeNESW" />
+            <Border x:Name="BottomRightResizeEdge" Tag="Bottom, Right" Width="18" Height="18" HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="SizeNWSE" />
+        </Grid>
     </Grid>
 </Window>

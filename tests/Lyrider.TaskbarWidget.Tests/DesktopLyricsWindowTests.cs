@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -486,10 +487,7 @@ public sealed class DesktopLyricsWindowTests
                 window.ApplyOptions(new(Enabled: true, FontSize: 72, Layout: DesktopLyricsLayout.Horizontal));
                 window.SetPlaybackState(new("Song", true, false, "夜空中最亮的星，照亮我们继续前行的路。",
                     NextLyric: "让每一句歌词都清晰可见，陪我们继续唱下去。"));
-                var corner = (Thumb)window.FindName("CornerHandle");
-                corner.RaiseEvent(new DragDeltaEventArgs(-10000, -10000) { RoutedEvent = Thumb.DragDeltaEvent });
-                corner.RaiseEvent(new DragCompletedEventArgs(-10000, -10000, false) { RoutedEvent = Thumb.DragCompletedEvent });
-                window.UpdateLayout();
+                ResizeBy(window, DesktopLyricsResizeEdge.Bottom | DesktopLyricsResizeEdge.Right, -10000, -10000);
                 Assert.AreEqual(window.MinWidth, window.ActualWidth, 2);
                 Assert.AreEqual(window.MinHeight, window.ActualHeight, 2);
                 var content = (FrameworkElement)window.FindName("LyricsContent");
@@ -501,9 +499,7 @@ public sealed class DesktopLyricsWindowTests
                 var encoder = new PngBitmapEncoder();
                 encoder.Frames.Add(BitmapFrame.Create(bitmap));
                 using (var output = File.Create(Path.Combine(AppContext.BaseDirectory, "desktop-minimum-size.png"))) encoder.Save(output);
-                corner.RaiseEvent(new DragDeltaEventArgs(10000, 10000) { RoutedEvent = Thumb.DragDeltaEvent });
-                corner.RaiseEvent(new DragCompletedEventArgs(10000, 10000, false) { RoutedEvent = Thumb.DragCompletedEvent });
-                window.UpdateLayout();
+                ResizeBy(window, DesktopLyricsResizeEdge.Top | DesktopLyricsResizeEdge.Right, 10000, -10000);
                 Assert.AreEqual(window.MaxWidth, window.ActualWidth, 2);
                 Assert.AreEqual(window.MaxHeight, window.ActualHeight, 2);
                 Assert.IsTrue(window.ActualWidth <= DesktopLyricsPlacement.MaximumWidth);
@@ -594,6 +590,7 @@ public sealed class DesktopLyricsWindowTests
                 Assert.IsFalse(timer.IsEnabled);
                 Assert.IsNull(ReadField<DesktopLyricsUnlockWindow>(lyrics, "_unlockWindow"));
                 Assert.AreEqual(0L, GetWindowLongPtr(handle, -20).ToInt64() & 0x20);
+                PumpDispatcher(TimeSpan.FromMilliseconds(300));
                 Assert.IsTrue(((SolidColorBrush)((Border)lyrics.FindName("Backdrop")).Background).Color.A > 0);
             }
             finally { lyrics.Close(); underneath.Close(); }
@@ -615,11 +612,28 @@ public sealed class DesktopLyricsWindowTests
                 timer.Stop();
                 GetWindowRect(new WindowInteropHelper(lyrics).Handle, out var rect);
                 var point = new PixelPoint(rect.Left + 20, rect.Top + 50);
+                // 歌词窗口尚未显示首帧时请求的图标，要在歌词显示后补上淡入。
                 UpdateLockedHover(lyrics, point);
                 var unlock = ReadField<DesktopLyricsUnlockWindow>(lyrics, "_unlockWindow")!;
                 Assert.IsTrue(unlock.IsVisible);
+                PumpDispatcher(TimeSpan.FromMilliseconds(100));
+                // 歌词显示时会按真实鼠标位置刷新一次，这里停掉计时器后重新按测试位置悬停。
+                timer.Stop();
+                UpdateLockedHover(lyrics, point);
+                PumpDispatcher(TimeSpan.FromMilliseconds(250));
+                Assert.AreEqual(1, unlock.Opacity, 0.001, "解锁图标应淡入到完全不透明。");
                 UpdateLockedHover(lyrics, new(rect.Left - 10, rect.Top));
-                Assert.IsFalse(unlock.IsVisible);
+                Assert.IsTrue(unlock.IsVisible, "鼠标移开后解锁图标先淡出。");
+                Assert.IsTrue(unlock.HasAnimatedProperties);
+                // 淡出途中移回来，从当前不透明度接着淡入，不会先隐藏。
+                PumpDispatcher(TimeSpan.FromMilliseconds(60));
+                UpdateLockedHover(lyrics, point);
+                Assert.IsTrue(unlock.IsVisible);
+                PumpDispatcher(TimeSpan.FromMilliseconds(250));
+                Assert.AreEqual(1, unlock.Opacity, 0.001);
+                UpdateLockedHover(lyrics, new(rect.Left - 10, rect.Top));
+                PumpDispatcher(TimeSpan.FromMilliseconds(350));
+                Assert.IsFalse(unlock.IsVisible, "淡出结束后隐藏。");
                 UpdateLockedHover(lyrics, point);
                 Assert.IsTrue(unlock.IsVisible);
                 lyrics.SetPlaybackState(DesktopLyricsState.Unavailable);
@@ -765,7 +779,7 @@ public sealed class DesktopLyricsWindowTests
     }
 
     [TestMethod]
-    public void CornerHandle_Drag_RestoresBothDimensionsLocksAndResetsHeight()
+    public void CornerResize_RestoresBothDimensionsLocksAndResetsHeight()
     {
         RunOnSta(() =>
         {
@@ -779,9 +793,7 @@ public sealed class DesktopLyricsWindowTests
                 window.PositionChanged += position => saved = position;
                 var initialWidth = window.ActualWidth;
                 var initialHeight = window.ActualHeight;
-                var corner = (Thumb)window.FindName("CornerHandle");
-                corner.RaiseEvent(new DragDeltaEventArgs(-120, 120) { RoutedEvent = Thumb.DragDeltaEvent });
-                corner.RaiseEvent(new DragCompletedEventArgs(-120, 120, false) { RoutedEvent = Thumb.DragCompletedEvent });
+                ResizeBy(window, DesktopLyricsResizeEdge.Top | DesktopLyricsResizeEdge.Right, -120, -120);
                 Assert.IsNotNull(saved);
                 Assert.IsNotNull(saved.Height);
                 Assert.AreEqual(initialWidth - 120, window.ActualWidth, 2);
@@ -792,11 +804,8 @@ public sealed class DesktopLyricsWindowTests
                 Assert.AreEqual(window.ActualHeight, restored.ActualHeight, 2);
                 Assert.AreEqual(window.ActualWidth, restored.ActualWidth, 2);
                 restored.ApplyOptions(options with { Locked = true });
-                foreach (var name in new[] { "WidthHandle", "HeightHandle", "CornerHandle" })
-                    Assert.AreEqual(Visibility.Collapsed, ((Thumb)restored.FindName(name)).Visibility);
+                Assert.AreEqual(Visibility.Collapsed, ((FrameworkElement)restored.FindName("ResizeFrame")).Visibility);
                 var lockedHeight = restored.ActualHeight;
-                ((Thumb)restored.FindName("HeightHandle")).RaiseEvent(new DragDeltaEventArgs(0, 100) { RoutedEvent = Thumb.DragDeltaEvent });
-                Assert.AreEqual(lockedHeight, restored.ActualHeight);
                 window.UpdateLayout();
                 var surface = (FrameworkElement)window.FindName("Surface");
                 var bitmap = new RenderTargetBitmap((int)Math.Ceiling(surface.ActualWidth),
@@ -815,7 +824,7 @@ public sealed class DesktopLyricsWindowTests
     }
 
     [TestMethod]
-    public void HeightHandle_Drag_ChangesHeightAndKeepsItAfterLyricUpdates()
+    public void TopEdgeResize_ChangesHeightAndKeepsItAfterLyricUpdates()
     {
         RunOnSta(() =>
         {
@@ -824,24 +833,254 @@ public sealed class DesktopLyricsWindowTests
             {
                 window.ApplyOptions(new(Enabled: true));
                 window.SetPlaybackState(new("Title", true, false, "Current lyric", "译文"));
-                var handle = window.FindName("HeightHandle") as Thumb;
-                Assert.IsNotNull(handle, "解锁后应提供纵向调整手柄");
+                Assert.AreEqual(Visibility.Visible, ((FrameworkElement)window.FindName("ResizeFrame")).Visibility, "解锁后应提供缩放边框");
                 var initialHeight = window.ActualHeight;
                 var primary = (OutlinedLyricText)window.FindName("PrimaryText");
                 var secondary = (OutlinedLyricText)window.FindName("SecondaryText");
                 var initialGap = secondary.TranslatePoint(new System.Windows.Point(), window).Y
                     - primary.TranslatePoint(new System.Windows.Point(), window).Y - primary.ActualHeight;
-                handle.RaiseEvent(new DragDeltaEventArgs(0, 100) { RoutedEvent = Thumb.DragDeltaEvent });
-                window.UpdateLayout();
+                GetWindowRect(new WindowInteropHelper(window).Handle, out var before);
+                ResizeBy(window, DesktopLyricsResizeEdge.Top, 0, -100, finish: false);
                 Assert.IsTrue(window.ActualHeight >= initialHeight + 95);
+                GetWindowRect(new WindowInteropHelper(window).Handle, out var during);
+                Assert.AreEqual(before.Bottom, during.Bottom, "拖上边时底边应保持不动。");
                 var enlargedGap = secondary.TranslatePoint(new System.Windows.Point(), window).Y
                     - primary.TranslatePoint(new System.Windows.Point(), window).Y - primary.ActualHeight;
                 Assert.AreEqual(initialGap + 20, enlargedGap, 2);
                 var height = window.ActualHeight;
-                handle.RaiseEvent(new DragCompletedEventArgs(0, 100, false) { RoutedEvent = Thumb.DragCompletedEvent });
+                InvokePrivate(window, "EndResize");
                 window.SetPlaybackState(new("Title", true, false, "New lyric"));
                 window.UpdateLayout();
                 Assert.AreEqual(height, window.ActualHeight, 2);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void SideEdgeResize_AutoHeight_StaysAutoAndKeepsBottom()
+    {
+        RunOnSta(() =>
+        {
+            var window = new DesktopLyricsWindow();
+            try
+            {
+                DesktopLyricsPosition? saved = null;
+                window.PositionChanged += position => saved = position;
+                window.ApplyOptions(new(Enabled: true));
+                window.SetPlaybackState(new("Title", true, false, "夜空中最亮的星，照亮我们继续前行的路，陪我们唱下去。",
+                    NextLyric: "让每一句歌词都清晰可见，陪我们继续唱下去，直到天亮。"));
+                var handle = new WindowInteropHelper(window).Handle;
+                GetWindowRect(handle, out var before);
+                var initialHeight = window.ActualHeight;
+                var initialWidth = window.ActualWidth;
+                ResizeBy(window, DesktopLyricsResizeEdge.Left, 500, 0);
+                window.UpdateLayout();
+                Assert.AreEqual(initialWidth - 500, window.ActualWidth, 2);
+                Assert.AreEqual(initialWidth - 500, saved!.Width, 2);
+                GetWindowRect(handle, out var after);
+                Assert.AreEqual(SizeToContent.Height, window.SizeToContent, "只改宽度时应保持自动高度。");
+                Assert.IsNull(saved?.Height);
+                Assert.AreEqual(before.Right, after.Right, 1, "拖左边时右边应保持不动。");
+                Assert.AreEqual(before.Bottom, after.Bottom, 1, "自动高度变化时底边应保持不动。");
+                Assert.IsTrue(window.ActualHeight > initialHeight, "变窄后歌词换行，高度应随内容增加。");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void RestoreAutoHeight_AfterManualHeight_ReturnsToContentHeight()
+    {
+        RunOnSta(() =>
+        {
+            var window = new DesktopLyricsWindow();
+            try
+            {
+                DesktopLyricsPosition? saved = null;
+                window.PositionChanged += position => saved = position;
+                window.ApplyOptions(new(Enabled: true));
+                window.SetPlaybackState(new("Title", true, false, "Current lyric", "译文"));
+                var initialHeight = window.ActualHeight;
+                ResizeBy(window, DesktopLyricsResizeEdge.Top, 0, -150);
+                Assert.AreEqual(SizeToContent.Manual, window.SizeToContent);
+                Assert.IsNotNull(saved?.Height);
+                var width = window.ActualWidth;
+                InvokePrivate(window, "RestoreAutoHeight");
+                window.UpdateLayout();
+                Assert.AreEqual(SizeToContent.Height, window.SizeToContent);
+                Assert.IsNull(saved?.Height);
+                Assert.AreEqual(initialHeight, window.ActualHeight, 2);
+                Assert.AreEqual(width, window.ActualWidth, 2);
+
+                // 拖了下边但高度没变时，仍保持自动高度。
+                ResizeBy(window, DesktopLyricsResizeEdge.Bottom, 0, 0);
+                Assert.AreEqual(SizeToContent.Height, window.SizeToContent);
+                Assert.IsNull(saved?.Height);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void ResizeFrame_HoverAndResize_AlignsWithBackdropAndAnimatesMatchingIndicator()
+    {
+        RunOnSta(() =>
+        {
+            var window = new DesktopLyricsWindow();
+            try
+            {
+                window.ApplyOptions(new(Enabled: true, HighlightColor: "#FF8800"));
+                window.SetPlaybackState(new("Title", true, false, "夜空中最亮的星", NextLyric: "照亮我们前行的路"));
+                window.UpdateLayout();
+                var surface = (FrameworkElement)window.FindName("Surface");
+                var backdrop = (Border)window.FindName("Backdrop");
+                Assert.AreEqual(surface.ActualWidth, backdrop.ActualWidth, 0.5, "背景应铺满窗口宽度。");
+                Assert.AreEqual(surface.ActualHeight, backdrop.ActualHeight, 0.5, "背景应铺满窗口高度。");
+                Assert.AreEqual(new System.Windows.Point(), backdrop.TranslatePoint(new System.Windows.Point(), surface));
+
+                string[] names = ["Left", "Right", "Top", "Bottom", "TopLeft", "TopRight", "BottomLeft", "BottomRight"];
+                FrameworkElement Indicator(string name) => (FrameworkElement)window.FindName(name + "ResizeIndicator");
+                string[] Shown() => names.Where(name => Indicator(name).Opacity > 0.99 &&
+                    Indicator(name).RenderTransform is ScaleTransform { ScaleX: > 0.99, ScaleY: > 0.99 }).ToArray();
+                string[] Visible() => names.Where(name => Indicator(name).Opacity > 0.01).ToArray();
+                void Raise(string name, RoutedEvent routedEvent) =>
+                    ((FrameworkElement)window.FindName(name + "ResizeEdge")).RaiseEvent(
+                        new MouseEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = routedEvent });
+                void Settle() => PumpDispatcher(TimeSpan.FromMilliseconds(450));
+
+                CollectionAssert.AreEqual(Array.Empty<string>(), Visible());
+                Raise("Left", Mouse.MouseEnterEvent);
+                Assert.IsTrue(Indicator("Left").HasAnimatedProperties, "显示指示器应有过渡动画。");
+                Settle();
+                CollectionAssert.AreEqual(new[] { "Left" }, Shown());
+                CollectionAssert.AreEqual(new[] { "Left" }, Visible(), "只显示所在边的药丸。");
+                var pill = Indicator("Left");
+                var center = pill.TranslatePoint(new System.Windows.Point(pill.ActualWidth / 2, pill.ActualHeight / 2), surface);
+                Assert.AreEqual(surface.ActualHeight / 2, center.Y, 1, "药丸应位于边的中点。");
+
+                // 从边移到相邻的角时，角先进入、边后离开也只保留角的指示。
+                Raise("BottomLeft", Mouse.MouseEnterEvent);
+                Raise("Left", Mouse.MouseLeaveEvent);
+                Assert.IsTrue(Indicator("Left").HasAnimatedProperties, "隐藏指示器也应有过渡动画。");
+                Settle();
+                CollectionAssert.AreEqual(new[] { "BottomLeft" }, Shown());
+                CollectionAssert.AreEqual(new[] { "BottomLeft" }, Visible());
+                Raise("BottomLeft", Mouse.MouseLeaveEvent);
+                Settle();
+                CollectionAssert.AreEqual(Array.Empty<string>(), Visible());
+
+                // 拖动期间即使鼠标不在边框上也保持指示，结束后淡出。
+                InvokePrivate(window, "BeginResize", DesktopLyricsResizeEdge.Top | DesktopLyricsResizeEdge.Right);
+                Settle();
+                CollectionAssert.AreEqual(new[] { "TopRight" }, Shown());
+                InvokePrivate(window, "EndResize");
+                Settle();
+                CollectionAssert.AreEqual(Array.Empty<string>(), Visible());
+
+                Raise("Top", Mouse.MouseEnterEvent);
+                Settle();
+                CollectionAssert.AreEqual(new[] { "Top" }, Shown());
+                window.ApplyOptions(new(Enabled: true, Locked: true, HighlightColor: "#FF8800"));
+                Settle();
+                CollectionAssert.AreEqual(Array.Empty<string>(), Visible(), "锁定后不应残留缩放指示。");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void Backdrop_OpacityChangeAndLockToggle_FadeLikeIndicators()
+    {
+        RunOnSta(() =>
+        {
+            var window = new DesktopLyricsWindow();
+            try
+            {
+                var away = AwayFromCursor();
+                window.ApplyOptions(new(Enabled: true, Position: away));
+                window.SetPlaybackState(new("Title", true, false, "夜空中最亮的星", NextLyric: "照亮我们前行的路"));
+                PumpDispatcher(TimeSpan.FromMilliseconds(150));
+                var brush = (SolidColorBrush)((Border)window.FindName("Backdrop")).Background;
+                Assert.AreEqual(0, brush.Color.A);
+
+                window.ApplyOptions(new(Enabled: true, BackgroundOpacity: 0.8, Position: away));
+                Assert.IsTrue(brush.HasAnimatedProperties, "背景变化应有过渡动画。");
+                Assert.IsTrue(brush.Color.A < 204, "过渡开始时不应立即到达目标。");
+                PumpDispatcher(TimeSpan.FromMilliseconds(300));
+                Assert.AreEqual(204, brush.Color.A);
+                Assert.AreSame(brush, ((Border)window.FindName("Backdrop")).Background, "动画应作用在同一个画刷上。");
+
+                // 内容刷新不应重新开始动画。
+                window.SetPlaybackState(new("Title", true, false, "照亮我们前行的路"));
+                Assert.AreEqual(204, brush.Color.A);
+
+                window.ApplyOptions(new(Enabled: true, Locked: true, BackgroundOpacity: 0.8, Position: away));
+                Assert.IsTrue(brush.HasAnimatedProperties, "锁定时背景也应渐变消失。");
+                Assert.IsTrue(brush.Color.A > 0);
+                PumpDispatcher(TimeSpan.FromMilliseconds(350));
+                Assert.AreEqual(0, brush.Color.A, "锁定后背景最终透明。");
+
+                window.ApplyOptions(new(Enabled: true, BackgroundOpacity: 0.8, Position: away));
+                Assert.IsTrue(brush.Color.A < 204, "解锁时背景渐变出现。");
+                PumpDispatcher(TimeSpan.FromMilliseconds(300));
+                Assert.AreEqual(204, brush.Color.A);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void Toolbar_HoverChangesAndLock_FadeWithBackdrop()
+    {
+        RunOnSta(() =>
+        {
+            var window = new DesktopLyricsWindow();
+            try
+            {
+                var away = AwayFromCursor();
+                window.ApplyOptions(new(Enabled: true, Position: away));
+                window.SetPlaybackState(new("Title", true, false, "夜空中最亮的星", NextLyric: "照亮我们前行的路"));
+                PumpDispatcher(TimeSpan.FromMilliseconds(150));
+                var toolbar = (StackPanel)window.FindName("Toolbar");
+                var capsule = (Border)window.FindName("ToolbarSurface");
+                var surface = (FrameworkElement)window.FindName("Surface");
+                var backdrop = (SolidColorBrush)((Border)window.FindName("Backdrop")).Background;
+                var menu = surface.ContextMenu!;
+                Assert.AreEqual(Visibility.Hidden, toolbar.Visibility);
+
+                // 快捷菜单打开时视为悬停。
+                menu.PlacementTarget = surface;
+                menu.IsOpen = true;
+                Assert.AreEqual(Visibility.Visible, toolbar.Visibility);
+                Assert.IsTrue(capsule.HasAnimatedProperties, "工具栏出现应有过渡动画。");
+                Assert.IsTrue(capsule.Opacity < 1);
+                Assert.IsTrue(backdrop.HasAnimatedProperties, "背景应与工具栏同时过渡。");
+                PumpDispatcher(TimeSpan.FromMilliseconds(300));
+                Assert.AreEqual(1, capsule.Opacity, 0.001);
+                Assert.IsTrue(capsule.IsHitTestVisible);
+
+                menu.IsOpen = false;
+                // 测试环境里菜单的 Closed 事件不一定及时触发，直接按鼠标离开时的路径刷新悬停状态。
+                InvokePrivate(window, "UpdateHover");
+                Assert.IsTrue(capsule.HasAnimatedProperties, "工具栏消失应有过渡动画。");
+                PumpDispatcher(TimeSpan.FromMilliseconds(150));
+                Assert.AreEqual(Visibility.Visible, toolbar.Visibility, "淡出期间仍可见。");
+                Assert.IsTrue(capsule.Opacity is > 0 and < 1, $"淡出进行中，实际不透明度 {capsule.Opacity}。");
+                Assert.IsFalse(capsule.IsHitTestVisible, "淡出期间不应响应点击。");
+                PumpDispatcher(TimeSpan.FromMilliseconds(350));
+                Assert.AreEqual(Visibility.Hidden, toolbar.Visibility);
+                Assert.AreEqual(1, capsule.Opacity, 0.001, "淡出结束后恢复静止状态。");
+
+                menu.IsOpen = true;
+                PumpDispatcher(TimeSpan.FromMilliseconds(300));
+                Assert.AreEqual(Visibility.Visible, toolbar.Visibility);
+                window.ApplyOptions(new(Enabled: true, Locked: true, Position: away));
+                Assert.IsFalse(capsule.IsHitTestVisible, "锁定后工具栏立即不可点击。");
+                Assert.IsTrue(capsule.HasAnimatedProperties, "锁定时工具栏也应淡出。");
+                PumpDispatcher(TimeSpan.FromMilliseconds(350));
+                Assert.AreEqual(Visibility.Hidden, toolbar.Visibility);
+                Assert.AreEqual(1, capsule.Opacity, 0.001);
             }
             finally { window.Close(); }
         });
@@ -1046,10 +1285,10 @@ public sealed class DesktopLyricsWindowTests
                 Assert.AreNotEqual(0L, style & 0x80); // WS_EX_TOOLWINDOW
                 Assert.AreEqual(0L, style & 0x40000); // WS_EX_APPWINDOW
                 Assert.AreEqual(Visibility.Hidden, ((StackPanel)window.FindName("Toolbar")).Visibility);
-                Assert.AreEqual(Visibility.Collapsed, ((FrameworkElement)window.FindName("WidthHandle")).Visibility);
+                Assert.AreEqual(Visibility.Collapsed, ((FrameworkElement)window.FindName("ResizeFrame")).Visibility);
                 window.ApplyOptions(new(Enabled: true));
                 Assert.AreEqual(0L, GetWindowLongPtr(handle, -20).ToInt64() & 0x20);
-                Assert.AreEqual(Visibility.Visible, ((FrameworkElement)window.FindName("WidthHandle")).Visibility);
+                Assert.AreEqual(Visibility.Visible, ((FrameworkElement)window.FindName("ResizeFrame")).Visibility);
             }
             finally { window.Close(); }
         });
@@ -1138,10 +1377,7 @@ public sealed class DesktopLyricsWindowTests
                 window.PositionChanged += position => saved = position;
                 window.ApplyOptions(new(Enabled: true, Position: new(GetPrimaryMonitorName(), 0.5, 0.1, 640)));
                 window.SetPlaybackState(new("Title", true, true));
-                var handle = (Thumb)window.FindName("WidthHandle");
-                handle.RaiseEvent(new DragDeltaEventArgs(100, 0) { RoutedEvent = Thumb.DragDeltaEvent });
-                window.UpdateLayout();
-                handle.RaiseEvent(new DragCompletedEventArgs(100, 0, false) { RoutedEvent = Thumb.DragCompletedEvent });
+                ResizeBy(window, DesktopLyricsResizeEdge.Right, 100, 0);
                 Assert.IsNotNull(saved);
                 Assert.AreEqual(GetPrimaryMonitorName(), saved.Monitor);
                 Assert.AreEqual(740, saved.Width, 1);
@@ -1378,6 +1614,58 @@ public sealed class DesktopLyricsWindowTests
     {
         Assert.IsTrue(SpinWait.SpinUntil(() => ReadField<Dispatcher>(host, "_dispatcher") is not null, TimeSpan.FromSeconds(5)));
         return ReadField<Dispatcher>(host, "_dispatcher")!;
+    }
+
+    [DllImport("user32.dll", EntryPoint = "GetCursorPos")]
+    private static extern bool GetCursorPosition(out NativePoint point);
+
+    /// <summary>把窗口放到与真实鼠标相反的半屏，避免测试结果受鼠标悬停影响。</summary>
+    private static DesktopLyricsPosition AwayFromCursor()
+    {
+        var area = GetPrimaryWorkArea();
+        var cursorInLowerHalf = GetCursorPosition(out var cursor) && cursor.Y > area.Top + (area.Bottom - area.Top) / 2;
+        return new(GetPrimaryMonitorName(), 0.5, cursorInLowerHalf ? 0.8 : 0.05, 640);
+    }
+
+    private static void InvokePrivate(object owner, string name, params object[] arguments) =>
+        owner.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(owner, arguments);
+
+    [DllImport("user32.dll")]
+    private static extern nint SendMessage(nint handle, int message, nint wParam, nint lParam);
+
+    /// <summary>模拟系统缩放循环：按逻辑像素移动所拖的边，经 WM_SIZING 约束后应用到窗口。</summary>
+    private static void ResizeBy(DesktopLyricsWindow window, DesktopLyricsResizeEdge edges, double dx, double dy, bool finish = true)
+    {
+        var handle = new WindowInteropHelper(window).Handle;
+        var scale = GetDpiForWindow(handle) / 96.0;
+        InvokePrivate(window, "BeginResize", edges);
+        GetWindowRect(handle, out var rect);
+        if (edges.HasFlag(DesktopLyricsResizeEdge.Left)) rect.Left += (int)Math.Round(dx * scale);
+        if (edges.HasFlag(DesktopLyricsResizeEdge.Right)) rect.Right += (int)Math.Round(dx * scale);
+        if (edges.HasFlag(DesktopLyricsResizeEdge.Top)) rect.Top += (int)Math.Round(dy * scale);
+        if (edges.HasFlag(DesktopLyricsResizeEdge.Bottom)) rect.Bottom += (int)Math.Round(dy * scale);
+        var direction = edges switch
+        {
+            DesktopLyricsResizeEdge.Left => 1,
+            DesktopLyricsResizeEdge.Right => 2,
+            DesktopLyricsResizeEdge.Top => 3,
+            DesktopLyricsResizeEdge.Top | DesktopLyricsResizeEdge.Left => 4,
+            DesktopLyricsResizeEdge.Top | DesktopLyricsResizeEdge.Right => 5,
+            DesktopLyricsResizeEdge.Bottom => 6,
+            DesktopLyricsResizeEdge.Bottom | DesktopLyricsResizeEdge.Left => 7,
+            _ => 8
+        };
+        var buffer = Marshal.AllocHGlobal(Marshal.SizeOf<NativeRect>());
+        try
+        {
+            Marshal.StructureToPtr(rect, buffer, false);
+            Assert.AreEqual(1, (int)SendMessage(handle, 0x0214, direction, buffer), "WM_SIZING 应由桌面歌词窗口处理。");
+            rect = Marshal.PtrToStructure<NativeRect>(buffer);
+        }
+        finally { Marshal.FreeHGlobal(buffer); }
+        SetWindowPos(handle, 0, rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top, 0x0004 | 0x0010);
+        window.UpdateLayout();
+        if (finish) InvokePrivate(window, "EndResize");
     }
 
     private static bool ReadBool(object owner, string name) =>
