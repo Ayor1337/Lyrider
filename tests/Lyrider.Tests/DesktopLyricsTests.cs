@@ -317,6 +317,84 @@ public sealed class DesktopLyricsTests
         Assert.IsTrue(text.IsVisible);
     }
 
+    [TestMethod]
+    public void Select_MissingCurrentLineWithSongInfo_ShowsArtistAndAlbum()
+    {
+        var state = new DesktopLyricsState("歌曲", true, true, Artist: "歌手", Album: "专辑");
+        var doubleLine = DesktopLyricsPresentation.Select(state, new(Enabled: true));
+        Assert.AreEqual("歌曲", doubleLine.Primary);
+        Assert.AreEqual("歌手 · 专辑", doubleLine.Secondary);
+        Assert.IsFalse(doubleLine.CurrentInSecondary);
+        Assert.AreEqual("歌手", DesktopLyricsPresentation.Select(state with { Album = " " }, new(Enabled: true)).Secondary);
+        Assert.AreEqual("专辑", DesktopLyricsPresentation.Select(state with { Artist = null }, new(Enabled: true)).Secondary);
+        Assert.AreEqual("同名", DesktopLyricsPresentation.Select(state with { Artist = "同名", Album = "同名" },
+            new(Enabled: true)).Secondary);
+
+        var singleLine = DesktopLyricsPresentation.Select(state, new(Enabled: true, DoubleLineEnabled: false));
+        Assert.AreEqual(new DesktopLyricsDisplayText("歌曲 - 歌手", null, true), singleLine);
+        Assert.AreEqual("歌曲", DesktopLyricsPresentation.Select(state with { Artist = null },
+            new(Enabled: true, DoubleLineEnabled: false)).Primary);
+        Assert.AreEqual(DesktopLyricsAlignment.Center, DesktopLyricsPresentation.ResolveAlignment(state,
+            new(Enabled: true, Alignment: DesktopLyricsAlignment.Split)));
+    }
+
+    [TestMethod]
+    public void HasSameContent_OnlyTimingAnchorChanges_ReturnsTrue()
+    {
+        var timing = new DesktopLyricsTiming([new(0, 2, 0, 1)], 0.5, 100);
+        var state = new DesktopLyricsState("歌曲", true, true, "当前句", NextLyric: "下一句", Timing: timing);
+        Assert.IsTrue(DesktopLyricsPresentation.HasSameContent(state,
+            state with { Timing = timing with { Words = [new(0, 2, 0, 1)], Position = 1.5, ObservedTimestamp = 200 } }));
+        Assert.IsFalse(DesktopLyricsPresentation.HasSameContent(state, state with { CurrentLyric = "别的句子" }));
+        Assert.IsFalse(DesktopLyricsPresentation.HasSameContent(state, state with { IsPlaying = false }));
+        Assert.IsFalse(DesktopLyricsPresentation.HasSameContent(state, state with { Timing = null }));
+        Assert.IsFalse(DesktopLyricsPresentation.HasSameContent(state, state with { Artist = "歌手" }));
+    }
+
+    [TestMethod]
+    public void Normalize_FontFamily_TrimsAndClearsBlank()
+    {
+        Assert.AreEqual("Microsoft YaHei UI", new DesktopLyricsOptions(FontFamily: "  Microsoft YaHei UI ").Normalize().FontFamily);
+        Assert.IsNull(new DesktopLyricsOptions(FontFamily: "   ").Normalize().FontFamily);
+        Assert.AreEqual("Yu Gothic UI", new DesktopLyricsOptions(FontFamily: "Yu Gothic UI")
+            .ApplyCommand(DesktopLyricsCommand.IncreaseFontSize).FontFamily);
+    }
+
+    [TestMethod]
+    public void Build_SongInfoAndLanguage_CarriesArtistAlbumAndDetectsJapanese()
+    {
+        LyricLineInfo[] japanese = [new(0, null, "君の名前を"), new(2, null, "呼んでいる"), new(4, null, "夜空")];
+        var state = DesktopLyricStateBuilder.Build("歌曲", "歌手", japanese, -1, true, true, false, album: "專輯");
+        Assert.IsNull(state.CurrentLyric);
+        Assert.AreEqual("歌手", state.Artist);
+        Assert.AreEqual("專輯", state.Album);
+        Assert.AreEqual("专辑", DesktopLyricStateBuilder.Build("歌曲", "歌手", japanese, -1, true, true, true, album: "專輯").Album);
+        Assert.IsNull(DesktopLyricStateBuilder.Build("歌曲", "", japanese, -1, true, true, false).Artist);
+
+        var current = DesktopLyricStateBuilder.Build("歌曲", "歌手", japanese, 2, true, true, false, album: "專輯");
+        Assert.IsTrue(current.IsJapaneseSong);
+        Assert.IsFalse(current.IsChineseSong);
+        Assert.AreEqual("歌手", current.Artist);
+
+        LyricLineInfo[] chinese = [new(0, null, "我们一起唱"), new(2, null, "ありがとう"), new(4, null, "天空很蓝"),
+            new(6, null, "风吹过"), new(8, null, "海边的路"), new(10, null, "再见了")];
+        Assert.IsFalse(DesktopLyricStateBuilder.Build("歌曲", "歌手", chinese, 0, true, true, false).IsJapaneseSong);
+    }
+
+    [TestMethod]
+    public void Build_SameLyricsListAcrossCalls_ReusesAnalysisWithCorrectOrdinals()
+    {
+        LyricLineInfo[] lines = [new(0, null, "歌曲"), new(1, null, "第一句"), new(2, null, ""), new(3, null, "第二句"),
+            new(4, null, "第三句")];
+        Assert.AreEqual(0, DesktopLyricStateBuilder.Build("歌曲", "歌手", lines, 1, true, true, false).LineOrdinal);
+        Assert.AreEqual(1, DesktopLyricStateBuilder.Build("歌曲", "歌手", lines, 2, true, true, false).LineOrdinal);
+        Assert.AreEqual(1, DesktopLyricStateBuilder.Build("歌曲", "歌手", lines, 3, true, true, false).LineOrdinal);
+        Assert.AreEqual(2, DesktopLyricStateBuilder.Build("歌曲", "歌手", lines, 4, true, true, false).LineOrdinal);
+        // 同一份歌词换了署名过滤设置时不能沿用旧结果。
+        Assert.AreEqual(3, DesktopLyricStateBuilder.Build("歌曲", "歌手", lines, 4, true, true, false,
+            skipLeadingCredits: false).LineOrdinal);
+    }
+
     [DataTestMethod]
     [DataRow(false, true, true, false, false)]
     [DataRow(true, false, true, false, false)]

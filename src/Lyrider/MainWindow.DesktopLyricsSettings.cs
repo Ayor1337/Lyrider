@@ -43,6 +43,7 @@ public sealed partial class MainWindow
         Alignment = Enum.Parse<DesktopLyricsAlignment>(RadioTag(DesktopLyricsAlignmentRadioButtons, "Center")),
         FontSize = DesktopLyricsFontSlider.Value,
         FontWeight = Enum.Parse<DesktopLyricsFontWeight>(SelectedTag(DesktopLyricsFontWeightComboBox, "SemiBold")),
+        FontFamily = SelectedTag(DesktopLyricsFontFamilyComboBox, string.Empty),
         StrokeThickness = DesktopLyricsStrokeSlider.Value,
         StrokeColor = ColorHex(DesktopLyricsStrokeColorPicker.Color),
         TextColor = ColorHex(DesktopLyricsColorPicker.Color),
@@ -72,6 +73,7 @@ public sealed partial class MainWindow
             SelectRadioTag(DesktopLyricsDirectionRadioButtons, options.TextDirection.ToString());
             SelectRadioTag(DesktopLyricsAlignmentRadioButtons, options.EffectiveAlignment.ToString());
             SelectByTag(DesktopLyricsFontWeightComboBox, options.FontWeight.ToString());
+            LoadDesktopFontFamilies(options.FontFamily);
             DesktopLyricsFontSlider.Value = DesktopLyricsFontNumberBox.Value = options.FontSize;
             DesktopLyricsStrokeSlider.Value = DesktopLyricsStrokeNumberBox.Value = options.StrokeThickness;
             DesktopLyricsBackgroundSlider.Value = options.BackgroundOpacity * 100;
@@ -88,6 +90,36 @@ public sealed partial class MainWindow
         }
         finally { _loadingDesktopLyricsControls = false; }
         RefreshDesktopLyricsPreview();
+    }
+
+    private void LoadDesktopFontFamilies(string? selected)
+    {
+        var items = DesktopLyricsFontFamilyComboBox.Items;
+        if (items.Count == 0)
+        {
+            items.Add(new ComboBoxItem
+            {
+                Tag = string.Empty,
+                Content = AppText.Get($"默认（{DesktopLyricsFonts.DefaultFamily}）", $"Default ({DesktopLyricsFonts.DefaultFamily})")
+            });
+            try
+            {
+                foreach (var font in DesktopLyricsFonts.GetInstalled())
+                    items.Add(new ComboBoxItem { Tag = font.Name, Content = font.DisplayName });
+            }
+            catch (Exception)
+            {
+                // 枚举系统字体失败时只保留默认项和已保存的字体。
+            }
+        }
+
+        // 已保存但当前未安装的字体仍保留为可选项，避免打开设置就把它清掉。
+        if (!string.IsNullOrWhiteSpace(selected) && !items.OfType<ComboBoxItem>()
+            .Any(item => string.Equals(item.Tag as string, selected, StringComparison.OrdinalIgnoreCase)))
+        {
+            items.Insert(1, new ComboBoxItem { Tag = selected, Content = selected });
+        }
+        SelectByTag(DesktopLyricsFontFamilyComboBox, selected ?? string.Empty);
     }
 
     private void UpdateDesktopLyricsSettingsLayout()

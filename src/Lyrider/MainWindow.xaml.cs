@@ -824,10 +824,10 @@ public sealed partial class MainWindow : Window
     private void UpdatePlaybackSurfaces(NowPlayingInfo? track, PlaybackStatus? status)
     {
         _desktopLyricsHost.Update(track is null ? DesktopLyricsState.Unavailable : DesktopLyricStateBuilder.Build(
-            ValueOrFallback(track.Name), ValueOrFallback(track.ArtistName), _lyrics, _currentLyricIndex,
+            ValueOrFallback(track.Name), track.ArtistName ?? string.Empty, _lyrics, _currentLyricIndex,
             _lyricsAreTimeSynced, status?.IsPlaying ?? false, _settings.ConvertTraditionalLyricsToSimplified,
             _optimisticSeekIndex >= 0 ? _optimisticSeekTarget : _playbackTimeline.PositionAt(_playbackClock.Elapsed), Stopwatch.GetTimestamp(),
-            _settings.SkipLeadingLyricCredits));
+            _settings.SkipLeadingLyricCredits, track.AlbumName));
         if (track is null)
         {
             _taskbarWidgetHost.Update(TaskbarPlaybackState.Unavailable);

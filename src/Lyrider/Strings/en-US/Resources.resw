@@ -180,4 +180,6 @@
   <data name="DesktopAlignmentGroup.AutomationProperties.Name" xml:space="preserve"><value>Alignment</value></data>
   <data name="DesktopPresetGroup.AutomationProperties.Name" xml:space="preserve"><value>Color scheme</value></data>
   <data name="DesktopWeightGroup.AutomationProperties.Name" xml:space="preserve"><value>Font weight</value></data>
+  <data name="DesktopFontFamilyLabel.Text" xml:space="preserve"><value>Font</value></data>
+  <data name="DesktopFontFamilyGroup.AutomationProperties.Name" xml:space="preserve"><value>Font</value></data>
 </root>

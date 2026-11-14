@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -26,6 +27,13 @@ public sealed class DesktopLyricsContent : Grid
         VerticalAlignment = VerticalAlignment.Center;
     }
 
+    private static readonly CultureInfo Japanese = CultureInfo.GetCultureInfo("ja-JP");
+    private static readonly CultureInfo SimplifiedChinese = CultureInfo.GetCultureInfo("zh-CN");
+
+    // 渲染语言决定回退字体，日文歌词用日文字形，中文歌词和译文用简体中文字形。
+    public static CultureInfo SongCulture(DesktopLyricsState state) =>
+        state.IsJapaneseSong ? Japanese : state.IsChineseSong ? SimplifiedChinese : CultureInfo.CurrentUICulture;
+
     public DesktopLyricsDisplayText Apply(DesktopLyricsState state, DesktopLyricsOptions options)
     {
         var text = DesktopLyricsPresentation.Select(state, options);
@@ -45,9 +53,11 @@ public sealed class DesktopLyricsContent : Grid
             DesktopLyricsAlignment.Right => TextAlignment.Right,
             _ => TextAlignment.Center
         };
-        PrimaryText.SetText(text.Primary, options.FontSize, text.CurrentInSecondary ? color : currentColor, textAlignment);
+        var songCulture = SongCulture(state);
+        PrimaryText.SetText(text.Primary, options.FontSize, text.CurrentInSecondary ? color : currentColor, textAlignment,
+            songCulture);
         SecondaryText.SetText(text.Secondary ?? string.Empty, options.FontSize, translation || text.CurrentInSecondary ? currentColor : color,
-            split ? TextAlignment.Right : textAlignment);
+            split ? TextAlignment.Right : textAlignment, translation ? SimplifiedChinese : songCulture);
         PrimaryText.MinHeight = !vertical && text.CurrentInSecondary && text.Primary.Length == 0 ? options.FontSize * 1.25 + 4 : 0;
         PrimaryText.MinWidth = vertical && text.CurrentInSecondary && text.Primary.Length == 0 ? options.FontSize * 1.25 : 0;
         SecondaryText.Visibility = text.Secondary is null ? Visibility.Collapsed : Visibility.Visible;

@@ -900,29 +900,29 @@ public sealed class DesktopLyricsWindowTests
                 var timing = new DesktopLyricsTiming([new(0, 2, 0, 1)], 0.5, Stopwatch.GetTimestamp());
                 window.SetPlaybackState(new("Title", true, true, "你好世界", NextLyric: "下一句", Timing: timing));
                 var text = (OutlinedLyricText)window.FindName("PrimaryText");
-                var timer = ReadField<DispatcherTimer>(window, "_karaokeTimer")!;
-                Assert.IsTrue(timer.IsEnabled);
+                bool Animating() => ReadBool(window, "_karaokeAnimating");
+                Assert.IsTrue(Animating());
                 PumpDispatcher(TimeSpan.FromMilliseconds(150));
                 Assert.IsTrue(text.KaraokeProgress > 0.3);
                 window.SetPlaybackState(new("Title", true, false, "你好世界", NextLyric: "下一句", Timing: timing with { Position = 1 }));
                 Assert.AreEqual(0.5, text.KaraokeProgress);
-                Assert.IsFalse(timer.IsEnabled);
+                Assert.IsFalse(Animating());
                 PumpDispatcher(TimeSpan.FromMilliseconds(80));
                 Assert.AreEqual(0.5, text.KaraokeProgress);
                 window.SetPlaybackState(new("Title", true, false, "你好世界", Timing: timing with { Position = 0.2 }));
                 Assert.AreEqual(0.1, text.KaraokeProgress);
                 window.SetPlaybackState(new("New song", true, true));
                 Assert.AreEqual(0, text.KaraokeProgress);
-                Assert.IsFalse(timer.IsEnabled);
+                Assert.IsFalse(Animating());
                 window.SetPlaybackState(new("Title", true, true, "你好世界", Timing: timing with { ObservedTimestamp = Stopwatch.GetTimestamp() }));
-                Assert.IsTrue(timer.IsEnabled);
+                Assert.IsTrue(Animating());
                 window.ApplyOptions(new(Enabled: true));
                 Assert.AreEqual(0, text.KaraokeProgress);
-                Assert.IsFalse(timer.IsEnabled);
+                Assert.IsFalse(Animating());
                 window.ApplyOptions(new(Enabled: true, KaraokeEnabled: true));
-                Assert.IsTrue(timer.IsEnabled);
+                Assert.IsTrue(Animating());
                 window.Close();
-                Assert.IsFalse(timer.IsEnabled);
+                Assert.IsFalse(Animating());
             }
             finally { if (window.IsVisible) window.Close(); }
         });
@@ -1244,12 +1244,12 @@ public sealed class DesktopLyricsWindowTests
                     Assert.AreEqual(Colors.Cyan, ReadField<SolidColorBrush>(secondary, "_foreground")!.Color);
                     Assert.AreEqual(0, primary.KaraokeProgress);
                     Assert.AreEqual(0, secondary.KaraokeProgress);
-                    Assert.IsFalse(ReadField<DispatcherTimer>(window, "_karaokeTimer")!.IsEnabled);
+                    Assert.IsFalse(ReadBool(window, "_karaokeAnimating"));
                     window.SetPlaybackState(state with { Translation = null });
                     Assert.AreEqual(karaoke && hasTiming ? Colors.Red : Colors.Cyan,
                         ReadField<SolidColorBrush>(primary, "_foreground")!.Color);
                     Assert.AreEqual(Colors.Red, ReadField<SolidColorBrush>(secondary, "_foreground")!.Color);
-                    Assert.AreEqual(karaoke && hasTiming, ReadField<DispatcherTimer>(window, "_karaokeTimer")!.IsEnabled);
+                    Assert.AreEqual(karaoke && hasTiming, ReadBool(window, "_karaokeAnimating"));
                 }
             }
             finally { window.Close(); }
@@ -1379,6 +1379,9 @@ public sealed class DesktopLyricsWindowTests
         Assert.IsTrue(SpinWait.SpinUntil(() => ReadField<Dispatcher>(host, "_dispatcher") is not null, TimeSpan.FromSeconds(5)));
         return ReadField<Dispatcher>(host, "_dispatcher")!;
     }
+
+    private static bool ReadBool(object owner, string name) =>
+        (bool)owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(owner)!;
 
     private static T? ReadField<T>(object owner, string name) where T : class =>
         (T?)owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(owner);
