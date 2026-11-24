@@ -1536,13 +1536,20 @@ public sealed partial class MainWindow : Window
 
     private void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        if (_isExitRequested || !_settings.MinimizeToTrayOnClose)
+        if (_isExitRequested)
         {
             return;
         }
 
         args.Cancel = true;
-        _appWindow.Hide();
+        if (_settings.MinimizeToTrayOnClose)
+        {
+            _appWindow.Hide();
+        }
+        else
+        {
+            ExitApplication();
+        }
     }
 
     private void ShowFromTray()
@@ -1560,11 +1567,21 @@ public sealed partial class MainWindow : Window
         });
     }
 
+    /// <summary>
+    /// Every exit path (menu, tray, title bar, Cider quitting) ends here, so the taskbar lyrics
+    /// fade out like a closing app instead of disappearing as if the process were killed.
+    /// </summary>
     private void ExitApplication()
     {
-        DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.TryEnqueue(async () =>
         {
+            if (_isExitRequested)
+            {
+                return;
+            }
+
             _isExitRequested = true;
+            await _taskbarWidgetHost.FadeOutForExitAsync();
             Close();
         });
     }

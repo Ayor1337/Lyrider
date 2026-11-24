@@ -24,6 +24,7 @@ public partial class TaskbarWidgetWindow : Window
     private const double PausedContentOpacity = 0.55;
     private const double LyricTransitionOffset = 12;
     private static readonly TimeSpan LyricTransitionDuration = TimeSpan.FromMilliseconds(220);
+    private static readonly TimeSpan FadeOutDuration = TimeSpan.FromMilliseconds(260);
     private const string TaskbarClassName = "Shell_TrayWnd";
     private const string TaskbarAlignmentRegistryPath =
         @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced";
@@ -45,6 +46,8 @@ public partial class TaskbarWidgetWindow : Window
     private AppliedLayout? _appliedLayout;
     private AnimationLayout? _animationLayout;
     private bool _isAnimatingPlacement;
+    private TaskCompletionSource? _fadeOut;
+    private bool _isExiting;
     private readonly TaskbarArtworkPresenter _artworkPresenter;
     private bool _isAttached;
     private bool _isPointerOver;
@@ -130,11 +133,16 @@ public partial class TaskbarWidgetWindow : Window
 
     public void SetPlaybackState(TaskbarPlaybackState state)
     {
+        if (_isExiting)
+        {
+            return;
+        }
+
         var previousState = _state;
         _state = state;
         if (!TaskbarPresentation.ShouldShow(state))
         {
-            HideWidget();
+            _ = FadeOutAsync();
             return;
         }
 
@@ -656,14 +664,76 @@ public partial class TaskbarWidgetWindow : Window
         SetRootBackground(_isPointerOver ? _hoverBackgroundColor : _idleBackgroundColor, animate: false);
     }
 
+    /// <summary>
+    /// Fades out for good ahead of shutdown; later state updates and host refreshes no longer
+    /// bring the widget back.
+    /// </summary>
+    public Task FadeOutForExitAsync()
+    {
+        _isExiting = true;
+        return FadeOutAsync();
+    }
+
+    /// <summary>
+    /// Fades the content out before hiding, so the widget leaves the taskbar the way a closing
+    /// app does instead of vanishing in one frame.
+    /// </summary>
+    private Task FadeOutAsync()
+    {
+        if (_fadeOut is not null)
+        {
+            return _fadeOut.Task;
+        }
+
+        if (Opacity <= 0 || Handle == nint.Zero)
+        {
+            HideWidget();
+            return Task.CompletedTask;
+        }
+
+        var fade = new TaskCompletionSource();
+        _fadeOut = fade;
+        var animation = new DoubleAnimation(RootBorder.Opacity, 0, FadeOutDuration)
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn },
+            FillBehavior = FillBehavior.HoldEnd
+        };
+        animation.Completed += (_, _) =>
+        {
+            if (ReferenceEquals(_fadeOut, fade))
+            {
+                HideWidget();
+            }
+        };
+        RootBorder.BeginAnimation(OpacityProperty, animation);
+        return fade.Task;
+    }
+
+    /// <summary>Drops a running fade and restores the content for the next time the widget shows.</summary>
+    private void ResetFadeOut()
+    {
+        var fade = _fadeOut;
+        _fadeOut = null;
+        RootBorder.BeginAnimation(OpacityProperty, null);
+        RootBorder.Opacity = 1;
+        fade?.TrySetResult();
+    }
+
     private void UpdateVisibility()
     {
-        if (!_isAttached || !TaskbarPresentation.ShouldShow(_state))
+        if (!_isAttached)
         {
             HideWidget();
             return;
         }
 
+        if (_isExiting || !TaskbarPresentation.ShouldShow(_state))
+        {
+            _ = FadeOutAsync();
+            return;
+        }
+
+        ResetFadeOut();
         Opacity = 1;
         NativeMethods.ShowWindow(Handle, NativeMethods.SwShowNoActivate);
     }
@@ -719,6 +789,8 @@ public partial class TaskbarWidgetWindow : Window
         {
             NativeMethods.ShowWindow(Handle, NativeMethods.SwHide);
         }
+
+        ResetFadeOut();
     }
 
     private void RootBorder_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)

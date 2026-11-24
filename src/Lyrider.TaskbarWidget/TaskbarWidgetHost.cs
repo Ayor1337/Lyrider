@@ -6,6 +6,7 @@ namespace Lyrider.TaskbarWidget;
 public sealed class TaskbarWidgetHost : IDisposable
 {
     private readonly object _gate = new();
+    private static readonly TimeSpan FadeOutTimeout = TimeSpan.FromMilliseconds(600);
     private readonly ManualResetEventSlim _threadReady = new();
 
     private System.Windows.Application? _application;
@@ -67,6 +68,47 @@ public sealed class TaskbarWidgetHost : IDisposable
         }
 
         _dispatcher?.BeginInvoke(StopOnDispatcher);
+    }
+
+    /// <summary>
+    /// Fades the widget out ahead of shutdown and stops refreshing it. Completes once the fade
+    /// ends, or after a short timeout so a stuck widget thread never holds up exiting.
+    /// </summary>
+    public async Task FadeOutForExitAsync()
+    {
+        Dispatcher? dispatcher;
+        lock (_gate)
+        {
+            if (!_enabled || _disposed)
+            {
+                return;
+            }
+
+            _enabled = false;
+            dispatcher = _dispatcher;
+        }
+
+        if (dispatcher is null)
+        {
+            return;
+        }
+
+        var fade = dispatcher.InvokeAsync(async () =>
+        {
+            _refreshTimer?.Stop();
+            if (_window is { } window)
+            {
+                await window.FadeOutForExitAsync();
+            }
+        }).Task.Unwrap();
+        try
+        {
+            await Task.WhenAny(fade, Task.Delay(FadeOutTimeout));
+        }
+        catch (Exception)
+        {
+            // Exiting goes ahead without the fade.
+        }
     }
 
     public void Update(TaskbarPlaybackState state)
