@@ -35,7 +35,6 @@ internal sealed class ArtworkPresenterTests : Application
     private Window? _window;
     private readonly Grid _host = new();
     private readonly Image _foreground = new();
-    private readonly Image _queue = new();
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
@@ -44,7 +43,6 @@ internal sealed class ArtworkPresenterTests : Application
             var root = new Grid();
             root.Children.Add(_host);
             root.Children.Add(_foreground);
-            root.Children.Add(_queue);
             _window = new Window { Content = root };
             using var server = new ArtworkServer();
             await PrepareNext_HttpArtwork_DecodesBeforeShow(server);
@@ -69,7 +67,7 @@ internal sealed class ArtworkPresenterTests : Application
         }
     }
 
-    private ArtworkPresenter CreatePresenter() => new(_host, _foreground, _queue);
+    private ArtworkPresenter CreatePresenter() => new(_host, _foreground);
 
     private async Task PrepareNext_HttpArtwork_DecodesBeforeShow(ArtworkServer server)
     {
@@ -84,7 +82,7 @@ internal sealed class ArtworkPresenterTests : Application
         Check(ReferenceEquals(bitmap, Field<BitmapImage>(presenter, "_nextBitmap")), "Repeated queue refresh replaced the preload.");
         var requests = response.Requests;
         presenter.Show(response.Url);
-        Check(ReferenceEquals(bitmap, _foreground.Source) && ReferenceEquals(bitmap, _queue.Source), "Show did not reuse the decoded bitmap.");
+        Check(ReferenceEquals(bitmap, _foreground.Source), "Show did not reuse the decoded bitmap.");
         Check(ReferenceEquals(surface, Field<LoadedImageSurface>(presenter, "_surface")), "Show did not reuse the background surface.");
         await Task.Delay(150);
         Check(response.Requests == requests, "Show fetched an already preloaded cover again.");
@@ -122,7 +120,7 @@ internal sealed class ArtworkPresenterTests : Application
         presenter.Show(replacement.Url);
         Check(ReferenceEquals(bitmap, _foreground.Source), "Obsolete result replaced the selected cover.");
         presenter.Show(null);
-        Check(_foreground.Source is null && _queue.Source is null, "Clearing the current track retained its cover.");
+        Check(_foreground.Source is null, "Clearing the current track retained its cover.");
         Console.WriteLine("PASS: queue replacement cancels obsolete work; clearing removes the cover.");
     }
 
@@ -176,7 +174,7 @@ internal sealed class ArtworkPresenterTests : Application
         {
             var cache = new ArtworkCache(directory);
             var response = server.Add("cached");
-            using (var first = new ArtworkPresenter(_host, _foreground, _queue, cache))
+            using (var first = new ArtworkPresenter(_host, _foreground, cache))
             {
                 first.PrepareNext(response.Url);
                 var preloaded = Field<BitmapImage>(first, "_nextBitmap");
@@ -185,7 +183,7 @@ internal sealed class ArtworkPresenterTests : Application
             }
 
             var requests = response.Requests;
-            using var presenter = new ArtworkPresenter(_host, _foreground, _queue, cache);
+            using var presenter = new ArtworkPresenter(_host, _foreground, cache);
             presenter.Show(response.Url);
             var bitmap = (BitmapImage)_foreground.Source;
             var surface = Field<LoadedImageSurface>(presenter, "_surface");

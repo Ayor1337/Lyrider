@@ -32,7 +32,6 @@ public sealed class ArtworkPresenter : IDisposable
 
     private readonly FrameworkElement _host;
     private readonly Image _artworkImage;
-    private readonly Image _queueArtworkImage;
     private readonly ArtworkCache? _cache;
     private readonly ContainerVisual _backdrop;
     private BackdropLayer _frontLayer;
@@ -55,12 +54,10 @@ public sealed class ArtworkPresenter : IDisposable
     public ArtworkPresenter(
         FrameworkElement host,
         Image artworkImage,
-        Image queueArtworkImage,
         ArtworkCache? cache = null)
     {
         _host = host;
         _artworkImage = artworkImage;
-        _queueArtworkImage = queueArtworkImage;
         _cache = cache;
         var compositor = ElementCompositionPreview.GetElementVisual(host).Compositor;
 
@@ -254,7 +251,6 @@ public sealed class ArtworkPresenter : IDisposable
         }
 
         _artworkImage.Source = bitmap;
-        _queueArtworkImage.Source = bitmap;
 
         var previous = _surface;
         _surface = surface;
@@ -393,7 +389,6 @@ public sealed class ArtworkPresenter : IDisposable
         _host.SizeChanged -= Host_SizeChanged;
         ElementCompositionPreview.SetElementChildVisual(_host, null);
         _artworkImage.Source = null;
-        _queueArtworkImage.Source = null;
         _surface?.Dispose();
         _surface = null;
         _fadingSurface?.Dispose();

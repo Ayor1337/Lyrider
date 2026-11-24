@@ -1,3 +1,6 @@
+using System.ComponentModel;
+using Lyrider.Services;
+
 namespace Lyrider.Models;
 
 public sealed record PlaybackStatus(bool IsPlaying);
@@ -16,9 +19,40 @@ public sealed class QueueItemInfo(
     string? artworkUrl,
     bool hasLyrics = false,
     bool hasTimeSyncedLyrics = false,
-    string? isrc = null)
+    string? isrc = null) : INotifyPropertyChanged
 {
+    private bool _isSwitching;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public int Index { get; set; } = index;
+
+    /// <summary>True while Cider is being asked to jump to this item.</summary>
+    public bool IsSwitching
+    {
+        get => _isSwitching;
+        set
+        {
+            if (_isSwitching == value)
+            {
+                return;
+            }
+
+            _isSwitching = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSwitching)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ContentOpacity)));
+        }
+    }
+
+    public double ContentOpacity => _isSwitching ? 0.45 : 1;
+
+    /// <summary>What a screen reader announces for the row.</summary>
+    public string AccessibleName => AppText.Format(
+        "{0}，{1}，{2}",
+        "{0}, {1}, {2}",
+        Name,
+        ArtistName,
+        DurationText);
 
     public string? Isrc { get; } = isrc;
 
