@@ -1,6 +1,6 @@
 namespace Lyrider.Models;
 
-public sealed record PlaybackStatus(bool IsPlaying, double Volume);
+public sealed record PlaybackStatus(bool IsPlaying);
 
 public sealed record QueueSnapshot(
     IReadOnlyList<QueueItemInfo> Items,

@@ -9,6 +9,7 @@ namespace Lyrider.Services;
 public sealed class CiderService : IDisposable
 {
     private static readonly Uri NowPlayingUri = new("api/v1/playback/now-playing", UriKind.Relative);
+    private static readonly Uri QueueUri = new("api/v1/playback/queue", UriKind.Relative);
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(3);
     private readonly HttpClient _httpClient;
     private readonly HttpClient _lyricsHttpClient;
@@ -117,15 +118,9 @@ public sealed class CiderService : IDisposable
     {
         try
         {
-            var playingTask = GetJsonAsync("api/v1/playback/is-playing", appToken, cancellationToken);
-            var volumeTask = GetJsonAsync("api/v1/playback/volume", appToken, cancellationToken);
-            await Task.WhenAll(playingTask, volumeTask);
-
-            using var playing = await playingTask;
-            using var volume = await volumeTask;
+            using var playing = await GetJsonAsync("api/v1/playback/is-playing", appToken, cancellationToken);
             var isPlaying = TryFindBoolean(playing?.RootElement, "is_playing", "isPlaying") ?? false;
-            var volumeValue = TryFindDouble(volume?.RootElement, "volume") ?? 1;
-            return new PlaybackStatus(isPlaying, Math.Clamp(volumeValue, 0, 1));
+            return new PlaybackStatus(isPlaying);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -141,63 +136,32 @@ public sealed class CiderService : IDisposable
         }
     }
 
-    public async Task<QueueSnapshot> GetQueueAsync(
+    /// <summary>
+    /// Reads Cider's queue: a root JSON array of Apple Music resources
+    /// (<c>{ id, attributes }</c>), starting with the item that is playing. Returns null
+    /// when the queue could not be read, so callers keep the queue they already show.
+    /// </summary>
+    public async Task<QueueSnapshot?> GetQueueAsync(
         string? appToken,
         string? currentTrackId,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            using var document = await GetJsonAsync("api/v1/playback/queue", appToken, cancellationToken);
-            if (document is null || !TryFindArray(document.RootElement, out var array, "queue", "items", "data"))
+            using var response = await SendAsync(HttpMethod.Get, QueueUri, appToken, null, cancellationToken);
+            if (!response.IsSuccessStatusCode)
             {
-                return new QueueSnapshot([], -1);
+                return null;
             }
 
-            var items = new List<QueueItemInfo>();
-            var sourceIndex = 0;
-
-            foreach (var element in array.EnumerateArray())
-            {
-                var name = TryFindString(element, "name", "title");
-                if (string.IsNullOrWhiteSpace(name))
-                {
-                    sourceIndex++;
-                    continue;
-                }
-
-                items.Add(new QueueItemInfo(
-                    sourceIndex,
-                    TryFindString(element, "id", "catalogId", "songId"),
-                    name,
-                    TryFindString(element, "artistName", "artist") ?? "—",
-                    TryFindString(element, "albumName", "album") ?? "—",
-                    TryFindDouble(element, "durationInMillis", "duration") ?? 0,
-                    TryFindArtworkUrl(element),
-                    TryFindNestedBoolean(element, "hasLyrics") ?? false,
-                    TryFindNestedBoolean(element, "hasTimeSyncedLyrics") ?? false,
-                    TryFindString(element, "isrc")));
-                sourceIndex++;
-            }
-
-            var currentIndex = TryFindCurrentIndex(document.RootElement) ?? -1;
-            if (!string.IsNullOrWhiteSpace(currentTrackId))
-            {
-                var matchingIndex = items.FindIndex(item => string.Equals(
-                    item.Id,
-                    currentTrackId,
-                    StringComparison.Ordinal));
-                if (matchingIndex >= 0)
-                {
-                    currentIndex = matchingIndex;
-                }
-            }
-
-            return new QueueSnapshot(items, currentIndex);
+            var entries = await response.Content.ReadFromJsonAsync<List<CiderQueueEntry?>>(
+                _jsonOptions,
+                cancellationToken);
+            return entries is null ? null : ToQueueSnapshot(entries, currentTrackId);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return new QueueSnapshot([], -1);
+            return null;
         }
         catch (OperationCanceledException)
         {
@@ -205,8 +169,40 @@ public sealed class CiderService : IDisposable
         }
         catch (Exception)
         {
-            return new QueueSnapshot([], -1);
+            return null;
         }
+    }
+
+    internal static QueueSnapshot ToQueueSnapshot(
+        IReadOnlyList<CiderQueueEntry?> entries,
+        string? currentTrackId)
+    {
+        var items = new List<QueueItemInfo>(entries.Count);
+        for (var sourceIndex = 0; sourceIndex < entries.Count; sourceIndex++)
+        {
+            var attributes = entries[sourceIndex]?.Attributes;
+            if (attributes is null || string.IsNullOrWhiteSpace(attributes.Name))
+            {
+                continue;
+            }
+
+            items.Add(new QueueItemInfo(
+                sourceIndex,
+                entries[sourceIndex]!.Id ?? attributes.PlayParameters?.Id,
+                attributes.Name,
+                attributes.ArtistName ?? "—",
+                attributes.AlbumName ?? "—",
+                attributes.DurationInMillis,
+                attributes.Artwork?.Url,
+                attributes.HasLyrics,
+                attributes.HasTimeSyncedLyrics,
+                attributes.Isrc));
+        }
+
+        var currentIndex = string.IsNullOrWhiteSpace(currentTrackId)
+            ? -1
+            : items.FindIndex(item => string.Equals(item.Id, currentTrackId, StringComparison.Ordinal));
+        return new QueueSnapshot(items, currentIndex);
     }
 
     public async Task<IReadOnlyList<LyricLineInfo>> GetLyricsAsync(
@@ -530,9 +526,6 @@ public sealed class CiderService : IDisposable
         return null;
     }
 
-    private static double? TryFindDouble(JsonElement? element, params string[] names) =>
-        element.HasValue ? TryFindDouble(element.Value, names) : null;
-
     private static double? TryFindDouble(JsonElement element, params string[] names)
     {
         if (element.ValueKind != JsonValueKind.Object)
@@ -593,31 +586,6 @@ public sealed class CiderService : IDisposable
         return null;
     }
 
-    private static bool? TryFindNestedBoolean(JsonElement element, params string[] names)
-    {
-        var direct = TryFindBoolean(element, names);
-        if (direct.HasValue || element.ValueKind != JsonValueKind.Object)
-        {
-            return direct;
-        }
-
-        foreach (var property in element.EnumerateObject())
-        {
-            if (property.Value.ValueKind != JsonValueKind.Object)
-            {
-                continue;
-            }
-
-            var nested = TryFindNestedBoolean(property.Value, names);
-            if (nested.HasValue)
-            {
-                return nested;
-            }
-        }
-
-        return null;
-    }
-
     private static double? TryFindTime(JsonElement element, params string[] names)
     {
         var raw = TryFindDouble(element, names);
@@ -633,58 +601,6 @@ public sealed class CiderService : IDisposable
         }
 
         return null;
-    }
-
-    internal static string? TryFindArtworkUrl(JsonElement element)
-    {
-        if (element.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        foreach (var property in element.EnumerateObject())
-        {
-            if (!string.Equals(property.Name, "artwork", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (property.Value.ValueKind == JsonValueKind.String)
-            {
-                return property.Value.GetString();
-            }
-
-            if (property.Value.ValueKind == JsonValueKind.Object)
-            {
-                var url = TryFindString(property.Value, "url", "artworkURL", "artworkUrl", "imageUrl");
-                if (!string.IsNullOrWhiteSpace(url))
-                {
-                    return url;
-                }
-            }
-        }
-
-        foreach (var property in element.EnumerateObject())
-        {
-            if (property.Value.ValueKind != JsonValueKind.Object)
-            {
-                continue;
-            }
-
-            var nestedUrl = TryFindArtworkUrl(property.Value);
-            if (!string.IsNullOrWhiteSpace(nestedUrl))
-            {
-                return nestedUrl;
-            }
-        }
-
-        return TryFindString(element, "artworkURL", "artworkUrl", "imageUrl");
-    }
-
-    private static int? TryFindCurrentIndex(JsonElement root)
-    {
-        var value = TryFindDouble(root, "currentIndex", "current", "position", "queuePosition");
-        return value.HasValue ? (int)value.Value : null;
     }
 
     private static bool TryGetProperty(JsonElement element, string name, out JsonElement value)

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Text;
+using Lyrider.Models;
 using Lyrider.Services;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -68,6 +69,7 @@ public sealed class CiderServiceTests
                   "albumName": "Album",
                   "durationInMillis": 180000,
                   "isrc": "JPE301201741",
+                  "artwork": { "url": "https://example.test/{w}x{h}.jpg" },
                   "hasLyrics": true,
                   "hasTimeSyncedLyrics": true
                 }
@@ -99,6 +101,79 @@ public sealed class CiderServiceTests
         Assert.IsFalse(queue.Items[1].HasLyrics);
         Assert.AreEqual("JPE301201741", queue.Items[0].Isrc);
         Assert.IsNull(queue.Items[1].Isrc);
+        Assert.AreEqual("https://example.test/{w}x{h}.jpg", queue.Items[0].ArtworkUrl);
+        Assert.IsNull(queue.Items[1].ArtworkUrl);
+    }
+
+    [TestMethod]
+    public async Task GetQueueAsync_EntryWithoutName_KeepsSourceIndexOfLaterItems()
+    {
+        using var handler = new StubHandler((_, _) => Task.FromResult(JsonResponse("""
+            [
+              { "id": "current", "attributes": { "name": "Current" } },
+              { "id": "broken", "attributes": {} },
+              null,
+              { "id": "next", "attributes": { "name": "Next" } }
+            ]
+            """)));
+        using var service = new CiderService("http://example.test/", handler, TimeSpan.FromSeconds(3));
+
+        var queue = await service.GetQueueAsync(null, "current");
+
+        Assert.IsNotNull(queue);
+        CollectionAssert.AreEqual(new[] { "current", "next" }, queue.Items.Select(item => item.Id).ToArray());
+        Assert.AreEqual(3, queue.Items[1].Index);
+        Assert.AreEqual("—", queue.Items[1].ArtistName);
+    }
+
+    [TestMethod]
+    public async Task GetQueueAsync_EmptyQueue_ReturnsEmptySnapshot()
+    {
+        using var handler = new StubHandler((_, _) => Task.FromResult(JsonResponse("[]")));
+        using var service = new CiderService("http://example.test/", handler, TimeSpan.FromSeconds(3));
+
+        var queue = await service.GetQueueAsync(null, "current");
+
+        Assert.IsNotNull(queue);
+        Assert.AreEqual(0, queue.Items.Count);
+        Assert.AreEqual(-1, queue.CurrentIndex);
+    }
+
+    [DataTestMethod]
+    [DataRow(HttpStatusCode.Unauthorized, "[]")]
+    [DataRow(HttpStatusCode.InternalServerError, "[]")]
+    [DataRow(HttpStatusCode.OK, "{\"status\":\"ok\"}")]
+    [DataRow(HttpStatusCode.OK, "[{\"id\":")]
+    public async Task GetQueueAsync_FailedOrMalformedResponse_ReturnsNull(HttpStatusCode status, string body)
+    {
+        using var handler = new StubHandler((_, _) => Task.FromResult(new HttpResponseMessage(status)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        }));
+        using var service = new CiderService("http://example.test/", handler, TimeSpan.FromSeconds(3));
+
+        Assert.IsNull(await service.GetQueueAsync(null, "current"));
+    }
+
+    [TestMethod]
+    public async Task GetPlaybackStatusAsync_Playing_RequestsOnlyIsPlaying()
+    {
+        var paths = new List<string>();
+        using var handler = new StubHandler((request, _) =>
+        {
+            lock (paths)
+            {
+                paths.Add(request.RequestUri!.AbsolutePath);
+            }
+
+            return Task.FromResult(JsonResponse("""{"status":"ok","is_playing":true}"""));
+        });
+        using var service = new CiderService("http://example.test/", handler, TimeSpan.FromSeconds(3));
+
+        var status = await service.GetPlaybackStatusAsync(null);
+
+        Assert.AreEqual(new PlaybackStatus(true), status);
+        CollectionAssert.AreEqual(new[] { "/api/v1/playback/is-playing" }, paths);
     }
 
     [TestMethod]

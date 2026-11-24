@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
-using System.Text.Json;
 using Lyrider.Models;
 using Lyrider.Services;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -39,26 +38,6 @@ public sealed class QueueRegressionTests
         Assert.AreEqual(0, changes.Count);
         Assert.AreSame(originalItem, target[0]);
         Assert.AreEqual(8, target[0].Index);
-    }
-
-    [TestMethod]
-    public void TryFindArtworkUrl_ArtworkNestedUnderAttributes_ReturnsUrl()
-    {
-        using var document = JsonDocument.Parse("""
-            {
-              "id": "1",
-              "attributes": {
-                "name": "Song",
-                "artwork": {
-                  "url": "https://example.test/{w}x{h}.jpg"
-                }
-              }
-            }
-            """);
-
-        var url = CiderService.TryFindArtworkUrl(document.RootElement);
-
-        Assert.AreEqual("https://example.test/{w}x{h}.jpg", url);
     }
 
     private static QueueItemInfo CreateItem(string id, string name) =>

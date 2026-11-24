@@ -422,7 +422,9 @@ public sealed partial class MainWindow : Window
         await RefreshAsync();
     }
 
-    private async Task RefreshAsync(bool forceDetails = false)
+    /// <param name="forceDetails">Re-resolves lyrics and the queue even when the track is unchanged.</param>
+    /// <param name="refreshQueue">Re-reads only the queue when the track is unchanged.</param>
+    private async Task RefreshAsync(bool forceDetails = false, bool refreshQueue = false)
     {
         if (_isRefreshing)
         {
@@ -485,7 +487,7 @@ public sealed partial class MainWindow : Window
                 RefreshLyricPlayback();
                 UpdatePlaybackSurfaces(track, playbackStatus);
                 _refreshCount++;
-                if (_refreshCount % 5 == 0)
+                if (refreshQueue || _refreshCount % 5 == 0)
                 {
                     await RefreshQueueAsync(track);
                 }
@@ -533,7 +535,8 @@ public sealed partial class MainWindow : Window
                 _appToken,
                 track.PlayParameters?.Id,
                 refreshCancellation.Token);
-            if (!refreshCancellation.IsCancellationRequested &&
+            if (queue is not null &&
+                !refreshCancellation.IsCancellationRequested &&
                 ReferenceEquals(_lyricsRefreshCancellation, refreshCancellation) &&
                 string.Equals(expectedTrackKey, _currentTrackKey, StringComparison.Ordinal))
             {
@@ -578,7 +581,9 @@ public sealed partial class MainWindow : Window
             _appToken,
             track.PlayParameters?.Id,
             _lifetimeCancellation.Token);
-        if (string.Equals(TrackIdentity.For(track), _currentTrackKey, StringComparison.Ordinal))
+        // A failed read keeps the queue already on screen instead of blanking it.
+        if (queue is not null &&
+            string.Equals(TrackIdentity.For(track), _currentTrackKey, StringComparison.Ordinal))
         {
             ApplyQueue(queue, track.PlayParameters?.Id);
         }
@@ -1669,7 +1674,9 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        await RefreshAsync(forceDetails: true);
+        // A track change is detected and re-resolved by the refresh itself; forcing details
+        // here would re-fetch the current lyrics on every play/pause or shuffle toggle.
+        await RefreshAsync(refreshQueue: true);
     }
 
     private void ReportCommandRejected(string? message = null) =>

@@ -11,6 +11,19 @@ public sealed class CiderNowPlayingResponse
     public NowPlayingInfo? Info { get; init; }
 }
 
+/// <summary>
+/// One element of the root array returned by <c>/api/v1/playback/queue</c>: an Apple Music
+/// resource whose <c>attributes</c> carry the same fields as now-playing's <c>info</c>.
+/// </summary>
+public sealed class CiderQueueEntry
+{
+    [JsonPropertyName("id")]
+    public string? Id { get; init; }
+
+    [JsonPropertyName("attributes")]
+    public NowPlayingInfo? Attributes { get; init; }
+}
+
 public sealed class NowPlayingInfo
 {
     [JsonPropertyName("name")]
