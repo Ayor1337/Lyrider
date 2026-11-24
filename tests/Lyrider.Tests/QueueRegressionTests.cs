@@ -59,6 +59,65 @@ public sealed class QueueRegressionTests
         }
     }
 
+    [DataTestMethod]
+    [DataRow(true, true, "Song, Artist, 3:00, synced lyrics")]
+    [DataRow(true, false, "Song, Artist, 3:00, plain lyrics")]
+    public void AccessibleName_WithLyrics_AnnouncesLyricsKind(bool hasLyrics, bool synced, string expected)
+    {
+        var original = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = new CultureInfo("en-US");
+            var item = new QueueItemInfo(0, "1", "Song", "Artist", "Album", 180_000, null, hasLyrics, synced);
+
+            Assert.AreEqual(expected, item.AccessibleName);
+            Assert.AreEqual(hasLyrics && !synced, item.HasPlainLyricsOnly);
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = original;
+        }
+    }
+
+    [DataTestMethod]
+    [DataRow("Album", "Artist · Album")]
+    [DataRow("—", "Artist")]
+    [DataRow("", "Artist")]
+    public void SubtitleText_AlbumName_JoinsArtistAndKnownAlbum(string album, string expected)
+    {
+        var item = new QueueItemInfo(0, "1", "Song", "Artist", album, 180_000, null);
+
+        Assert.AreEqual(expected, item.SubtitleText);
+    }
+
+    [DataTestMethod]
+    [DataRow("zh-CN", 0, 0, "0 首")]
+    [DataRow("zh-CN", 6, 230_000, "6 首 · 约 23 分钟")]
+    [DataRow("zh-CN", 20, 195_000, "20 首 · 约 1 小时 5 分钟")]
+    [DataRow("en-US", 1, 180_000, "1 song · about 3 min")]
+    [DataRow("en-US", 20, 180_000, "20 songs · about 1 hr")]
+    public void QueueSummary_Items_ShowsCountAndRoundedDuration(
+        string culture,
+        int count,
+        double millisEach,
+        string expected)
+    {
+        var original = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = new CultureInfo(culture);
+            var items = Enumerable.Range(0, count)
+                .Select(index => new QueueItemInfo(index, $"{index}", "Song", "Artist", "Album", millisEach, null))
+                .ToArray();
+
+            Assert.AreEqual(expected, QueueSummary.Format(items));
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = original;
+        }
+    }
+
     [TestMethod]
     public void IsSwitching_Changed_NotifiesStateAndDimsContent()
     {

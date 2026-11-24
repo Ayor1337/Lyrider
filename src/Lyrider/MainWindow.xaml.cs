@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Globalization;
 using System.Numerics;
 using Lyrider.Models;
 using Lyrider.Services;
@@ -15,7 +14,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
-using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.Graphics;
 
@@ -68,8 +67,6 @@ public sealed partial class MainWindow : Window
     private string? _visiblePanel;
     private QueueItemInfo? _nextQueueItem;
     private QueueItemInfo? _switchingQueueItem;
-    private string? _nextUpArtworkUrl;
-    private double _nextUpRemainingSeconds;
     private static readonly TimeSpan QueueSwitchTimeout = TimeSpan.FromSeconds(4);
     private static readonly TimeSpan QueueSwitchPollInterval = TimeSpan.FromMilliseconds(200);
     private NowPlayingInfo? _latestTrack;
@@ -176,7 +173,7 @@ public sealed partial class MainWindow : Window
         LoadSettingsControls();
         InitializeOnboarding();
         ApplySettings();
-        ShowPanel("Lyrics");
+        ShowPanel("Queue");
 
         _refreshTimer.Tick += RefreshTimer_Tick;
         _lyricTimer.Tick += LyricTimer_Tick;
@@ -268,7 +265,8 @@ public sealed partial class MainWindow : Window
         ArtworkBorder.Height = artworkSize;
         ArtworkBorder.Visibility = artworkSize < 48 ? Visibility.Collapsed : Visibility.Visible;
         UpcomingQueueHeading.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-        LyricsPanel.Padding = new Thickness(14, 0, 0, 0);
+        QueuePanel.Padding = new Thickness(0, 0, 0, 56);
+        LyricsPanel.Padding = new Thickness(14, 0, 0, 56);
         UpdateLyricGutters();
         if (LyricsPanel.Visibility == Visibility.Visible && _currentLyricIndex >= 0)
         {
@@ -905,61 +903,9 @@ public sealed partial class MainWindow : Window
             .ToArray();
         QueueCollectionSynchronizer.Synchronize(_queueItems, desiredItems);
 
-        QueueCountText.Text = _queueItems.Count.ToString(CultureInfo.CurrentCulture);
-        QueueCountBadge.Visibility = _queueItems.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        QueueSummaryText.Text = QueueSummary.Format(_queueItems);
         EmptyQueueText.Visibility = _queueItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         QueueListView.Visibility = _queueItems.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
-        UpdateNextUpCard();
-    }
-
-    /// <summary>
-    /// Previews the first upcoming track under the lyrics, so the queue tab is only
-    /// needed to see further ahead.
-    /// </summary>
-    private void UpdateNextUpCard()
-    {
-        var next = _queueItems.Count > 0 ? _queueItems[0] : null;
-        NextUpCard.Visibility = next is not null && _visiblePanel == "Lyrics"
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-        if (next is null)
-        {
-            _nextUpArtworkUrl = null;
-            NextUpArtworkImage.Source = null;
-            return;
-        }
-
-        NextUpTitleText.Text = next.Name;
-        var count = _queueItems.Count;
-        NextUpViewQueueText.Text = AppText.IsChinese
-            ? $"查看全部 {count} 首"
-            : count == 1 ? "View 1 song" : $"View all {count} songs";
-        if (!string.Equals(_nextUpArtworkUrl, next.ArtworkUrl, StringComparison.Ordinal))
-        {
-            _nextUpArtworkUrl = next.ArtworkUrl;
-            NextUpArtworkImage.Source = Uri.TryCreate(next.ArtworkUrl, UriKind.Absolute, out var artworkUri)
-                ? new BitmapImage(artworkUri) { DecodePixelWidth = 88 }
-                : null;
-        }
-
-        UpdateNextUpSubtitle();
-    }
-
-    private void UpdateNextUpSubtitle()
-    {
-        if (_queueItems.Count == 0)
-        {
-            return;
-        }
-
-        var artist = _queueItems[0].ArtistName;
-        NextUpSubtitleText.Text = _latestTrack is null
-            ? artist
-            : AppText.Format(
-                "{0} · {1} 后播放",
-                "{0} · plays in {1}",
-                artist,
-                FormatTime(_nextUpRemainingSeconds));
     }
 
     /// <summary>
@@ -1412,9 +1358,6 @@ public sealed partial class MainWindow : Window
 
     private void LyricsViewButton_Click(object sender, RoutedEventArgs e) => ShowPanel("Lyrics");
 
-    private void NextUpViewQueueButton_Click(object sender, RoutedEventArgs e) => ShowPanel("Queue");
-
-
     private async void MenuQueueItem_Click(object sender, RoutedEventArgs e)
     {
         await ShowPlayerPanelAsync("Queue");
@@ -1669,14 +1612,11 @@ public sealed partial class MainWindow : Window
         _visiblePanel = target;
         QueuePanel.Visibility = showLyrics ? Visibility.Collapsed : Visibility.Visible;
         LyricsPanel.Visibility = showLyrics ? Visibility.Visible : Visibility.Collapsed;
-        // Both tabs have the indicator's width, and the lyrics tab comes first.
+        // Both switcher buttons have the indicator's width, so the lyrics slot starts one width in.
         UiMotion.SlideTo(
             PanelSwitcherIndicator,
-            showLyrics ? 0 : (float)PanelSwitcherIndicator.Width,
+            showLyrics ? (float)PanelSwitcherIndicator.Width : 0,
             changed);
-        LyricsViewButton.Opacity = showLyrics ? 1 : 0.72;
-        QueueViewButton.Opacity = showLyrics ? 0.72 : 1;
-        UpdateNextUpCard();
         if (changed)
         {
             _ = UiMotion.EnterAsync(showLyrics ? LyricsPanel : QueuePanel, new Vector2(0, 18), 360);
@@ -1805,7 +1745,70 @@ public sealed partial class MainWindow : Window
 
     private async void QueueListView_ItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is not QueueItemInfo item || _switchingQueueItem is not null)
+        if (e.ClickedItem is QueueItemInfo item)
+        {
+            await SwitchToQueueItemAsync(item);
+        }
+    }
+
+    private async void QueueItemPlay_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is QueueItemInfo item)
+        {
+            await SwitchToQueueItemAsync(item);
+        }
+    }
+
+    private void QueueItemCopy_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not QueueItemInfo item)
+        {
+            return;
+        }
+
+        var package = new DataPackage();
+        package.SetText($"{item.Name} - {item.ArtistName}");
+        Clipboard.SetContent(package);
+    }
+
+    private void QueueRow_PointerEntered(object sender, PointerRoutedEventArgs e) =>
+        SetQueueRowHover(sender, true);
+
+    private void QueueRow_PointerExited(object sender, PointerRoutedEventArgs e) =>
+        SetQueueRowHover(sender, false);
+
+    /// <summary>
+    /// Shows the play overlay and the more button only on the hovered row, so the list
+    /// stays quiet while still exposing per-row actions.
+    /// </summary>
+    private static void SetQueueRowHover(object sender, bool isHovered)
+    {
+        if (sender is not FrameworkElement row)
+        {
+            return;
+        }
+
+        if (row.FindName("QueueRowPlayOverlay") is UIElement overlay)
+        {
+            overlay.Opacity = isHovered ? 1 : 0;
+        }
+
+        if (row.FindName("QueueRowMoreButton") is Button moreButton
+            && moreButton.FocusState == FocusState.Unfocused)
+        {
+            moreButton.Opacity = isHovered ? 1 : 0;
+        }
+    }
+
+    private void QueueRowMoreButton_GotFocus(object sender, RoutedEventArgs e) =>
+        ((UIElement)sender).Opacity = 1;
+
+    private void QueueRowMoreButton_LostFocus(object sender, RoutedEventArgs e) =>
+        ((UIElement)sender).Opacity = 0;
+
+    private async Task SwitchToQueueItemAsync(QueueItemInfo item)
+    {
+        if (_switchingQueueItem is not null)
         {
             return;
         }
@@ -2296,8 +2299,6 @@ public sealed partial class MainWindow : Window
         var current = Math.Clamp(position, 0, Math.Max(0, duration));
         CurrentTimeText.Text = FormatTime(current);
         RemainingTimeText.Text = $"−{FormatTime(Math.Max(0, duration - current))}";
-        _nextUpRemainingSeconds = Math.Max(0, duration - current);
-        UpdateNextUpSubtitle();
     }
 
     private void CancelPlaybackSeekDebounce()

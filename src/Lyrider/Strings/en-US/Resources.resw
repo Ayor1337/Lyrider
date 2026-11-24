@@ -24,11 +24,12 @@
   <data name="Main_013.ToolTipService.ToolTip" xml:space="preserve"><value>Next</value></data>
   <data name="Main_014.ToolTipService.ToolTip" xml:space="preserve"><value>Repeat: Off</value></data>
   <data name="Main_019.Text" xml:space="preserve"><value>Up Next</value></data>
-  <data name="Main_020.Text" xml:space="preserve"><value>Synced with your Cider queue</value></data>
   <data name="Main_021.Text" xml:space="preserve"><value>Nothing in the queue yet</value></data>
   <data name="Main_022.Text" xml:space="preserve"><value>No lyrics for this song yet</value></data>
   <data name="Main_023.AutomationProperties.Name" xml:space="preserve"><value>Play Queue</value></data>
+  <data name="Main_023.ToolTipService.ToolTip" xml:space="preserve"><value>Play Queue</value></data>
   <data name="Main_024.AutomationProperties.Name" xml:space="preserve"><value>Lyrics</value></data>
+  <data name="Main_024.ToolTipService.ToolTip" xml:space="preserve"><value>Lyrics</value></data>
   <data name="Main_025.AutomationProperties.Name" xml:space="preserve"><value>Back to player</value></data>
   <data name="Main_025.ToolTipService.ToolTip" xml:space="preserve"><value>Back to player</value></data>
   <data name="Main_026.Text" xml:space="preserve"><value>Settings</value></data>
@@ -115,9 +116,12 @@
   <data name="Main_116.Content" xml:space="preserve"><value>Clear</value></data>
   <data name="Main_117.Text" xml:space="preserve"><value>Skip leading lyric credits</value></data>
   <data name="Main_118.Text" xml:space="preserve"><value>Taskbar and desktop lyrics skip opening lines such as title, artist, lyricist and composer</value></data>
-  <data name="Main_119.Text" xml:space="preserve"><value>Lyrics</value></data>
-  <data name="Main_120.Text" xml:space="preserve"><value>Queue</value></data>
-  <data name="Main_121.Text" xml:space="preserve"><value>Up next</value></data>
+  <data name="Main_119.Text" xml:space="preserve"><value>Synced lyrics</value></data>
+  <data name="Main_120.Text" xml:space="preserve"><value>Plain lyrics</value></data>
+  <data name="Main_121.AutomationProperties.Name" xml:space="preserve"><value>More options</value></data>
+  <data name="Main_121.ToolTipService.ToolTip" xml:space="preserve"><value>More options</value></data>
+  <data name="Main_122.Text" xml:space="preserve"><value>Play this song</value></data>
+  <data name="Main_123.Text" xml:space="preserve"><value>Copy title and artist</value></data>
   <data name="DesktopPreviewTitle.Text" xml:space="preserve"><value>Preview</value></data>
   <data name="DesktopSceneLyrics.Content" xml:space="preserve"><value>Lyrics</value></data>
   <data name="DesktopSceneTranslation.Content" xml:space="preserve"><value>With translation</value></data>

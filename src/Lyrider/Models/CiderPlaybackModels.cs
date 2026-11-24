@@ -47,12 +47,26 @@ public sealed class QueueItemInfo(
     public double ContentOpacity => _isSwitching ? 0.45 : 1;
 
     /// <summary>What a screen reader announces for the row.</summary>
-    public string AccessibleName => AppText.Format(
-        "{0}，{1}，{2}",
-        "{0}, {1}, {2}",
-        Name,
-        ArtistName,
-        DurationText);
+    public string AccessibleName
+    {
+        get
+        {
+            var name = AppText.Format("{0}，{1}，{2}", "{0}, {1}, {2}", Name, ArtistName, DurationText);
+            if (HasTimeSyncedLyrics)
+            {
+                return name + AppText.Get("，逐行歌词", ", synced lyrics");
+            }
+
+            return HasPlainLyricsOnly ? name + AppText.Get("，普通歌词", ", plain lyrics") : name;
+        }
+    }
+
+    /// <summary>Artist and album, or the artist alone when Cider has no album name.</summary>
+    public string SubtitleText => string.IsNullOrWhiteSpace(AlbumName) || AlbumName == "—"
+        ? ArtistName
+        : $"{ArtistName} · {AlbumName}";
+
+    public bool HasPlainLyricsOnly => HasLyrics && !HasTimeSyncedLyrics;
 
     public string? Isrc { get; } = isrc;
 
@@ -81,6 +95,41 @@ public sealed class QueueItemInfo(
                 ? $"{(int)duration.TotalHours}:{duration.Minutes:00}:{duration.Seconds:00}"
                 : $"{duration.Minutes}:{duration.Seconds:00}";
         }
+    }
+}
+
+public static class QueueSummary
+{
+    /// <summary>Describes the upcoming queue, e.g. "6 首 · 约 23 分钟".</summary>
+    public static string Format(IReadOnlyCollection<QueueItemInfo> items)
+    {
+        var count = items.Count;
+        var countText = AppText.IsChinese
+            ? $"{count} 首"
+            : count == 1 ? "1 song" : $"{count} songs";
+        var totalMinutes = (int)Math.Round(items.Sum(item => Math.Max(0, item.DurationInMillis)) / 60000d);
+        if (count == 0 || totalMinutes <= 0)
+        {
+            return countText;
+        }
+
+        var hours = totalMinutes / 60;
+        var minutes = totalMinutes % 60;
+        string durationText;
+        if (hours == 0)
+        {
+            durationText = AppText.Format("约 {0} 分钟", "about {0} min", minutes);
+        }
+        else if (minutes == 0)
+        {
+            durationText = AppText.Format("约 {0} 小时", "about {0} hr", hours);
+        }
+        else
+        {
+            durationText = AppText.Format("约 {0} 小时 {1} 分钟", "about {0} hr {1} min", hours, minutes);
+        }
+
+        return $"{countText} · {durationText}";
     }
 }
 

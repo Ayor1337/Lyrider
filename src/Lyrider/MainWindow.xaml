@@ -284,6 +284,22 @@
                             Text="—"
                             TextTrimming="CharacterEllipsis" />
                     </StackPanel>
+                    <Border
+                        x:Name="LyricsSourceBadge"
+                        Grid.Column="1"
+                        MaxWidth="120"
+                        Padding="10,4"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Background="{ThemeResource PanelFillBrush}"
+                        CornerRadius="11"
+                        Visibility="Collapsed">
+                        <TextBlock
+                            x:Name="LyricsSourceText"
+                            FontSize="12"
+                            Foreground="{ThemeResource SubtleTextBrush}"
+                            TextTrimming="CharacterEllipsis" />
+                    </Border>
                     <Button
                         x:Name="ConnectionActionButton"
                         Grid.Column="1"
@@ -397,107 +413,54 @@
 
             </Grid>
 
-            <Grid x:Name="DetailsPanel" Grid.Column="1" RowSpacing="16">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
-                <Grid ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Border
-                        HorizontalAlignment="Left"
-                        Padding="4"
-                        Background="{ThemeResource PanelFillBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        CornerRadius="24">
-                        <Grid>
-                            <Border
-                                x:Name="PanelSwitcherIndicator"
-                                Width="116"
-                                HorizontalAlignment="Left"
-                                Background="{ThemeResource PanelHoverBrush}"
-                                CornerRadius="20" />
-                            <StackPanel x:Name="PanelSwitcherButtons" Orientation="Horizontal">
-                                <Button x:Uid="Main_024"
-                                    AutomationProperties.Name="歌词"
-                                    x:Name="LyricsViewButton"
-                                    Width="116"
-                                    Click="LyricsViewButton_Click"
-                                    CornerRadius="20"
-                                    Style="{StaticResource IconButtonStyle}">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon FontSize="16" Glyph="&#xE8D2;" />
-                                        <TextBlock x:Uid="Main_119"
-                                            FontSize="14"
-                                            FontWeight="SemiBold"
-                                            Text="歌词" />
-                                    </StackPanel>
-                                </Button>
-                                <Button x:Uid="Main_023"
-                                    AutomationProperties.Name="播放队列"
-                                    x:Name="QueueViewButton"
-                                    Width="116"
-                                    Click="QueueViewButton_Click"
-                                    CornerRadius="20"
-                                    Style="{StaticResource IconButtonStyle}">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon FontSize="16" Glyph="&#xE8FD;" />
-                                        <TextBlock x:Uid="Main_120"
-                                            FontSize="14"
-                                            FontWeight="SemiBold"
-                                            Text="队列" />
-                                        <Border
-                                            x:Name="QueueCountBadge"
-                                            Padding="7,1"
-                                            VerticalAlignment="Center"
-                                            Background="{ThemeResource PanelFillBrush}"
-                                            CornerRadius="9"
-                                            Visibility="Collapsed">
-                                            <TextBlock x:Name="QueueCountText" FontSize="11" Text="0" />
-                                        </Border>
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-                    <Border
-                        x:Name="LyricsSourceBadge"
-                        Grid.Column="1"
-                        MaxWidth="120"
-                        Padding="10,4"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Center"
-                        Background="{ThemeResource PanelFillBrush}"
-                        CornerRadius="11"
-                        Visibility="Collapsed">
-                        <TextBlock
-                            x:Name="LyricsSourceText"
-                            FontSize="12"
-                            Foreground="{ThemeResource SubtleTextBrush}"
-                            TextTrimming="CharacterEllipsis" />
-                    </Border>
-                </Grid>
-
-                <Grid x:Name="QueuePanel" Grid.Row="1" RowSpacing="14">
+            <Grid x:Name="DetailsPanel" Grid.Column="1">
+                <Grid x:Name="QueuePanel" Padding="0,18,0,70" RowSpacing="18">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <StackPanel x:Name="UpcomingQueueHeading" Spacing="2">
-                        <TextBlock x:Uid="Main_019"
-                            Style="{StaticResource PlayerSectionHeaderStyle}"
-                            Text="接下来播放" />
-                        <TextBlock x:Uid="Main_020"
-                            FontSize="12"
-                            Foreground="{ThemeResource MutedTextBrush}"
-                            Text="与 Cider 播放队列同步" />
-                    </StackPanel>
+                    <Grid x:Name="UpcomingQueueHeading" ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="4">
+                            <TextBlock x:Uid="Main_019"
+                                FontSize="28"
+                                FontWeight="SemiBold"
+                                Text="接下来播放" />
+                            <TextBlock
+                                x:Name="QueueSummaryText"
+                                FontSize="13"
+                                Foreground="{ThemeResource SubtleTextBrush}" />
+                        </StackPanel>
+                        <StackPanel
+                            Grid.Column="1"
+                            VerticalAlignment="Bottom"
+                            Orientation="Horizontal"
+                            Spacing="14">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon
+                                    FontSize="14"
+                                    Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                    Glyph="&#xE8D2;" />
+                                <TextBlock x:Uid="Main_119"
+                                    FontSize="12"
+                                    Foreground="{ThemeResource MutedTextBrush}"
+                                    Text="逐行歌词" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon
+                                    FontSize="14"
+                                    Foreground="{ThemeResource MutedTextBrush}"
+                                    Glyph="&#xE8D2;" />
+                                <TextBlock x:Uid="Main_120"
+                                    FontSize="12"
+                                    Foreground="{ThemeResource MutedTextBrush}"
+                                    Text="普通歌词" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
 
                     <Grid Grid.Row="1">
                         <ListView
@@ -510,11 +473,19 @@
                             SelectionMode="None">
                             <ListView.ItemTemplate>
                                 <DataTemplate x:DataType="models:QueueItemInfo">
-                                    <Grid Padding="0,7" ColumnSpacing="14">
+                                    <Grid
+                                        Padding="0,7"
+                                        Background="Transparent"
+                                        ColumnSpacing="14"
+                                        PointerCanceled="QueueRow_PointerExited"
+                                        PointerEntered="QueueRow_PointerEntered"
+                                        PointerExited="QueueRow_PointerExited">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="48" />
                                             <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="16" />
                                             <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="32" />
                                         </Grid.ColumnDefinitions>
                                         <Border Width="48" Height="48" Background="{ThemeResource PanelFillBrush}" CornerRadius="8">
                                             <Grid>
@@ -522,6 +493,16 @@
                                                     Opacity="{x:Bind ContentOpacity, Mode=OneWay}"
                                                     Source="{Binding ArtworkUrl}"
                                                     Stretch="UniformToFill" />
+                                                <Border
+                                                    x:Name="QueueRowPlayOverlay"
+                                                    Background="#73000000"
+                                                    IsHitTestVisible="False"
+                                                    Opacity="0">
+                                                    <FontIcon
+                                                        FontSize="18"
+                                                        Foreground="White"
+                                                        Glyph="&#xE768;" />
+                                                </Border>
                                                 <ProgressRing
                                                     Width="22"
                                                     Height="22"
@@ -540,17 +521,68 @@
                                             <TextBlock
                                                 FontSize="13"
                                                 Foreground="{ThemeResource SubtleTextBrush}"
-                                                Text="{x:Bind ArtistName}"
+                                                Text="{x:Bind SubtitleText}"
                                                 TextTrimming="CharacterEllipsis" />
                                         </StackPanel>
-                                        <TextBlock
+                                        <Grid
                                             Grid.Column="2"
-                                            Margin="0,0,4,0"
+                                            VerticalAlignment="Center"
+                                            Opacity="{x:Bind ContentOpacity, Mode=OneWay}">
+                                            <FontIcon
+                                                FontSize="14"
+                                                Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                                Glyph="&#xE8D2;"
+                                                Visibility="{x:Bind HasTimeSyncedLyrics}" />
+                                            <FontIcon
+                                                FontSize="14"
+                                                Foreground="{ThemeResource MutedTextBrush}"
+                                                Glyph="&#xE8D2;"
+                                                Visibility="{x:Bind HasPlainLyricsOnly}" />
+                                        </Grid>
+                                        <TextBlock
+                                            Grid.Column="3"
                                             VerticalAlignment="Center"
                                             FontSize="12"
                                             Foreground="{ThemeResource MutedTextBrush}"
                                             Opacity="{x:Bind ContentOpacity, Mode=OneWay}"
                                             Text="{x:Bind DurationText}" />
+                                        <Button x:Uid="Main_121"
+                                            x:Name="QueueRowMoreButton"
+                                            Grid.Column="4"
+                                            Width="32"
+                                            Height="32"
+                                            Padding="0"
+                                            VerticalAlignment="Center"
+                                            AutomationProperties.Name="更多操作"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            CornerRadius="8"
+                                            GotFocus="QueueRowMoreButton_GotFocus"
+                                            LostFocus="QueueRowMoreButton_LostFocus"
+                                            Opacity="0"
+                                            ToolTipService.ToolTip="更多操作">
+                                            <FontIcon FontSize="16" Glyph="&#xE712;" />
+                                            <Button.Flyout>
+                                                <MenuFlyout>
+                                                    <MenuFlyoutItem x:Uid="Main_122"
+                                                        Click="QueueItemPlay_Click"
+                                                        Tag="{x:Bind}"
+                                                        Text="播放这首">
+                                                        <MenuFlyoutItem.Icon>
+                                                            <FontIcon Glyph="&#xE768;" />
+                                                        </MenuFlyoutItem.Icon>
+                                                    </MenuFlyoutItem>
+                                                    <MenuFlyoutItem x:Uid="Main_123"
+                                                        Click="QueueItemCopy_Click"
+                                                        Tag="{x:Bind}"
+                                                        Text="复制歌名和歌手">
+                                                        <MenuFlyoutItem.Icon>
+                                                            <FontIcon Glyph="&#xE8C8;" />
+                                                        </MenuFlyoutItem.Icon>
+                                                    </MenuFlyoutItem>
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                        </Button>
                                     </Grid>
                                 </DataTemplate>
                             </ListView.ItemTemplate>
@@ -572,7 +604,7 @@
                     </Grid>
                 </Grid>
 
-                <Grid x:Name="LyricsPanel" Grid.Row="1" Visibility="Collapsed">
+                <Grid x:Name="LyricsPanel" Visibility="Collapsed">
                     <ScrollViewer
                         x:Name="LyricsScrollViewer"
                         HorizontalScrollBarVisibility="Disabled"
@@ -602,55 +634,42 @@
                 </Grid>
 
                 <Border
-                    x:Name="NextUpCard"
-                    Grid.Row="2"
-                    Padding="14,10"
-                    Background="{ThemeResource PanelFillBrush}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Bottom"
+                    Padding="4"
+                    Background="{ThemeResource LyriderSwitcherBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1"
-                    CornerRadius="14"
-                    Visibility="Collapsed">
-                    <Grid ColumnSpacing="14">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Uid="Main_121"
-                            VerticalAlignment="Center"
-                            Style="{StaticResource PlayerSectionHeaderStyle}"
-                            FontSize="12"
-                            Text="接下来" />
+                    CornerRadius="24">
+                    <Grid>
                         <Border
-                            Grid.Column="1"
-                            Width="44"
-                            Height="44"
-                            Background="{ThemeResource PanelFillBrush}"
-                            CornerRadius="8">
-                            <Image x:Name="NextUpArtworkImage" Stretch="UniformToFill" />
-                        </Border>
-                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
-                            <TextBlock
-                                x:Name="NextUpTitleText"
-                                FontSize="15"
-                                TextTrimming="CharacterEllipsis" />
-                            <TextBlock
-                                x:Name="NextUpSubtitleText"
-                                FontSize="13"
-                                Foreground="{ThemeResource SubtleTextBrush}"
-                                TextTrimming="CharacterEllipsis" />
+                            x:Name="PanelSwitcherIndicator"
+                            Width="52"
+                            HorizontalAlignment="Left"
+                            Background="{ThemeResource PanelHoverBrush}"
+                            CornerRadius="20" />
+                        <StackPanel x:Name="PanelSwitcherButtons" Orientation="Horizontal">
+                            <Button x:Uid="Main_023"
+                                AutomationProperties.Name="播放队列"
+                                x:Name="QueueViewButton"
+                                Width="52"
+                                Click="QueueViewButton_Click"
+                                CornerRadius="20"
+                                Style="{StaticResource IconButtonStyle}"
+                                ToolTipService.ToolTip="播放队列">
+                                <FontIcon FontSize="18" Glyph="&#xE8FD;" />
+                            </Button>
+                            <Button x:Uid="Main_024"
+                                AutomationProperties.Name="歌词"
+                                x:Name="LyricsViewButton"
+                                Width="52"
+                                Click="LyricsViewButton_Click"
+                                CornerRadius="20"
+                                Style="{StaticResource IconButtonStyle}"
+                                ToolTipService.ToolTip="歌词">
+                                <FontIcon FontSize="18" Glyph="&#xE8D2;" />
+                            </Button>
                         </StackPanel>
-                        <HyperlinkButton
-                            x:Name="NextUpViewQueueButton"
-                            Grid.Column="3"
-                            VerticalAlignment="Center"
-                            Click="NextUpViewQueueButton_Click">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock x:Name="NextUpViewQueueText" />
-                                <FontIcon FontSize="12" Glyph="&#xE76C;" />
-                            </StackPanel>
-                        </HyperlinkButton>
                     </Grid>
                 </Border>
             </Grid>
