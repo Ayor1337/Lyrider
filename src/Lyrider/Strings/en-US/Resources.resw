@@ -116,8 +116,6 @@
   <data name="Main_116.Content" xml:space="preserve"><value>Clear</value></data>
   <data name="Main_117.Text" xml:space="preserve"><value>Skip leading lyric credits</value></data>
   <data name="Main_118.Text" xml:space="preserve"><value>Taskbar and desktop lyrics skip opening lines such as title, artist, lyricist and composer</value></data>
-  <data name="Main_119.Text" xml:space="preserve"><value>Synced lyrics</value></data>
-  <data name="Main_120.Text" xml:space="preserve"><value>Plain lyrics</value></data>
   <data name="Main_121.AutomationProperties.Name" xml:space="preserve"><value>More options</value></data>
   <data name="Main_121.ToolTipService.ToolTip" xml:space="preserve"><value>More options</value></data>
   <data name="Main_122.Text" xml:space="preserve"><value>Play this song</value></data>

@@ -52,6 +52,7 @@ public sealed class QueueRegressionTests
             CultureInfo.CurrentUICulture = new CultureInfo(culture);
 
             Assert.AreEqual(expected, CreateItem("1", "Song").AccessibleName);
+            Assert.IsNull(CreateItem("1", "Song").LyricsKindText);
         }
         finally
         {
@@ -60,8 +61,8 @@ public sealed class QueueRegressionTests
     }
 
     [DataTestMethod]
-    [DataRow(true, true, "Song, Artist, 3:00, synced lyrics")]
-    [DataRow(true, false, "Song, Artist, 3:00, plain lyrics")]
+    [DataRow(true, true, "Song, Artist, 3:00, Synced lyrics")]
+    [DataRow(true, false, "Song, Artist, 3:00, Plain lyrics")]
     public void AccessibleName_WithLyrics_AnnouncesLyricsKind(bool hasLyrics, bool synced, string expected)
     {
         var original = CultureInfo.CurrentUICulture;
@@ -72,6 +73,7 @@ public sealed class QueueRegressionTests
 
             Assert.AreEqual(expected, item.AccessibleName);
             Assert.AreEqual(hasLyrics && !synced, item.HasPlainLyricsOnly);
+            StringAssert.EndsWith(expected, item.LyricsKindText);
         }
         finally
         {

@@ -419,48 +419,16 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <Grid x:Name="UpcomingQueueHeading" ColumnSpacing="16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Spacing="4">
-                            <TextBlock x:Uid="Main_019"
-                                FontSize="28"
-                                FontWeight="SemiBold"
-                                Text="接下来播放" />
-                            <TextBlock
-                                x:Name="QueueSummaryText"
-                                FontSize="13"
-                                Foreground="{ThemeResource SubtleTextBrush}" />
-                        </StackPanel>
-                        <StackPanel
-                            Grid.Column="1"
-                            VerticalAlignment="Bottom"
-                            Orientation="Horizontal"
-                            Spacing="14">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon
-                                    FontSize="14"
-                                    Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                                    Glyph="&#xE8D2;" />
-                                <TextBlock x:Uid="Main_119"
-                                    FontSize="12"
-                                    Foreground="{ThemeResource MutedTextBrush}"
-                                    Text="逐行歌词" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon
-                                    FontSize="14"
-                                    Foreground="{ThemeResource MutedTextBrush}"
-                                    Glyph="&#xE8D2;" />
-                                <TextBlock x:Uid="Main_120"
-                                    FontSize="12"
-                                    Foreground="{ThemeResource MutedTextBrush}"
-                                    Text="普通歌词" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Grid>
+                    <StackPanel x:Name="UpcomingQueueHeading" Spacing="4">
+                        <TextBlock x:Uid="Main_019"
+                            FontSize="28"
+                            FontWeight="SemiBold"
+                            Text="接下来播放" />
+                        <TextBlock
+                            x:Name="QueueSummaryText"
+                            FontSize="13"
+                            Foreground="{ThemeResource SubtleTextBrush}" />
+                    </StackPanel>
 
                     <Grid Grid.Row="1">
                         <ListView
@@ -526,8 +494,11 @@
                                         </StackPanel>
                                         <Grid
                                             Grid.Column="2"
+                                            Height="24"
                                             VerticalAlignment="Center"
-                                            Opacity="{x:Bind ContentOpacity, Mode=OneWay}">
+                                            Background="Transparent"
+                                            Opacity="{x:Bind ContentOpacity, Mode=OneWay}"
+                                            ToolTipService.ToolTip="{x:Bind LyricsKindText}">
                                             <FontIcon
                                                 FontSize="14"
                                                 Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"

@@ -52,14 +52,18 @@ public sealed class QueueItemInfo(
         get
         {
             var name = AppText.Format("{0}，{1}，{2}", "{0}, {1}, {2}", Name, ArtistName, DurationText);
-            if (HasTimeSyncedLyrics)
-            {
-                return name + AppText.Get("，逐行歌词", ", synced lyrics");
-            }
-
-            return HasPlainLyricsOnly ? name + AppText.Get("，普通歌词", ", plain lyrics") : name;
+            return LyricsKindText is { } lyricsKind
+                ? AppText.Format("{0}，{1}", "{0}, {1}", name, lyricsKind)
+                : name;
         }
     }
+
+    /// <summary>The lyrics kind shown when hovering the row's lyrics icon; null without lyrics.</summary>
+    public string? LyricsKindText => HasTimeSyncedLyrics
+        ? AppText.Get("逐行歌词", "Synced lyrics")
+        : HasPlainLyricsOnly
+            ? AppText.Get("普通歌词", "Plain lyrics")
+            : null;
 
     /// <summary>Artist and album, or the artist alone when Cider has no album name.</summary>
     public string SubtitleText => string.IsNullOrWhiteSpace(AlbumName) || AlbumName == "—"
