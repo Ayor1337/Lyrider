@@ -568,9 +568,12 @@
                                 Foreground="{ThemeResource MutedTextBrush}"
                                 Glyph="&#xE90B;" />
                             <TextBlock x:Uid="Main_021"
+                                x:Name="EmptyQueueMessageText"
+                                MaxWidth="320"
                                 Foreground="{ThemeResource MutedTextBrush}"
                                 Text="队列里还没有歌曲"
-                                TextAlignment="Center" />
+                                TextAlignment="Center"
+                                TextWrapping="Wrap" />
                         </StackPanel>
                     </Grid>
                 </Grid>

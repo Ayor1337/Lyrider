@@ -89,6 +89,9 @@ public sealed partial class MainWindow : Window
     private int _currentLyricIndex = -1;
     private int _commandFeedbackVersion;
     private int _refreshCount;
+    private CancellationTokenSource? _queueRefreshCancellation;
+    private string? _queueTrackKey;
+    private const int QueueRefreshTicks = 3;
     private int _renderedLyricsSignature;
     private double _lastPlaybackTime;
     private int _optimisticSeekIndex = -1;
@@ -482,6 +485,7 @@ public sealed partial class MainWindow : Window
                 }
 
                 _ = RefreshTrackDetailsAsync(track);
+                _ = RefreshQueueAsync(track, restart: true);
                 UpdatePlaybackSurfaces(track, playbackStatus);
             }
             else
@@ -489,9 +493,10 @@ public sealed partial class MainWindow : Window
                 RefreshLyricPlayback();
                 UpdatePlaybackSurfaces(track, playbackStatus);
                 _refreshCount++;
-                if (refreshQueue || _refreshCount % 5 == 0)
+                if (refreshQueue || _refreshCount % QueueRefreshTicks == 0)
                 {
-                    await RefreshQueueAsync(track);
+                    // Not awaited: a slow queue read must not hold up the playback refresh.
+                    _ = RefreshQueueAsync(track, restart: refreshQueue);
                 }
             }
         }
@@ -531,31 +536,13 @@ public sealed partial class MainWindow : Window
             UpdatePlaybackSurfaces(_latestTrack, _latestPlaybackStatus);
         }
 
-        async Task RefreshTrackQueueAsync()
-        {
-            var queue = await _ciderService.GetQueueAsync(
-                _appToken,
-                track.PlayParameters?.Id,
-                refreshCancellation.Token);
-            if (queue is not null &&
-                !refreshCancellation.IsCancellationRequested &&
-                ReferenceEquals(_lyricsRefreshCancellation, refreshCancellation) &&
-                string.Equals(expectedTrackKey, _currentTrackKey, StringComparison.Ordinal))
-            {
-                ApplyQueue(queue, track.PlayParameters?.Id);
-            }
-        }
-
         try
         {
-            var queueTask = RefreshTrackQueueAsync();
-            var lyricsTask = ResolveTrackLyricsAsync(
+            var lyrics = await ResolveTrackLyricsAsync(
                 track,
                 options,
                 refreshCancellation.Token,
                 ApplyLyrics);
-            await Task.WhenAll(queueTask, lyricsTask);
-            var lyrics = await lyricsTask;
             ApplyLyrics(lyrics);
         }
         catch (OperationCanceledException) when (refreshCancellation.IsCancellationRequested)
@@ -564,7 +551,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception)
         {
-            Debug.WriteLine("刷新歌词与队列失败，保留已显示的内容。");
+            Debug.WriteLine("刷新歌词失败，保留已显示的内容。");
         }
         finally
         {
@@ -577,17 +564,63 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async Task RefreshQueueAsync(NowPlayingInfo track)
+    /// <summary>
+    /// Reads the queue apart from the playback refresh, since Cider's queue endpoint can stall
+    /// for seconds while now-playing still answers at once.
+    /// </summary>
+    /// <param name="restart">
+    /// Drops a read already in flight, for when the queue is known to have changed (new track,
+    /// playback command); a periodic read leaves a running one alone.
+    /// </param>
+    private async Task RefreshQueueAsync(NowPlayingInfo track, bool restart)
     {
-        var queue = await _ciderService.GetQueueAsync(
-            _appToken,
-            track.PlayParameters?.Id,
-            _lifetimeCancellation.Token);
-        // A failed read keeps the queue already on screen instead of blanking it.
-        if (queue is not null &&
-            string.Equals(TrackIdentity.For(track), _currentTrackKey, StringComparison.Ordinal))
+        if (_queueRefreshCancellation is not null)
         {
-            ApplyQueue(queue, track.PlayParameters?.Id);
+            if (!restart)
+            {
+                return;
+            }
+
+            _queueRefreshCancellation.Cancel();
+        }
+
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
+        _queueRefreshCancellation = cancellation;
+        try
+        {
+            var queue = await _ciderService.GetQueueAsync(
+                _appToken,
+                track.PlayParameters?.Id,
+                cancellation.Token);
+            var trackKey = TrackIdentity.For(track);
+            if (cancellation.IsCancellationRequested ||
+                !string.Equals(trackKey, _currentTrackKey, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            if (queue is not null)
+            {
+                _queueTrackKey = trackKey;
+                ApplyQueue(queue, track.PlayParameters?.Id);
+            }
+            else if (!string.Equals(_queueTrackKey, trackKey, StringComparison.Ordinal))
+            {
+                // A failed read within a track keeps the list (it is still right); once the
+                // track has moved on, the list belongs to what played before and would mislead.
+                ShowQueueUnavailable();
+            }
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            // Superseded by a newer read, or the window is closing.
+        }
+        finally
+        {
+            if (ReferenceEquals(_queueRefreshCancellation, cancellation))
+            {
+                _queueRefreshCancellation = null;
+            }
         }
     }
 
@@ -904,8 +937,22 @@ public sealed partial class MainWindow : Window
         QueueCollectionSynchronizer.Synchronize(_queueItems, desiredItems);
 
         QueueSummaryText.Text = QueueSummary.Format(_queueItems);
+        EmptyQueueMessageText.Text = AppText.Get("队列里还没有歌曲", "Nothing in the queue yet");
         EmptyQueueText.Visibility = _queueItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         QueueListView.Visibility = _queueItems.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>
+    /// Cider can leave the queue request unanswered for some sources (seen with Favorite Songs
+    /// while playlists work), so say so instead of showing an empty or outdated list.
+    /// </summary>
+    private void ShowQueueUnavailable()
+    {
+        ApplyQueue(new QueueSnapshot([], -1));
+        QueueSummaryText.Text = string.Empty;
+        EmptyQueueMessageText.Text = AppText.Get(
+            "Cider 没有返回当前的播放队列",
+            "Cider didn't return the current queue");
     }
 
     /// <summary>
